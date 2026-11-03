@@ -6,6 +6,8 @@ liquidación, equipos y documentación. Los Excel no desaparecen: se generan des
 
 El plan completo está en [`docs/INICIO_PROYECTO.md`](docs/INICIO_PROYECTO.md).
 Las decisiones técnicas se registran en [`docs/decisiones/`](docs/decisiones/).
+El diseño de referencia de la interfaz (mockups y guía de estilos) está en [`docs/diseno/`](docs/diseno/);
+la página **Diseño** de la aplicación (solo Admin) muestra esas pantallas con datos de ejemplo.
 
 ## Tecnología
 
@@ -23,7 +25,7 @@ src/
 tests/
   Tekcom.Gestion.Domain.Tests/
   Tekcom.Gestion.Application.Tests/
-docs/                              Plan, ADR, logo y Excel de origen
+docs/                              Plan, ADR, diseño de referencia, logo y Excel de origen
 .github/workflows/                 CI: build + pruebas en cada PR
 ```
 
