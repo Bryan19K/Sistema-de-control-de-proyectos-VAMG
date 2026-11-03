@@ -1,0 +1,24 @@
+<div class="tk-card tk-kpi">
+    <div class="tk-kpi__label">
+        @Label
+        @if (Badge is not null)
+        {
+            <span class="tk-ref">@Badge</span>
+        }
+    </div>
+    <div class="tk-kpi__value">@Value</div>
+    @if (!string.IsNullOrEmpty(Note))
+    {
+        <div class="tk-kpi__note tk-kpi__note--@Tone.ToString().ToLowerInvariant()">@Note</div>
+    }
+</div>
+
+@code {
+    public enum NoteTone { Neutral, Success, Danger, Info, Warning }
+
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Value { get; set; } = string.Empty;
+    [Parameter] public string? Note { get; set; }
+    [Parameter] public NoteTone Tone { get; set; } = NoteTone.Neutral;
+    [Parameter] public int? Badge { get; set; }
+}

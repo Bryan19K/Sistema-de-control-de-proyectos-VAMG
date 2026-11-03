@@ -1,0 +1,10 @@
+<span class="tk-avatar tk-avatar--@Variant.ToString().ToLowerInvariant()" title="@Name">@Initial</span>
+
+@code {
+    public enum Style { Navy, Purple, Light, Muted }
+
+    [Parameter] public string? Name { get; set; }
+    [Parameter] public Style Variant { get; set; } = Style.Navy;
+
+    private string Initial => string.IsNullOrWhiteSpace(Name) ? "?" : Name.Trim()[..1].ToUpperInvariant();
+}

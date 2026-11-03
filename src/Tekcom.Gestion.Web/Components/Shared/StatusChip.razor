@@ -1,0 +1,32 @@
+<span class="tk-chip tk-chip--@Css">@(Text ?? DefaultText)</span>
+
+@code {
+    public enum Kind { Atrasado, Adelantado, EnTiempo, Vencida, Hoy, Manana, Dia, Ok, Bajo, Falta, Neutral }
+
+    [Parameter, EditorRequired] public Kind Status { get; set; }
+    /// <summary>Texto a mostrar; si se omite se usa el nombre del estado.</summary>
+    [Parameter] public string? Text { get; set; }
+
+    private string Css => Status switch
+    {
+        Kind.Atrasado or Kind.Vencida or Kind.Hoy or Kind.Falta => "danger",
+        Kind.Adelantado or Kind.Ok => "success",
+        Kind.EnTiempo or Kind.Dia => "info",
+        Kind.Manana or Kind.Bajo => "warning",
+        _ => "neutral",
+    };
+
+    private string DefaultText => Status switch
+    {
+        Kind.Atrasado => "Atrasado",
+        Kind.Adelantado => "Adelantado",
+        Kind.EnTiempo => "En tiempo",
+        Kind.Vencida => "Vencida",
+        Kind.Hoy => "Hoy",
+        Kind.Manana => "Mañana",
+        Kind.Ok => "OK",
+        Kind.Bajo => "Bajo",
+        Kind.Falta => "Falta",
+        _ => string.Empty,
+    };
+}

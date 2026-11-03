@@ -1,0 +1,30 @@
+@* Barra "avance vs. tiempo": el color sigue el indicador de ritmo del plan (margen 10 %). *@
+<div class="tk-pace">
+    <div class="tk-pace__track">
+        <div class="tk-pace__fill tk-pace__fill--@Tone" style="width:@(Math.Clamp(Progress, 0, 100))%"></div>
+    </div>
+    @if (ShowLabel)
+    {
+        <div class="tk-pace__label">@Progress% · tiempo @Elapsed%</div>
+    }
+</div>
+
+@code {
+    /// <summary>Porcentaje de avance (0-100).</summary>
+    [Parameter, EditorRequired] public int Progress { get; set; }
+    /// <summary>Porcentaje de tiempo transcurrido (0-100).</summary>
+    [Parameter, EditorRequired] public int Elapsed { get; set; }
+    [Parameter] public bool ShowLabel { get; set; } = true;
+    [Parameter] public int Margin { get; set; } = 10;
+
+    private string Tone
+    {
+        get
+        {
+            var diff = Progress - Elapsed;
+            if (diff > Margin) return "success";
+            if (diff < -Margin) return "danger";
+            return "info";
+        }
+    }
+}

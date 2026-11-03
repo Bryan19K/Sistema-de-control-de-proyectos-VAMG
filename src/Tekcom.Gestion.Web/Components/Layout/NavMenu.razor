@@ -1,25 +1,39 @@
-<MudNavMenu Bordered="true" Color="Color.Secondary">
-    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Inicio</MudNavLink>
+@inject NavigationManager Navigation
 
-    <MudText Typo="Typo.overline" Class="px-4 pt-4 d-block">Gestión</MudText>
-    <MudNavLink Href="proyectos" Icon="@Icons.Material.Filled.Folder">Proyectos</MudNavLink>
-    <MudNavLink Href="plan-de-trabajo" Icon="@Icons.Material.Filled.Timeline">Plan de trabajo</MudNavLink>
-    <MudNavLink Href="sprints" Icon="@Icons.Material.Filled.Loop">Sprints</MudNavLink>
-    <MudNavLink Href="tareas" Icon="@Icons.Material.Filled.CheckBox">Tareas</MudNavLink>
+<div class="tk-brand">
+    <span class="tk-brand__name">TEK-COM ·<br />Gestión</span>
+</div>
 
-    <MudText Typo="Typo.overline" Class="px-4 pt-4 d-block">Técnico</MudText>
-    <MudNavLink Href="sitios" Icon="@Icons.Material.Filled.CellTower">Sitios / Nodos</MudNavLink>
-    <MudNavLink Href="contratistas" Icon="@Icons.Material.Filled.Engineering">Contratistas</MudNavLink>
-    <MudNavLink Href="materiales" Icon="@Icons.Material.Filled.Category">Materiales</MudNavLink>
-    <MudNavLink Href="bodega" Icon="@Icons.Material.Filled.Warehouse">Bodega</MudNavLink>
-    <MudNavLink Href="proyeccion-de-diseno" Icon="@Icons.Material.Filled.DesignServices">Proyección de diseño</MudNavLink>
-    <MudNavLink Href="liquidacion" Icon="@Icons.Material.Filled.FactCheck">Liquidación</MudNavLink>
-    <MudNavLink Href="equipos" Icon="@Icons.Material.Filled.Router">Equipos y seriales</MudNavLink>
-    <MudNavLink Href="documentos" Icon="@Icons.Material.Filled.Description">Documentos</MudNavLink>
-
-    <MudText Typo="Typo.overline" Class="px-4 pt-4 d-block">Sistema</MudText>
-    <MudNavLink Href="reportes" Icon="@Icons.Material.Filled.Summarize">Reportes</MudNavLink>
+<MudNavMenu Class="tk-nav">
+    <MudNavLink Href="" Match="NavLinkMatch.All"><span class="tk-nav__dot"></span>Inicio</MudNavLink>
+    <MudNavLink Href="proyectos"><span class="tk-nav__dot"></span>Proyectos</MudNavLink>
+    <MudNavLink Href="plan-de-trabajo"><span class="tk-nav__dot"></span>Plan de trabajo</MudNavLink>
+    <MudNavLink Href="sprints"><span class="tk-nav__dot"></span>Sprints y tareas</MudNavLink>
+    <MudNavLink Href="nodos"><span class="tk-nav__dot"></span>Nodos y avance</MudNavLink>
+    <MudNavLink Href="materiales"><span class="tk-nav__dot"></span>Materiales</MudNavLink>
+    <MudNavLink Href="seriales"><span class="tk-nav__dot"></span>Seriales</MudNavLink>
+    <MudNavLink Href="documentos"><span class="tk-nav__dot"></span>Documentos</MudNavLink>
+    <MudNavLink Href="exportar"><span class="tk-nav__dot"></span>Exportar</MudNavLink>
     <AuthorizeView Roles="@AppRoles.Admin">
-        <MudNavLink Href="configuracion" Icon="@Icons.Material.Filled.Settings">Configuración</MudNavLink>
+        <MudNavLink Href="diseno"><span class="tk-nav__dot"></span>Diseño</MudNavLink>
     </AuthorizeView>
 </MudNavMenu>
+
+<div class="tk-nav__footer">
+    <AuthorizeView>
+        <Authorized>
+            <a href="Account/Manage" class="tk-nav__user" title="Mi cuenta">
+                <UserAvatar Name="@context.User.Identity?.Name" Variant="UserAvatar.Style.Light" />
+                <span class="tk-nav__user-name">@context.User.Identity?.Name</span>
+            </a>
+            <form action="Account/Logout" method="post">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="tk-nav__logout">Cerrar sesión</button>
+            </form>
+        </Authorized>
+        <NotAuthorized>
+            <a href="Account/Login" class="tk-nav__logout">Iniciar sesión</a>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>

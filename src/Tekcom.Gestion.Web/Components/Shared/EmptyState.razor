@@ -1,0 +1,16 @@
+<div class="tk-empty">
+    <MudIcon Icon="@Icon" Class="tk-empty__icon" />
+    <div class="tk-empty__title">@Title</div>
+    @if (!string.IsNullOrEmpty(Description))
+    {
+        <div class="tk-empty__text">@Description</div>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public string Icon { get; set; } = Icons.Material.Outlined.Inbox;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

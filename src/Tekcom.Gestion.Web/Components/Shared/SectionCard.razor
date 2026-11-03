@@ -1,0 +1,24 @@
+<section class="tk-card tk-section @Class">
+    @if (Title is not null || HeaderActions is not null)
+    {
+        <header class="tk-section__header">
+            <h2 class="tk-section__title">@Title</h2>
+            <div class="tk-section__header-right">
+                @HeaderActions
+                @if (Badge is not null)
+                {
+                    <span class="tk-ref">@Badge</span>
+                }
+            </div>
+        </header>
+    }
+    @ChildContent
+</section>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public int? Badge { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? HeaderActions { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

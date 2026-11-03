@@ -5,39 +5,22 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout>
-    <MudAppBar Elevation="1">
+<MudLayout Class="tk-layout">
+    <MudAppBar Elevation="0" Class="tk-appbar-mobile" Dense="true">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
                        OnClick="ToggleDrawer" aria-label="Abrir o cerrar menú" />
-        <MudText Typo="Typo.h6" Class="ml-2">TEK-COM · Gestión de proyectos</MudText>
-        <MudSpacer />
-        <AuthorizeView>
-            <Authorized>
-                <MudText Typo="Typo.body2" Class="mr-2 d-none d-sm-flex">@context.User.Identity?.Name</MudText>
-                <MudIconButton Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit"
-                               Href="Account/Manage" aria-label="Mi cuenta" />
-                <form action="Account/Logout" method="post" class="d-inline">
-                    <AntiforgeryToken />
-                    <input type="hidden" name="ReturnUrl" value="" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit"
-                                   ButtonType="ButtonType.Submit" aria-label="Cerrar sesión" />
-                </form>
-            </Authorized>
-            <NotAuthorized>
-                <MudButton Href="Account/Login" Color="Color.Inherit" Variant="Variant.Text"
-                           StartIcon="@Icons.Material.Filled.Login">Iniciar sesión</MudButton>
-            </NotAuthorized>
-        </AuthorizeView>
+        <MudText Typo="Typo.subtitle1" Class="ml-1" Style="color:#fff">TEK-COM · Gestión</MudText>
     </MudAppBar>
 
-    <MudDrawer @bind-Open="drawerOpen" Elevation="1" ClipMode="DrawerClipMode.Always" Breakpoint="Breakpoint.Md">
+    <MudDrawer @bind-Open="drawerOpen" Elevation="0" Variant="DrawerVariant.Responsive"
+               Breakpoint="Breakpoint.Md" ClipMode="DrawerClipMode.Never" Class="tk-drawer">
         <NavMenu />
     </MudDrawer>
 
-    <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-6">
+    <MudMainContent Class="tk-main">
+        <div class="tk-page">
             @Body
-        </MudContainer>
+        </div>
     </MudMainContent>
 </MudLayout>
 
