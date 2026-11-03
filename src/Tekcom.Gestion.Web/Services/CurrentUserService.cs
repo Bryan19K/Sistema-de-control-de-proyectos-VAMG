@@ -8,6 +8,8 @@ namespace Tekcom.Gestion.Web.Services;
 /// Obtiene el usuario actual tanto en peticiones HTTP normales (páginas de
 /// cuenta, endpoints) como dentro de un circuito interactivo de Blazor Server,
 /// donde HttpContext no está disponible y se usa AuthenticationStateProvider.
+/// Fuera de ambos contextos (semilla al arrancar, trabajos programados) no hay
+/// usuario y devuelve null: la auditoría queda registrada como del sistema.
 /// </summary>
 public sealed class CurrentUserService(
     IHttpContextAccessor httpContextAccessor,
@@ -29,9 +31,17 @@ public sealed class CurrentUserService(
                 return httpUser;
             }
 
-            var stateTask = authenticationStateProvider.GetAuthenticationStateAsync();
-            var state = stateTask.IsCompleted ? stateTask.Result : stateTask.GetAwaiter().GetResult();
-            return state.User;
+            try
+            {
+                var stateTask = authenticationStateProvider.GetAuthenticationStateAsync();
+                var state = stateTask.IsCompleted ? stateTask.Result : stateTask.GetAwaiter().GetResult();
+                return state.User;
+            }
+            catch (InvalidOperationException)
+            {
+                // No hay circuito de Blazor ni petición HTTP: proceso del sistema.
+                return null;
+            }
         }
     }
 }
