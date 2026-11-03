@@ -72,18 +72,13 @@ h1:focus { outline: none; }
     gap: 14px;
 }
 
-.tk-nav .mud-nav-link .mud-nav-link-text {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-}
-
-.tk-nav__dot {
-    width: 18px;
-    height: 18px;
-    border-radius: 5px;
-    background: rgba(255, 255, 255, 0.22);
-    flex: 0 0 auto;
+.tk-nav .mud-nav-link .mud-nav-link-icon,
+.tk-nav .mud-nav-link .mud-icon-root {
+    color: #9fb0c4;
+    font-size: 1.35rem;
+    width: 1.35rem;
+    height: 1.35rem;
+    margin-right: 0;
 }
 
 .tk-nav .mud-nav-link:hover {
@@ -91,16 +86,21 @@ h1:focus { outline: none; }
     color: #fff;
 }
 
-.tk-nav .mud-nav-link.active,
-.tk-nav .mud-nav-link.active .mud-nav-link-text,
-.tk-nav .mud-nav-link.active.mud-primary-text {
+.tk-nav .mud-nav-link.active {
     background: rgba(255, 255, 255, 0.12);
-    color: #fff !important;
     border-left-color: var(--tk-orange);
 }
 
-.tk-nav .mud-nav-link.active .tk-nav__dot {
-    background: rgba(255, 255, 255, 0.5);
+.tk-nav .mud-nav-link.active,
+.tk-nav .mud-nav-link.active .mud-nav-link-text,
+.tk-nav .mud-nav-link.active.mud-primary-text {
+    color: #fff !important;
+}
+
+.tk-nav .mud-nav-link.active .mud-nav-link-icon,
+.tk-nav .mud-nav-link.active .mud-icon-root,
+.tk-nav .mud-nav-link:hover .mud-icon-root {
+    color: #fff;
 }
 
 .tk-nav__footer {

@@ -1,21 +1,19 @@
-@inject NavigationManager Navigation
-
 <div class="tk-brand">
     <span class="tk-brand__name">TEK-COM ·<br />Gestión</span>
 </div>
 
 <MudNavMenu Class="tk-nav">
-    <MudNavLink Href="" Match="NavLinkMatch.All"><span class="tk-nav__dot"></span>Inicio</MudNavLink>
-    <MudNavLink Href="proyectos"><span class="tk-nav__dot"></span>Proyectos</MudNavLink>
-    <MudNavLink Href="plan-de-trabajo"><span class="tk-nav__dot"></span>Plan de trabajo</MudNavLink>
-    <MudNavLink Href="sprints"><span class="tk-nav__dot"></span>Sprints y tareas</MudNavLink>
-    <MudNavLink Href="nodos"><span class="tk-nav__dot"></span>Nodos y avance</MudNavLink>
-    <MudNavLink Href="materiales"><span class="tk-nav__dot"></span>Materiales</MudNavLink>
-    <MudNavLink Href="seriales"><span class="tk-nav__dot"></span>Seriales</MudNavLink>
-    <MudNavLink Href="documentos"><span class="tk-nav__dot"></span>Documentos</MudNavLink>
-    <MudNavLink Href="exportar"><span class="tk-nav__dot"></span>Exportar</MudNavLink>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Rounded.Dashboard">Inicio</MudNavLink>
+    <MudNavLink Href="proyectos" Icon="@Icons.Material.Rounded.Folder">Proyectos</MudNavLink>
+    <MudNavLink Href="plan-de-trabajo" Icon="@Icons.Material.Rounded.Timeline">Plan de trabajo</MudNavLink>
+    <MudNavLink Href="sprints" Icon="@Icons.Material.Rounded.ViewKanban">Sprints y tareas</MudNavLink>
+    <MudNavLink Href="nodos" Icon="@Icons.Material.Rounded.CellTower">Nodos y avance</MudNavLink>
+    <MudNavLink Href="materiales" Icon="@Icons.Material.Rounded.Inventory2">Materiales</MudNavLink>
+    <MudNavLink Href="seriales" Icon="@Icons.Material.Rounded.QrCode2">Seriales</MudNavLink>
+    <MudNavLink Href="documentos" Icon="@Icons.Material.Rounded.Description">Documentos</MudNavLink>
+    <MudNavLink Href="exportar" Icon="@Icons.Material.Rounded.FileDownload">Exportar</MudNavLink>
     <AuthorizeView Roles="@AppRoles.Admin">
-        <MudNavLink Href="diseno"><span class="tk-nav__dot"></span>Diseño</MudNavLink>
+        <MudNavLink Href="diseno" Icon="@Icons.Material.Rounded.Palette">Diseño</MudNavLink>
     </AuthorizeView>
 </MudNavMenu>
 
