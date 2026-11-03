@@ -40,6 +40,11 @@ docs/                              Plan, ADR, diseño de referencia, logo y Exce
 
 - Visual Studio 2022/2026 o VS Code con la extensión C# Dev Kit (opcional)
 
+## Verlo sin instalar nada (GitHub Codespaces)
+
+El repositorio trae un Dev Container con .NET 10 y SQL Server listos. Pasos en
+[`.devcontainer/README.md`](.devcontainer/README.md).
+
 ## Correr en local
 
 1. **Clonar y restaurar**

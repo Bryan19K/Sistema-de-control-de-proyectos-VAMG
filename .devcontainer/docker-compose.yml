@@ -1,0 +1,19 @@
+# Entorno de desarrollo para GitHub Codespaces / VS Code Dev Containers.
+# Las contraseñas de aquí son SOLO para este entorno desechable; nunca se usan en producción.
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/base:ubuntu-24.04
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    depends_on:
+      - db
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Codespace.Dev1!"
+      MSSQL_PID: "Express"
+    ports:
+      - "1433:1433"
