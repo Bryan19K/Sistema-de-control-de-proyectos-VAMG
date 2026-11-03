@@ -1,0 +1,21 @@
+@page "/diseno"
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+<PageTitle>Diseño · TEK-COM</PageTitle>
+
+<PageHeader Title="Diseño del sistema"
+            Subtitle="Las seis pantallas de referencia, tal como se verán cuando cada sprint las conecte a datos reales." />
+
+<div class="tk-sample-banner">
+    <MudIcon Icon="@Icons.Material.Outlined.Info" />
+    <span><strong>Datos de ejemplo.</strong> Todo lo que se muestra aquí es ficticio y sirve solo para validar el diseño. Los mockups originales están en <code>docs/diseno/</code>.</span>
+</div>
+
+<MudTabs Elevation="0" Rounded="true" Color="Color.Primary" Class="tk-design-tabs" ApplyEffectsToContainer="true">
+    <MudTabPanel Text="Inicio"><DesignHome /></MudTabPanel>
+    <MudTabPanel Text="Plan de trabajo"><DesignGantt /></MudTabPanel>
+    <MudTabPanel Text="Sprint"><DesignSprint /></MudTabPanel>
+    <MudTabPanel Text="Exportar"><DesignExport /></MudTabPanel>
+    <MudTabPanel Text="Liquidación"><DesignLiquidation /></MudTabPanel>
+    <MudTabPanel Text="Bodega"><DesignWarehouse /></MudTabPanel>
+</MudTabs>

@@ -1,0 +1,66 @@
+<PageHeader Title="Buenos días, Bryan" Subtitle="Viernes 30 de octubre de 2026">
+    <Actions>
+        <button type="button" class="tk-btn tk-btn--outline">Exportar resumen</button>
+        <button type="button" class="tk-btn tk-btn--primary">+ Nueva tarea</button>
+    </Actions>
+</PageHeader>
+
+<div class="tk-kpi-grid">
+    <KpiCard Label="Proyectos activos" Badge="1" Value="5" Note="3 en tiempo" Tone="KpiCard.NoteTone.Success" />
+    <KpiCard Label="Tareas vencidas" Value="4" Note="2 desde ayer" Tone="KpiCard.NoteTone.Danger" />
+    <KpiCard Label="Tareas esta semana" Value="18" Note="11 completadas" Tone="KpiCard.NoteTone.Info" />
+    <KpiCard Label="Materiales con stock bajo" Value="6" Note="Revisar bodega" Tone="KpiCard.NoteTone.Warning" />
+</div>
+
+<div class="tk-dash-grid">
+    <SectionCard Title="Proyectos" Badge="2">
+        <div class="tk-table-wrap">
+            <table class="tk-table">
+                <thead>
+                    <tr><th>Proyecto</th><th>Tipo</th><th>Avance vs. tiempo</th><th>Estado</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Projects)
+                    {
+                        <tr>
+                            <td>@p.Name</td>
+                            <td>@p.Type</td>
+                            <td><PaceBar Progress="p.Progress" Elapsed="p.Elapsed" /></td>
+                            <td><StatusChip Status="p.Status" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </SectionCard>
+
+    <div class="tk-stack">
+        <SectionCard Title="Vence pronto" Badge="3">
+            <ul class="tk-list">
+                <li class="tk-list__item"><StatusChip Status="StatusChip.Kind.Hoy" /> Entregar ATP OLT Sonsonate</li>
+                <li class="tk-list__item"><StatusChip Status="StatusChip.Kind.Manana" /> Conteo de bodega SON22</li>
+                <li class="tk-list__item"><StatusChip Status="StatusChip.Kind.Manana" Text="Lun" /> Minuta semanal de proyectos</li>
+                <li class="tk-list__item"><StatusChip Status="StatusChip.Kind.Dia" Text="Mié" /> Fotos de cierre Escalón 93</li>
+            </ul>
+        </SectionCard>
+
+        <SectionCard Title="Sprint actual · Sonsonate" Badge="4">
+            <div class="tk-sprint-meta">Sprint 3 · 20 oct – 6 nov</div>
+            <PaceBar Progress="38" Elapsed="62" ShowLabel="false" />
+            <div class="tk-sprint-summary">38% hecho · 62% del tiempo · <strong>3 días de atraso</strong></div>
+        </SectionCard>
+    </div>
+</div>
+
+@code {
+    private sealed record ProjectRow(string Name, string Type, int Progress, int Elapsed, StatusChip.Kind Status);
+
+    private static readonly ProjectRow[] Projects =
+    [
+        new("FTTH Nextwave Sonsonate", "FTTH", 42, 61, StatusChip.Kind.Atrasado),
+        new("Escalón 93", "FTTH", 88, 70, StatusChip.Kind.Adelantado),
+        new("Citalá Haus", "FTTH", 55, 52, StatusChip.Kind.EnTiempo),
+        new("Florencia", "FTTH", 30, 33, StatusChip.Kind.EnTiempo),
+        new("Proyecto general (ejemplo)", "General", 20, 25, StatusChip.Kind.EnTiempo),
+    ];
+}

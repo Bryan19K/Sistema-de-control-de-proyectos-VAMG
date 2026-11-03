@@ -1,0 +1,65 @@
+<PageHeader Title="Liquidación · Nodo SON22" Subtitle="Proyección de diseño v2 (14 oct) · Contratista: Brigada SON22">
+    <Actions>
+        <button type="button" class="tk-btn tk-btn--outline">Importar proyección</button>
+        <button type="button" class="tk-btn tk-btn--outline">+ Devolución</button>
+        <button type="button" class="tk-btn tk-btn--navy">Generar acta</button>
+    </Actions>
+</PageHeader>
+
+<div class="tk-kpi-grid">
+    <KpiCard Label="Materiales del nodo" Value="14" Note="3 con variación" Tone="KpiCard.NoteTone.Info" />
+    <KpiCard Label="Sobrante total" Value="38" Note="unidades" Tone="KpiCard.NoteTone.Warning" />
+    <KpiCard Label="Pendiente por devolver" Value="12" Note="bloquea el cierre" Tone="KpiCard.NoteTone.Danger" />
+    <KpiCard Label="Precisión de diseño" Value="91%" Note="instalado vs. proyectado" Tone="KpiCard.NoteTone.Success" />
+</div>
+
+<SectionCard Title="Comparación por material">
+    <HeaderActions><span>Filtro: con diferencia ▾</span></HeaderActions>
+    <ChildContent>
+        <div class="tk-table-wrap">
+            <table class="tk-table">
+                <thead>
+                    <tr><th>Material</th><th>Proyectado</th><th>Entregado</th><th>Instalado</th><th>Sobrante</th><th>Devuelto</th><th>Pendiente</th><th>Var. diseño</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Rows)
+                    {
+                        var surplus = r.Delivered - r.Installed;
+                        var pending = surplus - r.Returned;
+                        var variation = r.Projected == 0 ? 0 : (int)Math.Round((r.Installed - r.Projected) * 100.0 / r.Projected);
+                        <tr>
+                            <td>@r.Material</td>
+                            <td class="num">@r.Projected</td>
+                            <td class="num">@r.Delivered</td>
+                            <td class="num">@r.Installed</td>
+                            <td class="num">@surplus</td>
+                            <td class="num">@r.Returned</td>
+                            <td class="num @(pending > 0 ? "text-danger" : "")">@pending</td>
+                            <td class="num @(variation <= -100 ? "text-warning" : variation > 10 ? "text-danger" : variation < 0 ? "text-success" : "")">@(variation > 0 ? "+" : "")@variation%</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="tk-alert tk-alert--danger mt-4">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" />
+            <span>No se puede cerrar el nodo: hay 12 unidades pendientes por devolver o justificar (NAP de paso 8, Aro de sujeción 4).</span>
+        </div>
+    </ChildContent>
+</SectionCard>
+
+@code {
+    // Las columnas Sobrante, Pendiente y Var. diseño se calculan con las fórmulas del plan (4.1):
+    // sobrante = entregado − instalado · pendiente = sobrante − devuelto · variación = instalado − proyectado.
+    private sealed record Row(string Material, int Projected, int Delivered, int Installed, int Returned);
+
+    private static readonly Row[] Rows =
+    [
+        new("NAP de paso", 110, 120, 102, 10),
+        new("NAP final", 70, 69, 66, 3),
+        new("Cable FC SC/APC 50 m", 140, 150, 141, 9),
+        new("Aro de sujeción", 120, 118, 114, 0),
+        new("Fibra óptica 500 m", 3, 4, 4, 0),
+        new("Cinta Band-It", 4, 4, 0, 4),
+    ];
+}

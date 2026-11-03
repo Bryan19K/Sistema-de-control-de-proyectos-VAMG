@@ -1,0 +1,79 @@
+<PageHeader Title="Bodega · FTTH Nextwave Sonsonate" Subtitle="Corte al 30 oct 2026">
+    <Actions>
+        <button type="button" class="tk-btn tk-btn--outline">+ Ingreso</button>
+        <button type="button" class="tk-btn tk-btn--primary">+ Entrega a contratista</button>
+        <button type="button" class="tk-btn tk-btn--navy">Exportar</button>
+    </Actions>
+</PageHeader>
+
+<div class="tk-dash-grid">
+    <SectionCard Title="Stock por material">
+        <HeaderActions><span>🔍 Buscar · Categoría ▾</span></HeaderActions>
+        <ChildContent>
+            <div class="tk-table-wrap">
+                <table class="tk-table">
+                    <thead><tr><th>Material</th><th>UM</th><th>Recibido</th><th>Entregado</th><th>Stock</th><th>Estado</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in Rows)
+                        {
+                            var stock = r.Received - r.Delivered;
+                            <tr>
+                                <td>@r.Material @if (r.Alias is not null) { <span class="muted"> (@r.Alias)</span> }</td>
+                                <td>@r.Unit</td>
+                                <td class="num">@r.Received</td>
+                                <td class="num">@r.Delivered</td>
+                                <td class="num strong @(stock <= 0 ? "text-danger" : stock <= r.Minimum ? "text-warning" : "")">@stock</td>
+                                <td>
+                                    @if (r.Shortage > 0)
+                                    {
+                                        <StatusChip Status="StatusChip.Kind.Falta" Text="@($"Faltan {r.Shortage}")" />
+                                    }
+                                    else if (stock <= r.Minimum)
+                                    {
+                                        <StatusChip Status="StatusChip.Kind.Bajo" />
+                                    }
+                                    else
+                                    {
+                                        <StatusChip Status="StatusChip.Kind.Ok" />
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </ChildContent>
+    </SectionCard>
+
+    <SectionCard Title="Nueva entrega">
+        <div class="tk-form-field"><label>Nodo</label><select><option>SON22</option></select></div>
+        <div class="tk-form-field"><label>Contratista / recibe</label><select><option>Brigada SON22</option></select></div>
+        <div class="tk-form-field"><label>Material</label><select><option>Cable MPO 400 m</option></select></div>
+        <div class="tk-form-field"><label>Cantidad</label><input type="text" value="2" readonly /></div>
+        <div class="tk-alert tk-alert--danger mb-4">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" />
+            <span>Stock insuficiente: hay 0 disponibles. Registrá un ingreso o ajustá la cantidad.</span>
+        </div>
+        <div class="tk-form-field"><label>Fecha</label><input type="text" value="30/10/2026" readonly /></div>
+        <div class="form-actions form-actions--row">
+            <button type="button" class="tk-btn tk-btn--outline">Cancelar</button>
+            <button type="button" class="tk-btn" disabled>Guardar</button>
+        </div>
+    </SectionCard>
+</div>
+
+@code {
+    // Stock = recibido − entregado (principio 2: el stock se calcula, no se guarda).
+    private sealed record Row(string Material, string? Alias, string Unit, int Received, int Delivered, int Minimum = 2, int Shortage = 0);
+
+    private static readonly Row[] Rows =
+    [
+        new("NAP de paso", "SUB-BOX", "UND", 160, 142),
+        new("NAP final", "END-BOX", "UND", 80, 69),
+        new("Cable MPO 400 m", null, "UND", 6, 6, Shortage: 3),
+        new("Fibra óptica 500 m", null, "UND", 10, 9),
+        new("Cable FC SC/APC 50 m", null, "UND", 400, 300),
+        new("Cinta Band-It", null, "RLL", 12, 7),
+        new("Aro de sujeción", null, "UND", 300, 236),
+    ];
+}

@@ -1,18 +1,96 @@
 @page "/"
 @attribute [Authorize]
+@using System.Globalization
+@using Microsoft.AspNetCore.Identity
+@using Tekcom.Gestion.Infrastructure.Identity
+@using Tekcom.Gestion.Application.Common.Interfaces
+@inject AuthenticationStateProvider AuthState
+@inject UserManager<ApplicationUser> UserManager
+@inject IDateTimeProvider Clock
 
 <PageTitle>Inicio · TEK-COM</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">Inicio</MudText>
-<MudText Typo="Typo.body1" Class="mb-6">
-    Bienvenido al sistema de gestión de proyectos de TEK-COM.
-</MudText>
+<PageHeader Title="@Greeting" Subtitle="@TodayText">
+    <Actions>
+        <a href="exportar" class="tk-btn tk-btn--outline">Exportar resumen</a>
+        <a href="sprints" class="tk-btn tk-btn--primary">+ Nueva tarea</a>
+    </Actions>
+</PageHeader>
 
-<MudPaper Class="pa-6" Elevation="1">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-        <MudIcon Icon="@Icons.Material.Filled.Construction" Color="Color.Secondary" Size="Size.Large" />
-        <MudText Typo="Typo.body2">
-            El tablero de indicadores se construirá en el Sprint 5. Por ahora use el menú lateral para navegar.
-        </MudText>
-    </MudStack>
-</MudPaper>
+<div class="tk-kpi-grid">
+    <KpiCard Label="Proyectos activos" Value="0" Note="Sin proyectos todavía" />
+    <KpiCard Label="Tareas vencidas" Value="0" Note="Sin tareas registradas" />
+    <KpiCard Label="Tareas esta semana" Value="0" Note="0 completadas" Tone="KpiCard.NoteTone.Info" />
+    <KpiCard Label="Materiales con stock bajo" Value="0" Note="Sin catálogo todavía" />
+</div>
+
+<div class="tk-dash-grid">
+    <SectionCard Title="Proyectos">
+        <EmptyState Title="Todavía no hay proyectos"
+                    Description="Los proyectos se crean en el Sprint 1. Aquí verás cada uno con su tipo, avance vs. tiempo y estado (Atrasado, En tiempo, Adelantado)."
+                    Icon="@Icons.Material.Outlined.FolderOpen" />
+    </SectionCard>
+
+    <div class="tk-stack">
+        <SectionCard Title="Vence pronto">
+            <EmptyState Title="Sin tareas por vencer"
+                        Description="Las tareas con fecha límite aparecerán aquí a partir del Sprint 2."
+                        Icon="@Icons.Material.Outlined.EventAvailable" />
+        </SectionCard>
+
+        <SectionCard Title="Sprint actual">
+            <EmptyState Title="Ningún sprint en curso"
+                        Description="Cuando haya un sprint activo verás aquí su avance, el tiempo transcurrido y los días de adelanto o atraso."
+                        Icon="@Icons.Material.Outlined.Loop" />
+        </SectionCard>
+    </div>
+</div>
+
+@code {
+    private static readonly CultureInfo Culture = new("es-SV");
+    private string firstName = string.Empty;
+
+    private string Greeting
+    {
+        get
+        {
+            var hour = TimeZoneInfo.ConvertTime(Clock.UtcNow, LocalTimeZone).Hour;
+            var salute = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+            return string.IsNullOrEmpty(firstName) ? salute : $"{salute}, {firstName}";
+        }
+    }
+
+    private string TodayText
+    {
+        get
+        {
+            var text = TimeZoneInfo.ConvertTime(Clock.UtcNow, LocalTimeZone).ToString("dddd d 'de' MMMM 'de' yyyy", Culture);
+            return char.ToUpper(text[0], Culture) + text[1..];
+        }
+    }
+
+    private static TimeZoneInfo LocalTimeZone
+    {
+        get
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById("America/El_Salvador"); }
+            catch (TimeZoneNotFoundException) { return TimeZoneInfo.Local; }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var userId = UserManager.GetUserId(state.User);
+        if (userId is null)
+        {
+            return;
+        }
+
+        var user = await UserManager.FindByIdAsync(userId);
+        var fullName = user?.FullName;
+        firstName = string.IsNullOrWhiteSpace(fullName)
+            ? string.Empty
+            : fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+    }
+}

@@ -1,0 +1,84 @@
+<PageHeader Title="FTTH Nextwave Sonsonate · Plan de trabajo" Subtitle='Plantilla: "Plan FTTH estándar" · 8 semanas'>
+    <Actions>
+        <button type="button" class="tk-btn tk-btn--outline is-active">Gantt</button>
+        <button type="button" class="tk-btn tk-btn--muted">Tabla</button>
+        <button type="button" class="tk-btn tk-btn--outline">Personalizar</button>
+        <button type="button" class="tk-btn tk-btn--navy">Exportar Excel / PDF</button>
+    </Actions>
+</PageHeader>
+
+<div class="tk-card tk-gantt" style="--tk-gantt-cols:@Weeks">
+    <div class="tk-gantt__head">
+        <div>Actividad</div>
+        @for (var w = 1; w <= Weeks; w++)
+        {
+            <div>S@(w)</div>
+        }
+    </div>
+    @foreach (var row in Rows)
+    {
+        <div class="tk-gantt__row @(row.IsPhase ? "tk-gantt__row--phase" : "")">
+            <div class="tk-gantt__label">@row.Name @(row.IsMilestone ? "◆" : "")</div>
+            <div class="tk-gantt__bars">
+                @for (var w = 0; w < Weeks; w++)
+                {
+                    <div class="tk-gantt__cell"></div>
+                }
+                @if (row.IsMilestone)
+                {
+                    <div class="tk-gantt__milestone" style="left:@Pct(row.PlanStart)%"></div>
+                }
+                else
+                {
+                    <div class="tk-gantt__bar tk-gantt__bar--planned" style="left:@Pct(row.PlanStart)%; width:@Pct(row.PlanEnd - row.PlanStart)%"></div>
+                    @if (row.ActualEnd > row.ActualStart)
+                    {
+                        <div class="tk-gantt__bar tk-gantt__bar--@row.Tone" style="left:@Pct(row.ActualStart)%; width:@Pct(row.ActualEnd - row.ActualStart)%"></div>
+                    }
+                }
+                <div class="tk-gantt__today" style="left:@Pct(Today)%"></div>
+            </div>
+        </div>
+    }
+</div>
+
+<div class="tk-two-col mt-6">
+    <SectionCard Title="Resumen del plan">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:1.05rem">
+            <span>Avance 42% · Tiempo 61% ·</span>
+            <StatusChip Status="StatusChip.Kind.Atrasado" Text="Atrasado 9 días" />
+        </div>
+        <div class="mt-2" style="color:var(--tk-text-2)">Cierre proyectado: 21 dic (planificado: 12 dic)</div>
+    </SectionCard>
+    <SectionCard Title="Leyenda">
+        <div class="tk-legend">
+            <span class="tk-legend__item"><span class="tk-legend__swatch" style="background:var(--tk-planned)"></span> Planificado</span>
+            <span class="tk-legend__item"><span class="tk-legend__swatch" style="background:#1e9e55"></span> Real a tiempo</span>
+            <span class="tk-legend__item"><span class="tk-legend__swatch" style="background:#d13b3b"></span> Real atrasado</span>
+            <span class="tk-legend__item"><span style="display:inline-block;width:14px;height:14px;background:var(--tk-navy);transform:rotate(45deg);border-radius:3px"></span> Hito</span>
+        </div>
+    </SectionCard>
+</div>
+
+@code {
+    private const int Weeks = 8;
+    private const double Today = 5.0; // línea "hoy" al inicio de la semana 6
+
+    private static string Pct(double weeks) => (weeks / Weeks * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private sealed record GanttRow(string Name, bool IsPhase, double PlanStart, double PlanEnd, double ActualStart, double ActualEnd, string Tone, bool IsMilestone = false);
+
+    private static readonly GanttRow[] Rows =
+    [
+        new("Fase 1 · Preparación", true, 0, 2, 0, 2, "success"),
+        new("Recepción de materiales", false, 0, 1, 0, 1, "success"),
+        new("Instalación de OLT", false, 1, 2, 1, 2, "success"),
+        new("Fase 2 · Construcción ODN", true, 2, 6, 2, 4.1, "danger"),
+        new("Nodo SON19", false, 2, 5, 2, 3.6, "danger"),
+        new("Nodo SON22", false, 2, 5, 2, 4.4, "info"),
+        new("Nodo SON23", false, 3, 6, 3, 3.5, "danger"),
+        new("Fase 3 · Cierre", true, 6, 8, 6, 6, "success"),
+        new("Pruebas y ATP", false, 6, 7, 6, 6, "success"),
+        new("Entrega al cliente", false, 7.8, 7.8, 0, 0, "success", IsMilestone: true),
+    ];
+}
