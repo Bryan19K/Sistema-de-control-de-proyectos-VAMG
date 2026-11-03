@@ -1,0 +1,80 @@
+@page "/Account/LoginWithRecoveryCode"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Tekcom.Gestion.Infrastructure.Identity
+
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject IdentityRedirectManager RedirectManager
+@inject ILogger<LoginWithRecoveryCode> Logger
+
+<PageTitle>Código de recuperación · TEK-COM</PageTitle>
+
+<h1 class="mud-typography mud-typography-h5 mb-1">Ingresar con código de recuperación</h1>
+<p class="mud-typography mud-typography-body2 mb-4">
+    Este inicio de sesión no se recordará en el dispositivo. Para que se recuerde, ingrese con el código de la
+    aplicación de autenticación o desactive la verificación en dos pasos.
+</p>
+<StatusMessage Message="@message" />
+<EditForm Model="Input" FormName="login-with-recovery-code" OnValidSubmit="OnValidSubmitAsync" method="post">
+    <DataAnnotationsValidator />
+    <div class="form-field">
+        <label for="Input.RecoveryCode">Código de recuperación</label>
+        <InputText @bind-Value="Input.RecoveryCode" id="Input.RecoveryCode" type="text" autocomplete="off" />
+        <ValidationMessage For="() => Input.RecoveryCode" />
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn-primary">Ingresar</button>
+    </div>
+</EditForm>
+
+@code {
+    private string? message;
+    private ApplicationUser user = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        user = await SignInManager.GetTwoFactorAuthenticationUserAsync() ??
+            throw new InvalidOperationException("No se pudo cargar el usuario de verificación en dos pasos.");
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        var recoveryCode = Input.RecoveryCode.Replace(" ", string.Empty);
+        var result = await SignInManager.TwoFactorRecoveryCodeSignInAsync(recoveryCode);
+        var userId = await UserManager.GetUserIdAsync(user);
+
+        if (result.Succeeded)
+        {
+            Logger.LogInformation("El usuario '{UserId}' inició sesión con un código de recuperación.", userId);
+            RedirectManager.RedirectTo(ReturnUrl);
+        }
+        else if (result.IsLockedOut)
+        {
+            Logger.LogWarning("La cuenta del usuario '{UserId}' fue bloqueada.", userId);
+            RedirectManager.RedirectTo("Account/Lockout");
+        }
+        else
+        {
+            Logger.LogWarning("Código de recuperación inválido para el usuario '{UserId}'.", userId);
+            message = "Error: El código de recuperación no es válido.";
+        }
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "El código de recuperación es obligatorio.")]
+        [DataType(DataType.Text)]
+        [Display(Name = "Código de recuperación")]
+        public string RecoveryCode { get; set; } = "";
+    }
+}

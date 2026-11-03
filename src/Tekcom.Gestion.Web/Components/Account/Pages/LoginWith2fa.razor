@@ -1,0 +1,96 @@
+@page "/Account/LoginWith2fa"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Tekcom.Gestion.Infrastructure.Identity
+
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject IdentityRedirectManager RedirectManager
+@inject ILogger<LoginWith2fa> Logger
+
+<PageTitle>Verificación en dos pasos · TEK-COM</PageTitle>
+
+<h1 class="mud-typography mud-typography-h5 mb-1">Verificación en dos pasos</h1>
+<p class="mud-typography mud-typography-body2 mb-4">
+    Su cuenta está protegida con una aplicación de autenticación. Ingrese el código que muestra la aplicación.
+</p>
+<StatusMessage Message="@message" />
+<EditForm Model="Input" FormName="login-with-2fa" OnValidSubmit="OnValidSubmitAsync" method="post">
+    <input type="hidden" name="ReturnUrl" value="@ReturnUrl" />
+    <input type="hidden" name="RememberMe" value="@RememberMe" />
+    <DataAnnotationsValidator />
+    <div class="form-field">
+        <label for="Input.TwoFactorCode">Código de la aplicación</label>
+        <InputText @bind-Value="Input.TwoFactorCode" id="Input.TwoFactorCode" type="text" autocomplete="off" inputmode="numeric" />
+        <ValidationMessage For="() => Input.TwoFactorCode" />
+    </div>
+    <label class="form-check">
+        <InputCheckbox @bind-Value="Input.RememberMachine" />
+        Recordar este dispositivo
+    </label>
+    <div class="form-actions">
+        <button type="submit" class="btn-primary">Ingresar</button>
+    </div>
+</EditForm>
+<div class="account-links">
+    <a href="Account/LoginWithRecoveryCode?ReturnUrl=@ReturnUrl">¿No tiene acceso a su aplicación? Use un código de recuperación</a>
+</div>
+
+@code {
+    private string? message;
+    private ApplicationUser user = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    private bool RememberMe { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        // El usuario debe haber pasado primero por la pantalla de correo y contraseña.
+        user = await SignInManager.GetTwoFactorAuthenticationUserAsync() ??
+            throw new InvalidOperationException("No se pudo cargar el usuario de verificación en dos pasos.");
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        var authenticatorCode = Input.TwoFactorCode!.Replace(" ", string.Empty).Replace("-", string.Empty);
+        var result = await SignInManager.TwoFactorAuthenticatorSignInAsync(authenticatorCode, RememberMe, Input.RememberMachine);
+        var userId = await UserManager.GetUserIdAsync(user);
+
+        if (result.Succeeded)
+        {
+            Logger.LogInformation("El usuario '{UserId}' inició sesión con verificación en dos pasos.", userId);
+            RedirectManager.RedirectTo(ReturnUrl);
+        }
+        else if (result.IsLockedOut)
+        {
+            Logger.LogWarning("La cuenta del usuario '{UserId}' fue bloqueada.", userId);
+            RedirectManager.RedirectTo("Account/Lockout");
+        }
+        else
+        {
+            Logger.LogWarning("Código de verificación inválido para el usuario '{UserId}'.", userId);
+            message = "Error: El código de verificación no es válido.";
+        }
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "El código es obligatorio.")]
+        [StringLength(7, ErrorMessage = "El código debe tener entre {2} y {1} caracteres.", MinimumLength = 6)]
+        [DataType(DataType.Text)]
+        [Display(Name = "Código de la aplicación")]
+        public string? TwoFactorCode { get; set; }
+
+        [Display(Name = "Recordar este dispositivo")]
+        public bool RememberMachine { get; set; }
+    }
+}

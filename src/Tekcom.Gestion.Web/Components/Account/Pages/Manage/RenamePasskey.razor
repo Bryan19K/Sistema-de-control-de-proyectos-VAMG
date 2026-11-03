@@ -1,0 +1,95 @@
+@page "/Account/Manage/RenamePasskey/{Id}"
+
+@using Tekcom.Gestion.Infrastructure.Identity
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using System.Buffers.Text
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Nombre de la llave de acceso · TEK-COM</PageTitle>
+
+<EditForm Model="Input" OnValidSubmit="Rename" FormName="rename-passkey" method="post">
+    <DataAnnotationsValidator />
+    @if (passkey?.Name is { } name)
+    {
+        <h3 class="mud-typography mud-typography-h6 mb-3">Nuevo nombre para la llave "@name"</h3>
+    }
+    else
+    {
+        <h3 class="mud-typography mud-typography-h6 mb-3">Nombre para la nueva llave de acceso</h3>
+    }
+    <div class="form-field">
+        <label for="Input.Name">Nombre de la llave</label>
+        <InputText @bind-Value="Input.Name" id="Input.Name" type="text" aria-required="true" placeholder="Ej.: Celular de Bryan" />
+        <ValidationMessage For="() => Input.Name" />
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn-primary">Guardar</button>
+    </div>
+</EditForm>
+
+@code {
+    private ApplicationUser? user;
+    private UserPasskeyInfo? passkey;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [Parameter]
+    public string? Id { get; set; }
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        byte[] credentialId;
+        try
+        {
+            credentialId = Base64Url.DecodeFromChars(Id);
+        }
+        catch (FormatException)
+        {
+            RedirectManager.RedirectToWithStatus("Account/Manage/Passkeys", "Error: El identificador de la llave no es válido.", HttpContext);
+            return;
+        }
+
+        passkey = await UserManager.GetPasskeyAsync(user, credentialId);
+        if (passkey is null)
+        {
+            RedirectManager.RedirectToWithStatus("Account/Manage/Passkeys", "Error: No se encontró la llave indicada.", HttpContext);
+            return;
+        }
+    }
+
+    private async Task Rename()
+    {
+        passkey!.Name = Input.Name;
+        var result = await UserManager.AddOrUpdatePasskeyAsync(user!, passkey);
+        if (!result.Succeeded)
+        {
+            RedirectManager.RedirectToWithStatus("Account/Manage/Passkeys", "Error: No se pudo actualizar la llave.", HttpContext);
+            return;
+        }
+
+        RedirectManager.RedirectToWithStatus("Account/Manage/Passkeys", "La llave de acceso se actualizó.", HttpContext);
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "El nombre es obligatorio.")]
+        [StringLength(200, ErrorMessage = "El nombre no puede superar {1} caracteres.")]
+        public string Name { get; set; } = "";
+    }
+}

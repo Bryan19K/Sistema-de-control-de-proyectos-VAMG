@@ -1,0 +1,14 @@
+@inherits LayoutComponentBase
+@layout Tekcom.Gestion.Web.Components.Layout.MainLayout
+
+<MudText Typo="Typo.h4" GutterBottom="true">Mi cuenta</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">Configuración de su usuario y seguridad de acceso.</MudText>
+
+<div class="manage-grid">
+    <MudPaper Class="pa-3" Elevation="1">
+        <ManageNavMenu />
+    </MudPaper>
+    <MudPaper Class="pa-6" Elevation="1">
+        @Body
+    </MudPaper>
+</div>

@@ -1,0 +1,52 @@
+@page "/Account/Manage/ResetAuthenticator"
+
+@using Microsoft.AspNetCore.Identity
+@using Tekcom.Gestion.Infrastructure.Identity
+
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IdentityRedirectManager RedirectManager
+@inject ILogger<ResetAuthenticator> Logger
+
+<PageTitle>Restablecer aplicación de autenticación · TEK-COM</PageTitle>
+
+<StatusMessage />
+<h3 class="mud-typography mud-typography-h6 mb-3">Restablecer aplicación de autenticación</h3>
+<div class="alert alert-danger" role="alert">
+    <p><strong>Si restablece la clave, su aplicación de autenticación dejará de funcionar hasta que la configure de nuevo.</strong></p>
+    <p>
+        Este proceso desactiva la verificación en dos pasos hasta que vuelva a verificar la aplicación.
+        Si no termina la configuración, podría perder el acceso a su cuenta.
+    </p>
+</div>
+<form @formname="reset-authenticator" @onsubmit="OnSubmitAsync" method="post">
+    <AntiforgeryToken />
+    <button class="btn-secondary" type="submit">Restablecer clave</button>
+</form>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private async Task OnSubmitAsync()
+    {
+        var user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        await UserManager.SetTwoFactorEnabledAsync(user, false);
+        await UserManager.ResetAuthenticatorKeyAsync(user);
+        var userId = await UserManager.GetUserIdAsync(user);
+        Logger.LogInformation("El usuario '{UserId}' restableció la clave de su aplicación de autenticación.", userId);
+
+        await SignInManager.RefreshSignInAsync(user);
+
+        RedirectManager.RedirectToWithStatus(
+            "Account/Manage/EnableAuthenticator",
+            "La clave se restableció. Configure su aplicación de autenticación con la nueva clave.",
+            HttpContext);
+    }
+}

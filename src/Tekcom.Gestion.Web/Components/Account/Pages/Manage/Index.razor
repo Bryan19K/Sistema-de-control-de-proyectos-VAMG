@@ -1,0 +1,110 @@
+@page "/Account/Manage"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Tekcom.Gestion.Infrastructure.Identity
+
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Perfil · TEK-COM</PageTitle>
+
+<h3 class="mud-typography mud-typography-h6 mb-3">Perfil</h3>
+<StatusMessage />
+
+<EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
+    <DataAnnotationsValidator />
+    <div class="form-field">
+        <label for="username">Correo electrónico (usuario)</label>
+        <input type="text" value="@username" id="username" disabled />
+    </div>
+    <div class="form-field">
+        <label for="Input.FullName">Nombre completo</label>
+        <InputText @bind-Value="Input.FullName" id="Input.FullName" type="text" placeholder="Como aparecerá en los reportes" />
+        <ValidationMessage For="() => Input.FullName" />
+    </div>
+    <div class="form-field">
+        <label for="Input.PhoneNumber">Teléfono</label>
+        <InputText @bind-Value="Input.PhoneNumber" id="Input.PhoneNumber" type="tel" placeholder="Opcional" />
+        <ValidationMessage For="() => Input.PhoneNumber" />
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn-primary">Guardar</button>
+    </div>
+</EditForm>
+
+@code {
+    private ApplicationUser? user;
+    private string? username;
+    private string? phoneNumber;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        username = await UserManager.GetUserNameAsync(user);
+        phoneNumber = await UserManager.GetPhoneNumberAsync(user);
+
+        Input.PhoneNumber ??= phoneNumber;
+        Input.FullName ??= user.FullName;
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        if (Input.PhoneNumber != phoneNumber)
+        {
+            var setPhoneResult = await UserManager.SetPhoneNumberAsync(user, Input.PhoneNumber);
+            if (!setPhoneResult.Succeeded)
+            {
+                RedirectManager.RedirectToCurrentPageWithStatus("Error: No se pudo guardar el teléfono.", HttpContext);
+                return;
+            }
+        }
+
+        if (Input.FullName is not null && Input.FullName != user.FullName)
+        {
+            user.FullName = Input.FullName.Trim();
+            var updateResult = await UserManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                RedirectManager.RedirectToCurrentPageWithStatus("Error: No se pudo guardar el nombre.", HttpContext);
+                return;
+            }
+        }
+
+        await SignInManager.RefreshSignInAsync(user);
+        RedirectManager.RedirectToCurrentPageWithStatus("Su perfil se actualizó.", HttpContext);
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "El nombre completo es obligatorio.")]
+        [StringLength(120, ErrorMessage = "El nombre no puede superar {1} caracteres.")]
+        [Display(Name = "Nombre completo")]
+        public string? FullName { get; set; }
+
+        [Phone(ErrorMessage = "El teléfono no tiene un formato válido.")]
+        [Display(Name = "Teléfono")]
+        public string? PhoneNumber { get; set; }
+    }
+}

@@ -1,0 +1,16 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="TekcomTheme.Theme" />
+
+<div class="account-page">
+    <MudPaper Class="account-card pa-8" Elevation="6">
+        <div class="account-logo">
+            <span class="account-logo__mark">TC</span>
+            <div>
+                <MudText Typo="Typo.subtitle1" Style="font-weight:600; line-height:1.1">TEK-COM</MudText>
+                <MudText Typo="Typo.caption">Gestión de proyectos</MudText>
+            </div>
+        </div>
+        @Body
+    </MudPaper>
+</div>

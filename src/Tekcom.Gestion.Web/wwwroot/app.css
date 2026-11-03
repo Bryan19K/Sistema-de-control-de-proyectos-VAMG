@@ -1,0 +1,244 @@
+html, body {
+    font-family: 'Roboto', 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+/* Barra de error de Blazor */
+#blazor-error-ui {
+    color-scheme: light only;
+    background: #ffffe5;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+/* Formularios de cuenta (render estático, sin interactividad) */
+.account-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #12304f 0%, #1f4a76 100%);
+}
+
+.account-card {
+    width: 100%;
+    max-width: 440px;
+}
+
+.account-card--wide {
+    max-width: 720px;
+}
+
+.account-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.account-logo__mark {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: #e8742c;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+}
+
+.form-field label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #5b6b7c;
+}
+
+.form-field input[type="text"],
+.form-field input[type="email"],
+.form-field input[type="password"],
+.form-field input[type="tel"] {
+    font: inherit;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #c9d2dc;
+    border-radius: 6px;
+    background: #fff;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.form-field input:focus {
+    outline: none;
+    border-color: #12304f;
+    box-shadow: 0 0 0 3px rgba(18, 48, 79, 0.15);
+}
+
+.form-field input.invalid {
+    border-color: #c62828;
+}
+
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-link {
+    font: inherit;
+    font-weight: 500;
+    padding: 0.7rem 1rem;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-primary {
+    background: #12304f;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #1b4470;
+}
+
+.btn-secondary {
+    background: #e8742c;
+    color: #fff;
+}
+
+.btn-link {
+    background: transparent;
+    color: #12304f;
+    padding: 0.3rem 0;
+}
+
+.btn-link:hover {
+    text-decoration: underline;
+}
+
+.account-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+.account-links a {
+    color: #12304f;
+}
+
+.alert {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.alert-success {
+    background: #e8f5e9;
+    color: #1b5e20;
+    border: 1px solid #a5d6a7;
+}
+
+.alert-danger {
+    background: #ffebee;
+    color: #b71c1c;
+    border: 1px solid #ef9a9a;
+}
+
+.validation-message,
+.text-danger {
+    color: #c62828;
+    font-size: 0.8rem;
+}
+
+.validation-errors {
+    margin: 0 0 1rem 1.25rem;
+    padding: 0;
+}
+
+.manage-nav {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.manage-nav a {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    color: #1f2a37;
+    text-decoration: none;
+}
+
+.manage-nav a:hover {
+    background: #eef2f6;
+}
+
+.manage-nav a.active {
+    background: #12304f;
+    color: #fff;
+}
+
+.manage-grid {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 1.5rem;
+}
+
+@media (max-width: 700px) {
+    .manage-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+code {
+    font-family: Consolas, 'Courier New', monospace;
+    background: #eef2f6;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+}
+
+/* FocusOnNavigate enfoca el h1 al navegar; no mostrar el contorno. */
+h1:focus {
+    outline: none;
+}

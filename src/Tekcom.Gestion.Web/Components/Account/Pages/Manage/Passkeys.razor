@@ -1,0 +1,180 @@
+@page "/Account/Manage/Passkeys"
+
+@using Tekcom.Gestion.Infrastructure.Identity
+@using Microsoft.AspNetCore.Identity
+@using System.Buffers.Text
+
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Llaves de acceso · TEK-COM</PageTitle>
+
+<h3 class="mud-typography mud-typography-h6 mb-1">Llaves de acceso (passkeys)</h3>
+<p class="mud-typography mud-typography-body2 mb-3">
+    Una llave de acceso permite ingresar con la huella, el rostro o el PIN del dispositivo, sin escribir la contraseña.
+</p>
+
+<StatusMessage />
+
+@if (currentPasskeys is { Count: > 0 })
+{
+    <table class="mud-table-root" style="width:100%">
+        <tbody>
+            @foreach (var passkey in currentPasskeys)
+            {
+                <tr>
+                    <td class="py-2">@(passkey.Name ?? "Llave sin nombre")</td>
+                    <td class="py-2" style="text-align:right">
+                        @{
+                            var credentialId = Base64Url.EncodeToString(passkey.CredentialId);
+                        }
+                        <form @formname="@($"update-passkey-{credentialId}")" @onsubmit="UpdatePasskey" method="post">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="CredentialId" value="@credentialId" />
+                            <button type="submit" name="Action" value="rename" class="btn-link" title="Cambiar el nombre de esta llave">Renombrar</button>
+                            <button type="submit" name="Action" value="delete" class="btn-link" title="Quitar esta llave de su cuenta">Eliminar</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No tiene llaves de acceso registradas.</p>
+}
+
+<form @formname="add-passkey" @onsubmit="AddPasskey" method="post" class="mt-4">
+    <AntiforgeryToken />
+    @if (currentPasskeys is { Count: >= MaxPasskeyCount })
+    {
+        <p class="text-danger">Alcanzó el máximo de llaves permitidas. Elimine una antes de agregar otra.</p>
+    }
+    else
+    {
+        <PasskeySubmit Operation="PasskeyOperation.Create" Name="Input" class="btn-primary">Agregar llave de acceso</PasskeySubmit>
+    }
+</form>
+
+@code {
+    private const int MaxPasskeyCount = 10;
+
+    private ApplicationUser? user;
+    private IList<UserPasskeyInfo>? currentPasskeys;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private string? Action { get; set; }
+
+    [SupplyParameterFromForm]
+    private string? CredentialId { get; set; }
+
+    [SupplyParameterFromForm(FormName = "add-passkey")]
+    private PasskeyInputModel Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+        currentPasskeys = await UserManager.GetPasskeysAsync(user);
+    }
+
+    private async Task AddPasskey()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(Input.Error))
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus($"Error: {Input.Error}", HttpContext);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(Input.CredentialJson))
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus("Error: El navegador no entregó una llave de acceso.", HttpContext);
+            return;
+        }
+
+        if (currentPasskeys!.Count >= MaxPasskeyCount)
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus("Error: Alcanzó el máximo de llaves permitidas.", HttpContext);
+            return;
+        }
+
+        var attestationResult = await SignInManager.PerformPasskeyAttestationAsync(Input.CredentialJson);
+        if (!attestationResult.Succeeded)
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus($"Error: No se pudo agregar la llave: {attestationResult.Failure.Message}", HttpContext);
+            return;
+        }
+
+        var addPasskeyResult = await UserManager.AddOrUpdatePasskeyAsync(user, attestationResult.Passkey);
+        if (!addPasskeyResult.Succeeded)
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus("Error: No se pudo agregar la llave a su cuenta.", HttpContext);
+            return;
+        }
+
+        var credentialIdBase64Url = Base64Url.EncodeToString(attestationResult.Passkey.CredentialId);
+        RedirectManager.RedirectTo($"Account/Manage/RenamePasskey/{credentialIdBase64Url}");
+    }
+
+    private async Task UpdatePasskey()
+    {
+        switch (Action)
+        {
+            case "rename":
+                RedirectManager.RedirectTo($"Account/Manage/RenamePasskey/{CredentialId}");
+                break;
+            case "delete":
+                await DeletePasskey();
+                break;
+            default:
+                RedirectManager.RedirectToCurrentPageWithStatus($"Error: Acción desconocida '{Action}'.", HttpContext);
+                break;
+        }
+    }
+
+    private async Task DeletePasskey()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        byte[] credentialId;
+        try
+        {
+            credentialId = Base64Url.DecodeFromChars(CredentialId);
+        }
+        catch (FormatException)
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus("Error: El identificador de la llave no es válido.", HttpContext);
+            return;
+        }
+
+        var result = await UserManager.RemovePasskeyAsync(user, credentialId);
+        if (!result.Succeeded)
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus("Error: No se pudo eliminar la llave.", HttpContext);
+            return;
+        }
+
+        RedirectManager.RedirectToCurrentPageWithStatus("La llave de acceso se eliminó.", HttpContext);
+    }
+}

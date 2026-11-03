@@ -1,0 +1,70 @@
+@page "/Account/Manage/Disable2fa"
+
+@using Microsoft.AspNetCore.Identity
+@using Tekcom.Gestion.Infrastructure.Identity
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IdentityRedirectManager RedirectManager
+@inject ILogger<Disable2fa> Logger
+
+<PageTitle>Desactivar verificación en dos pasos · TEK-COM</PageTitle>
+
+<StatusMessage />
+<h3 class="mud-typography mud-typography-h6 mb-3">Desactivar verificación en dos pasos (2FA)</h3>
+
+<div class="alert alert-danger" role="alert">
+    <p><strong>Esta acción solo desactiva la verificación en dos pasos.</strong></p>
+    <p>
+        No cambia la clave de la aplicación de autenticación. Si quiere cambiarla,
+        <a href="Account/Manage/ResetAuthenticator">restablezca la aplicación de autenticación</a>.
+    </p>
+</div>
+
+<form @formname="disable-2fa" @onsubmit="OnSubmitAsync" method="post">
+    <AntiforgeryToken />
+    <button class="btn-secondary" type="submit">Desactivar 2FA</button>
+</form>
+
+@code {
+    private ApplicationUser? user;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && !await UserManager.GetTwoFactorEnabledAsync(user))
+        {
+            throw new InvalidOperationException("No se puede desactivar la verificación en dos pasos porque no está activa.");
+        }
+    }
+
+    private async Task OnSubmitAsync()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        var disable2faResult = await UserManager.SetTwoFactorEnabledAsync(user, false);
+        if (!disable2faResult.Succeeded)
+        {
+            throw new InvalidOperationException("Ocurrió un error inesperado al desactivar la verificación en dos pasos.");
+        }
+
+        var userId = await UserManager.GetUserIdAsync(user);
+        Logger.LogInformation("El usuario '{UserId}' desactivó la verificación en dos pasos.", userId);
+        RedirectManager.RedirectToWithStatus(
+            "Account/Manage/TwoFactorAuthentication",
+            "La verificación en dos pasos se desactivó. Puede volver a activarla configurando una aplicación de autenticación.",
+            HttpContext);
+    }
+}

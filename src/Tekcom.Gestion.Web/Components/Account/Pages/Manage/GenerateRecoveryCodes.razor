@@ -1,0 +1,70 @@
+@page "/Account/Manage/GenerateRecoveryCodes"
+
+@using Microsoft.AspNetCore.Identity
+@using Tekcom.Gestion.Infrastructure.Identity
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IdentityRedirectManager RedirectManager
+@inject ILogger<GenerateRecoveryCodes> Logger
+
+<PageTitle>Códigos de recuperación · TEK-COM</PageTitle>
+
+@if (recoveryCodes is not null)
+{
+    <ShowRecoveryCodes RecoveryCodes="recoveryCodes.ToArray()" StatusMessage="@message" />
+}
+else
+{
+    <h3 class="mud-typography mud-typography-h6 mb-3">Generar códigos de recuperación</h3>
+    <div class="alert alert-danger" role="alert">
+        <p><strong>Guarde los códigos en un lugar seguro.</strong></p>
+        <p>Si pierde su dispositivo y no tiene los códigos de recuperación, perderá el acceso a su cuenta.</p>
+        <p>
+            Generar códigos nuevos no cambia la clave de la aplicación de autenticación. Si quiere cambiarla,
+            <a href="Account/Manage/ResetAuthenticator">restablezca la aplicación de autenticación</a>.
+        </p>
+    </div>
+    <form @formname="generate-recovery-codes" @onsubmit="OnSubmitAsync" method="post">
+        <AntiforgeryToken />
+        <button class="btn-secondary" type="submit">Generar códigos de recuperación</button>
+    </form>
+}
+
+@code {
+    private string? message;
+    private ApplicationUser? user;
+    private IEnumerable<string>? recoveryCodes;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        if (!await UserManager.GetTwoFactorEnabledAsync(user))
+        {
+            throw new InvalidOperationException("No se pueden generar códigos de recuperación: la verificación en dos pasos no está activa.");
+        }
+    }
+
+    private async Task OnSubmitAsync()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        var userId = await UserManager.GetUserIdAsync(user);
+        recoveryCodes = await UserManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+        message = "Se generaron nuevos códigos de recuperación.";
+
+        Logger.LogInformation("El usuario '{UserId}' generó nuevos códigos de recuperación.", userId);
+    }
+}

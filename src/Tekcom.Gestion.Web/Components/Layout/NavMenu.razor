@@ -1,0 +1,25 @@
+<MudNavMenu Bordered="true" Color="Color.Secondary">
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Inicio</MudNavLink>
+
+    <MudText Typo="Typo.overline" Class="px-4 pt-4 d-block">Gestión</MudText>
+    <MudNavLink Href="proyectos" Icon="@Icons.Material.Filled.Folder">Proyectos</MudNavLink>
+    <MudNavLink Href="plan-de-trabajo" Icon="@Icons.Material.Filled.Timeline">Plan de trabajo</MudNavLink>
+    <MudNavLink Href="sprints" Icon="@Icons.Material.Filled.Loop">Sprints</MudNavLink>
+    <MudNavLink Href="tareas" Icon="@Icons.Material.Filled.CheckBox">Tareas</MudNavLink>
+
+    <MudText Typo="Typo.overline" Class="px-4 pt-4 d-block">Técnico</MudText>
+    <MudNavLink Href="sitios" Icon="@Icons.Material.Filled.CellTower">Sitios / Nodos</MudNavLink>
+    <MudNavLink Href="contratistas" Icon="@Icons.Material.Filled.Engineering">Contratistas</MudNavLink>
+    <MudNavLink Href="materiales" Icon="@Icons.Material.Filled.Category">Materiales</MudNavLink>
+    <MudNavLink Href="bodega" Icon="@Icons.Material.Filled.Warehouse">Bodega</MudNavLink>
+    <MudNavLink Href="proyeccion-de-diseno" Icon="@Icons.Material.Filled.DesignServices">Proyección de diseño</MudNavLink>
+    <MudNavLink Href="liquidacion" Icon="@Icons.Material.Filled.FactCheck">Liquidación</MudNavLink>
+    <MudNavLink Href="equipos" Icon="@Icons.Material.Filled.Router">Equipos y seriales</MudNavLink>
+    <MudNavLink Href="documentos" Icon="@Icons.Material.Filled.Description">Documentos</MudNavLink>
+
+    <MudText Typo="Typo.overline" Class="px-4 pt-4 d-block">Sistema</MudText>
+    <MudNavLink Href="reportes" Icon="@Icons.Material.Filled.Summarize">Reportes</MudNavLink>
+    <AuthorizeView Roles="@AppRoles.Admin">
+        <MudNavLink Href="configuracion" Icon="@Icons.Material.Filled.Settings">Configuración</MudNavLink>
+    </AuthorizeView>
+</MudNavMenu>

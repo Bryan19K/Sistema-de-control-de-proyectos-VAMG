@@ -1,0 +1,25 @@
+@page "/Error"
+@using System.Diagnostics
+
+<PageTitle>Error · TEK-COM</PageTitle>
+
+<MudText Typo="Typo.h4" Color="Color.Error" GutterBottom="true">Error</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Ocurrió un error al procesar la solicitud.</MudText>
+
+@if (ShowRequestId)
+{
+    <MudText Typo="Typo.body2">
+        <strong>Identificador de la solicitud:</strong> <code>@RequestId</code>
+    </MudText>
+}
+
+@code{
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}
