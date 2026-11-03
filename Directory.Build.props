@@ -1,0 +1,16 @@
+<Project>
+
+  <!-- Propiedades comunes a todos los proyectos de la solución. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <Authors>TEK-COM</Authors>
+    <Company>TEK-COM</Company>
+    <Product>Sistema de Gestión de Proyectos TEK-COM</Product>
+  </PropertyGroup>
+
+</Project>
