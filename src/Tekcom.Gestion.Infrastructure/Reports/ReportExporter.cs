@@ -67,7 +67,10 @@ public sealed class ReportExporter : IReportExporter
         var logoCols = Math.Min(2, columnCount);
         if (_logoPath is not null)
         {
-            sheet.AddPicture(_logoPath).MoveTo(sheet.Cell(1, 1)).Scale(0.35);
+            var picture = sheet.AddPicture(_logoPath).MoveTo(sheet.Cell(1, 1));
+            // Cabe en las 3 filas del encabezado (56 px de alto) conservando la proporción.
+            var ratio = picture.OriginalWidth / (double)picture.OriginalHeight;
+            picture.WithSize((int)Math.Round(56 * ratio), 56);
         }
         else
         {

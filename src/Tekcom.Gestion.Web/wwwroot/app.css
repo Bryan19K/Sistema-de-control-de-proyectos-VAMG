@@ -839,7 +839,9 @@ code {
 .tk-minute-card__title { font-weight: 700; color: var(--tk-navy); font-size: 1.05rem; }
 .tk-minute-card__summary { white-space: pre-line; color: var(--tk-text-2); margin: 8px 0; }
 
-.tk-brand__logo { display: block; width: 100%; max-width: 210px; height: auto; }
+.tk-brand__badge { display: block; background: #fff; border-radius: 12px; padding: 8px 14px; }
+.tk-brand__logo { display: block; width: 100%; max-width: 150px; height: auto; margin: 0 auto; }
+.tk-brand__tag { display: block; margin-top: 8px; color: #c8d2de; font-size: 0.8rem; text-align: center; letter-spacing: 0.02em; }
 .tk-task-docs { display: flex; flex-direction: column; gap: 8px; }
 .tk-task-docs__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tk-task-docs__link { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
