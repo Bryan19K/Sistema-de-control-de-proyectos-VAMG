@@ -5,6 +5,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    <script>
+        // Tema claro/oscuro: se aplica antes de pintar para evitar el destello.
+        (function () {
+            try {
+                var t = localStorage.getItem('tk-theme');
+                if (!t) { t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+                document.documentElement.setAttribute('data-theme', t);
+            } catch (e) { }
+            window.tkTheme = {
+                get: function () { return document.documentElement.getAttribute('data-theme') || 'light'; },
+                set: function (t) { document.documentElement.setAttribute('data-theme', t); try { localStorage.setItem('tk-theme', t); } catch (e) { } }
+            };
+        })();
+    </script>
     <ResourcePreloader />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />

@@ -242,6 +242,12 @@ public interface IWorkPlanService
 
 public interface IDashboardService
 {
+    /// <summary>Fila de un proyecto (avance, ritmo, nodos, tareas vencidas), sin importar su estado.</summary>
+    Task<ProjectComparison?> ComparisonAsync(int projectId, CancellationToken ct = default);
+
+    /// <summary>Todos los proyectos no cerrados, para compararlos.</summary>
+    Task<List<ProjectComparison>> CompareAllAsync(CancellationToken ct = default);
+
     /// <summary>Indicadores del tablero de inicio, de todos los proyectos.</summary>
     Task<DashboardData> GetAsync(CancellationToken ct = default);
 
@@ -313,4 +319,21 @@ public interface IPresentationService
 {
     /// <summary>Todos los datos de los gráficos de la sección Presentación, de un proyecto.</summary>
     Task<PresentationData> GetAsync(int projectId, CancellationToken ct = default);
+}
+
+public interface ISnapshotService
+{
+    /// <summary>Guarda (o actualiza) la foto de hoy de un proyecto.</summary>
+    Task<ProgressSnapshot?> CaptureAsync(int projectId, CancellationToken ct = default);
+
+    /// <summary>Foto de hoy de todos los proyectos no cerrados. Lo corre el trabajo diario.</summary>
+    Task<int> CaptureAllAsync(CancellationToken ct = default);
+
+    Task<List<ProgressSnapshot>> ListAsync(int projectId, CancellationToken ct = default);
+}
+
+public interface IAttentionService
+{
+    /// <summary>Lo que necesita atención ya: nodos atrasados, tareas vencidas, stock bajo, pendientes y evidencias que faltan.</summary>
+    Task<List<AttentionItem>> GetAsync(int projectId, CancellationToken ct = default);
 }

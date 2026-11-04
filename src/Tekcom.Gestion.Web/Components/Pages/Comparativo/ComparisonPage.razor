@@ -1,0 +1,114 @@
+@page "/comparativo"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IDashboardService Dashboard
+@inject ProjectSelection Selection
+@inject NavigationManager Nav
+
+<PageTitle>Comparativo · TEK-COM</PageTitle>
+
+<PageHeader Title="Comparativo de proyectos" Subtitle="Todos los proyectos abiertos lado a lado: avance, tiempo, ritmo y lo que requiere atención">
+    <Actions>
+        <button type="button" class="tk-btn tk-btn--primary tk-no-print" @onclick="PrintAsync">Descargar PDF</button>
+    </Actions>
+</PageHeader>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_rows.Count == 0)
+{
+    <SectionCard>
+        <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.CompareArrows" Description="Cree o importe un proyecto para compararlo con los demás.">
+            <a href="proyectos" class="tk-btn tk-btn--outline mt-4">Ir a proyectos</a>
+        </EmptyState>
+    </SectionCard>
+}
+else
+{
+    <div class="tk-viz">
+        <div class="tk-compare-kpis">
+            <div class="tk-stat"><span class="tk-stat__label">Proyectos abiertos</span><span class="tk-stat__value">@_rows.Count</span></div>
+            <div class="tk-stat"><span class="tk-stat__label">Atrasados</span><span class="tk-stat__value tk-stat__value--@(_rows.Any(r => r.Pace.Status == PaceStatus.Behind) ? "bad" : "")">@_rows.Count(r => r.Pace.Status == PaceStatus.Behind)</span></div>
+            <div class="tk-stat"><span class="tk-stat__label">Nodos listos para entregar</span><span class="tk-stat__value">@_rows.Sum(r => r.ReadySites)<small> de @_rows.Sum(r => r.Sites)</small></span></div>
+            <div class="tk-stat"><span class="tk-stat__label">Tareas vencidas</span><span class="tk-stat__value tk-stat__value--@(_rows.Sum(r => r.OverdueTasks) > 0 ? "bad" : "")">@_rows.Sum(r => r.OverdueTasks)</span></div>
+        </div>
+
+        <SectionCard Title="Avance contra tiempo transcurrido" Class="mt-6">
+            <div class="tk-legend tk-legend--top">
+                <span class="tk-legend__item"><span class="tk-key tk-key--info"></span> Avance</span>
+                <span class="tk-legend__item"><span class="tk-key tk-key--planned"></span> Tiempo transcurrido</span>
+            </div>
+            <div class="tk-hbars tk-hbars--pair">
+                @foreach (var r in _rows)
+                {
+                    <div class="tk-pair" data-tip="@($"{r.Progress:0.#}% de avance|{r.Name} · {r.Pace.ElapsedPercent:0.#}% del tiempo")" tabindex="0">
+                        <a class="tk-pair__name" href="proyectos/@r.ProjectId" title="Abrir el proyecto">@r.Name</a>
+                        <span class="tk-pair__bars">
+                            <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@Tone(r.Pace.Status)" style="width:@Pct(r.Progress)%"></span></span>
+                            <span class="tk-hbar__track tk-hbar__track--time"><span class="tk-hbar__fill tk-hbar__fill--time" style="width:@Pct(r.Pace.ElapsedPercent)%"></span></span>
+                        </span>
+                        <span class="tk-pair__value">@r.Progress.ToString("0")%<small>@r.Pace.ElapsedPercent.ToString("0")%</small></span>
+                    </div>
+                }
+            </div>
+        </SectionCard>
+
+        <SectionCard Title="Detalle por proyecto" Class="mt-6">
+            <div class="tk-table-wrap">
+                <table class="tk-table">
+                    <thead><tr><th>Proyecto</th><th>Tipo</th><th>Estado</th><th>Ritmo</th><th>Avance</th><th>Tiempo</th><th>Nodos listos</th><th>Tareas vencidas</th><th class="tk-no-print"></th></tr></thead>
+                    <tbody>
+                        @foreach (var r in _rows)
+                        {
+                            <tr>
+                                <td class="strong">@r.Name</td>
+                                <td>@r.Type</td>
+                                <td>@UiText.ProjectStatusName(r.Status)</td>
+                                <td><PaceChip Pace="r.Pace" /></td>
+                                <td class="num">@r.Progress.ToString("0.#")%</td>
+                                <td class="num">@r.Pace.ElapsedPercent.ToString("0.#")%</td>
+                                <td class="num">@(r.Sites == 0 ? "—" : $"{r.ReadySites}/{r.Sites}")</td>
+                                <td class="num @(r.OverdueTasks > 0 ? "text-danger" : "")">@r.OverdueTasks</td>
+                                <td class="tk-no-print"><button type="button" class="tk-attn__link" @onclick="() => OpenAsync(r.ProjectId)">Presentación</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </SectionCard>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private List<ProjectComparison> _rows = [];
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _rows = await Dashboard.CompareAllAsync();
+        _loading = false;
+    }
+
+    private static string Pct(decimal v) => Math.Clamp(v, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string Tone(PaceStatus status) => status switch
+    {
+        PaceStatus.Behind => "bad",
+        PaceStatus.Ahead or PaceStatus.Completed => "ok",
+        _ => "info",
+    };
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("print");
+
+    private void OpenAsync(int projectId)
+    {
+        Selection.Select(projectId);
+        Nav.NavigateTo("presentacion");
+    }
+}

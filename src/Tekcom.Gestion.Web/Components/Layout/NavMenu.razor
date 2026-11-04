@@ -1,3 +1,7 @@
+@using Tekcom.Gestion.Web.Services
+@inject ThemeState Theme
+@inject IJSRuntime JS
+
 <div class="tk-brand">
     <span class="tk-brand__badge"><img class="tk-brand__logo" src="branding/logo.png" alt="TEK-COM" /></span>
     <span class="tk-brand__tag">Gestión de proyectos</span>
@@ -12,6 +16,7 @@
     <MudNavLink Href="materiales" Icon="@Icons.Material.Rounded.Inventory2">Materiales</MudNavLink>
     <MudNavLink Href="seriales" Icon="@Icons.Material.Rounded.QrCode2">Seriales</MudNavLink>
     <MudNavLink Href="documentos" Icon="@Icons.Material.Rounded.Description">Documentos</MudNavLink>
+    <MudNavLink Href="comparativo" Icon="@Icons.Material.Rounded.CompareArrows">Comparativo</MudNavLink>
     <MudNavLink Href="presentacion" Icon="@Icons.Material.Rounded.Slideshow">Presentación</MudNavLink>
     <MudNavLink Href="exportar" Icon="@Icons.Material.Rounded.FileDownload">Exportar</MudNavLink>
     <AuthorizeView Roles="@AppRoles.Admin">
@@ -21,6 +26,10 @@
 </MudNavMenu>
 
 <div class="tk-nav__footer">
+    <button type="button" class="tk-theme-toggle" @onclick="ToggleThemeAsync" aria-pressed="@Theme.IsDark.ToString().ToLowerInvariant()">
+        <MudIcon Icon="@(Theme.IsDark ? Icons.Material.Rounded.LightMode : Icons.Material.Rounded.DarkMode)" Size="Size.Small" />
+        @(Theme.IsDark ? "Modo claro" : "Modo oscuro")
+    </button>
     <AuthorizeView>
         <Authorized>
             <a href="Account/Manage" class="tk-nav__user" title="Mi cuenta">
@@ -38,3 +47,11 @@
         </NotAuthorized>
     </AuthorizeView>
 </div>
+
+@code {
+    private async Task ToggleThemeAsync()
+    {
+        Theme.Set(!Theme.IsDark);
+        await JS.InvokeVoidAsync("tkTheme.set", Theme.IsDark ? "dark" : "light");
+    }
+}

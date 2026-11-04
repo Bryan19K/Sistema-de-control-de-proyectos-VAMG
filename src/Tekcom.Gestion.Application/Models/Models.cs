@@ -244,6 +244,18 @@ public sealed record SprintBar(string Name, decimal Progress, decimal Elapsed, P
 
 public sealed record NamedCount(string Name, int Count);
 
+public enum AttentionSeverity { Info = 0, Warning = 1, Critical = 2 }
+
+public sealed record AttentionItem(string Title, string Detail, string Href, AttentionSeverity Severity, int Count);
+
+public sealed record EvidenceRow(int SiteId, string SiteCode, bool Finalized, bool SignedAtp, bool HasCaes, int Photos, int Documents, List<int> PhotoIds);
+
+public sealed record BrigadeRow(string Name, int Sites, int FinishedSites, decimal AverageProgress, decimal Delivered, decimal Installed);
+
+public sealed record WeekInstalled(DateOnly WeekStart, decimal Total, Dictionary<string, decimal> ByBrigade);
+
+public sealed record ProjectComparison(int ProjectId, string Name, string Type, ProjectStatus Status, decimal Progress, PaceResult Pace, int Sites, int ReadySites, int OverdueTasks);
+
 public sealed record StageColumn(StageCode Code, string Name);
 
 public sealed record StageRow(string Site, IReadOnlyDictionary<StageCode, StageStatus> Stages);
@@ -260,6 +272,12 @@ public sealed class PresentationData
     public required List<NodeBar> Nodes { get; init; }
     public required List<StageColumn> StageColumns { get; init; }
     public required List<StageRow> StageRows { get; init; }
+    public required List<EvidenceRow> Evidence { get; init; }
+    public required List<BrigadeRow> Brigades { get; init; }
+    public required List<WeekInstalled> WeeklyInstalled { get; init; }
+    public required List<AttentionItem> Attention { get; init; }
+    public decimal? ProgressWeekAgo { get; init; }
+    public bool HasSnapshots { get; init; }
     public required ProjectCharts Charts { get; init; }
     public required List<MaterialBar> Materials { get; init; }
     public required List<NamedCount> TasksByPerson { get; init; }

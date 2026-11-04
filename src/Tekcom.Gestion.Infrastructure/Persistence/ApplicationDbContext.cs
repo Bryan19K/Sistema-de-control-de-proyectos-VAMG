@@ -41,6 +41,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<EquipmentSlot> EquipmentSlots => Set<EquipmentSlot>();
     public DbSet<Transceiver> Transceivers => Set<Transceiver>();
     public DbSet<ProjectDocument> Documents => Set<ProjectDocument>();
+    public DbSet<ProgressSnapshot> ProgressSnapshots => Set<ProgressSnapshot>();
     public DbSet<Minute> Minutes => Set<Minute>();
     public DbSet<MinuteItem> MinuteItems => Set<MinuteItem>();
     public DbSet<NotificationRule> NotificationRules => Set<NotificationRule>();

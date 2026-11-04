@@ -33,6 +33,7 @@ builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuth
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ProjectSelection>();
+builder.Services.AddScoped<ThemeState>();
 builder.Services.AddScoped<UserAccess>();
 
 builder.Services.AddAuthentication(options =>
