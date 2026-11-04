@@ -22,7 +22,26 @@ aviso() { printf '\033[1;33m%s\033[0m\n' "$*"; }
 fallo() { printf '\033[1;31m%s\033[0m\n' "$*"; exit 1; }
 
 command -v ssh >/dev/null || fallo "No se encontró ssh."
-command -v gh >/dev/null || fallo "No se encontró gh (la terminal del Codespace lo trae)."
+
+# Este Codespace no trae la herramienta gh de GitHub: se baja (sin permisos de administrador) a ~/.local/bin.
+if ! command -v gh >/dev/null; then
+  paso "Instalando la herramienta gh de GitHub"
+  GH_VERSION=2.63.2
+  case "$(uname -m)" in
+    x86_64) GH_ARCH=amd64 ;;
+    aarch64|arm64) GH_ARCH=arm64 ;;
+    *) fallo "Arquitectura no soportada: $(uname -m)" ;;
+  esac
+  GH_TMP="$(mktemp -d)"
+  curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz" -o "$GH_TMP/gh.tar.gz" \
+    || fallo "No se pudo descargar gh."
+  tar -xzf "$GH_TMP/gh.tar.gz" -C "$GH_TMP"
+  mkdir -p "$HOME/.local/bin"
+  cp "$GH_TMP/gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh" "$HOME/.local/bin/gh"
+  rm -rf "$GH_TMP"
+  export PATH="$HOME/.local/bin:$PATH"
+  gh --version | head -1
+fi
 
 WORK="$(mktemp -d)"
 trap 'ssh -O exit -o ControlPath="$WORK/cm" "root@$HOST" >/dev/null 2>&1 || true; rm -rf "$WORK"' EXIT
