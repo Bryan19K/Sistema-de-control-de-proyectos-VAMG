@@ -1,0 +1,323 @@
+@page "/exportar"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Reports
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Services
+@inject IReportService Reports
+@inject IExportTemplateService Templates
+@inject ISiteService Sites
+@inject IUserAdminService Users
+@inject IDateTimeProvider Clock
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ProjectSelection Selection
+@inject UserAccess Access
+
+<PageTitle>Exportar reportes · TEK-COM</PageTitle>
+
+<PageHeader Title="Exportar reportes" Subtitle="Todos los archivos llevan logo TEK-COM, fecha de corte y 'Elaborado por'" />
+
+@if (_projectId == 0)
+{
+    <SectionCard><EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.FolderOpen" Description="Cree un proyecto para poder exportar sus reportes." /></SectionCard>
+}
+else
+{
+    <div class="tk-two-col">
+        <SectionCard Title="Configuración">
+            <div class="tk-form-field">
+                <label>Reporte</label>
+                <MudSelect T="string" Value="_key" ValueChanged="OnKeyChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var d in Reports.Definitions)
+                    {
+                        <MudSelectItem T="string" Value="@d.Key">@d.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <span class="tk-muted tk-code-sm">@Current?.Description</span>
+            </div>
+
+            <div class="tk-form-field">
+                <label>Proyecto</label>
+                <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
+            </div>
+
+            @if (Current?.NeedsSite == true)
+            {
+                <div class="tk-form-field">
+                    <label>Nodo</label>
+                    <MudSelect T="int?" Value="_siteId" ValueChanged="OnSiteChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var s in _siteOptions)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)s.Id)">@s.Code</MudSelectItem>
+                        }
+                    </MudSelect>
+                </div>
+            }
+
+            <div class="tk-form-field">
+                <DatePick Label="Fecha de corte" Value="_cutoff" ValueChanged="OnCutoffChanged" />
+            </div>
+
+            <div class="tk-form-field">
+                <label>Formato</label>
+                <div class="tk-check-row">
+                    <MudCheckBox T="bool" @bind-Value="_excel" Label="Excel (.xlsx)" Size="Size.Small" />
+                    <MudCheckBox T="bool" @bind-Value="_pdf" Label="PDF" Size="Size.Small" />
+                </div>
+            </div>
+
+            <div class="tk-form-field">
+                <label>Plantilla de diseño</label>
+                <div style="display:flex; gap:8px; align-items:center">
+                    <MudSelect T="int" Value="_templateId" ValueChanged="OnTemplateChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var t in _templates)
+                        {
+                            <MudSelectItem T="int" Value="t.Id">@t.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Outlined" OnClick="() => TemplateAsync(false)">Nueva</MudButton>
+                    @if (_template is { IsSystem: false })
+                    {
+                        <MudButton Variant="Variant.Outlined" OnClick="() => TemplateAsync(true)">Editar</MudButton>
+                    }
+                </div>
+            </div>
+
+            <button type="button" class="tk-btn tk-btn--primary" @onclick="Generate" disabled="@(_preview is null || (!_excel && !_pdf))">Generar archivos</button>
+
+            @if (_links.Count > 0)
+            {
+                <div class="tk-alert tk-alert--info mt-4" style="flex-direction:column">
+                    <strong>Archivos listos</strong>
+                    @foreach (var (label, url) in _links)
+                    {
+                        <a href="@url" download class="tk-row-link">⬇ @label</a>
+                    }
+                </div>
+            }
+
+            <p class="tk-help">
+                <strong>Reportes disponibles:</strong> @string.Join(", ", Reports.Definitions.Select(d => d.Name.ToLowerInvariant())).
+                Plan de trabajo, seriales SFP y minuta se suman en los siguientes sprints.
+            </p>
+        </SectionCard>
+
+        <SectionCard Title="Vista previa">
+            @if (_error is not null)
+            {
+                <div class="tk-alert tk-alert--warning"><MudIcon Icon="@Icons.Material.Filled.Info" /><span>@_error</span></div>
+            }
+            else if (_preview is not null)
+            {
+                <div class="tk-export-preview">
+                    <div class="tk-export-preview__head" style="border-bottom-color:@(_template?.HeaderColor ?? "#12304f")">
+                        <span class="tk-logo-placeholder" style="color:@(_template?.HeaderColor ?? "#12304f")">TEK-COM</span>
+                        <div class="tk-export-preview__title">
+                            <strong style="color:@(_template?.HeaderColor ?? "#12304f")">@_preview.Title</strong>
+                            <span>@_preview.ProjectName@(_preview.Subtitle is null ? "" : $" · {_preview.Subtitle}") · Corte @_preview.CutoffDate.ToString("dd/MM/yyyy")</span>
+                        </div>
+                    </div>
+
+                    @foreach (var (label, value) in _preview.Facts)
+                    {
+                        <div class="tk-code-sm"><strong>@label:</strong> @value</div>
+                    }
+
+                    @foreach (var sec in VisibleSections)
+                    {
+                        @if (sec.Heading is not null) { <div class="tk-group-title">@sec.Heading</div> }
+                        <div class="tk-table-wrap">
+                            <table class="tk-table tk-table--compact">
+                                <thead><tr>@foreach (var c in sec.Columns) { <th style="background:@(_template?.HeaderColor ?? "#12304f"); color:#fff" class="@(c.Type != ReportColumnType.Text && c.Type != ReportColumnType.Date ? "num" : "")">@c.Header</th> }</tr></thead>
+                                <tbody>
+                                    @foreach (var row in sec.Rows.Take(8))
+                                    {
+                                        <tr>@for (var i = 0; i < sec.Columns.Count; i++) { <td class="@(IsNum(sec.Columns[i]) ? "num" : "")">@Show(row[i], sec.Columns[i])</td> }</tr>
+                                    }
+                                    @if (sec.Rows.Count == 0)
+                                    {
+                                        <tr><td colspan="@sec.Columns.Count" class="muted">Sin datos para este reporte.</td></tr>
+                                    }
+                                    else if (sec.Rows.Count > 8)
+                                    {
+                                        <tr><td colspan="@sec.Columns.Count" class="muted">… y @(sec.Rows.Count - 8) filas más en el archivo</td></tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    <div class="tk-export-preview__foot">
+                        <span>Elaborado por: @_preview.PreparedBy</span>
+                        <span>Página 1 de n</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <MudProgressLinear Indeterminate="true" />
+            }
+        </SectionCard>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "reporte")] private string? QueryReport { get; set; }
+    [SupplyParameterFromQuery(Name = "nodo")] private int? QuerySite { get; set; }
+
+    private string _key = "materiales";
+    private int _projectId;
+    private int? _siteId;
+    private DateOnly? _cutoff;
+    private bool _excel = true;
+    private bool _pdf = true;
+    private int _templateId;
+    private List<ExportTemplate> _templates = [];
+    private ExportTemplate? _template;
+    private List<Site> _siteOptions = [];
+    private ReportDocument? _preview;
+    private string? _error;
+    private string _preparedBy = string.Empty;
+    private readonly List<(string Label, string Url)> _links = [];
+
+    private ReportDefinition? Current => Reports.Definitions.FirstOrDefault(d => d.Key == _key);
+
+    private IEnumerable<ReportSection> VisibleSections
+    {
+        get
+        {
+            var applies = _template is null || string.IsNullOrWhiteSpace(_template.ReportKey) || _template.ReportKey == _key;
+            var hidden = applies && _template is not null ? _template.HiddenSet : new HashSet<string>();
+            foreach (var s in _preview!.Sections)
+            {
+                var keep = s.Columns.Select((c, i) => (c, i)).Where(x => !hidden.Contains(x.c.Key)).ToList();
+                if (keep.Count == 0) { continue; }
+                var copy = new ReportSection { Heading = s.Heading, Columns = keep.Select(x => x.c).ToList() };
+                foreach (var r in s.Rows) { copy.Rows.Add(keep.Select(x => r[x.i]).ToArray()); }
+                yield return copy;
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cutoff = Clock.Today;
+        if (!string.IsNullOrWhiteSpace(QueryReport) && Reports.Definitions.Any(d => d.Key == QueryReport))
+        {
+            _key = QueryReport!;
+        }
+
+        _siteId = QuerySite;
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        _preparedBy = await Users.DisplayNameAsync(await Access.UserIdAsync());
+        await LoadTemplatesAsync();
+        await LoadSitesAsync();
+        if (_siteId is not null)
+        {
+            var site = await Sites.GetAsync(_siteId.Value);
+            if (site is not null && site.ProjectId != _projectId)
+            {
+                _projectId = site.ProjectId;
+                Selection.Select(_projectId);
+                await LoadSitesAsync();
+            }
+        }
+
+        await RefreshAsync();
+    }
+
+    private static bool IsNum(ReportColumn column) => column.Type is ReportColumnType.Decimal or ReportColumnType.Integer or ReportColumnType.Percent;
+
+    private static string Show(object? value, ReportColumn column) => value switch
+    {
+        null => string.Empty,
+        decimal d when column.Type == ReportColumnType.Percent => d.ToString("P1", System.Globalization.CultureInfo.GetCultureInfo("es-SV")),
+        decimal d => UiText.Number(d),
+        DateOnly date => date.ToString("dd/MM/yyyy"),
+        _ => value.ToString() ?? string.Empty,
+    };
+
+    private async Task LoadTemplatesAsync()
+    {
+        _templates = await Templates.ListAsync();
+        if (_templateId == 0 || _templates.All(t => t.Id != _templateId))
+        {
+            _templateId = _templates.FirstOrDefault()?.Id ?? 0;
+        }
+
+        _template = _templates.FirstOrDefault(t => t.Id == _templateId);
+    }
+
+    private async Task LoadSitesAsync()
+    {
+        _siteOptions = _projectId == 0 ? [] : (await Sites.ListAsync(_projectId)).Select(s => s.Site).ToList();
+        if (_siteId is null || _siteOptions.All(s => s.Id != _siteId))
+        {
+            _siteId = _siteOptions.FirstOrDefault()?.Id;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _links.Clear();
+        _error = null;
+        _preview = null;
+        if (_projectId == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _preview = await Reports.BuildAsync(new ReportRequest
+            {
+                Key = _key, ProjectId = _projectId, SiteId = Current?.NeedsSite == true ? _siteId : null,
+                CutoffDate = _cutoff, PreparedBy = _preparedBy,
+            });
+        }
+        catch (BusinessRuleException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task OnKeyChanged(string key) { _key = key; await RefreshAsync(); }
+    private async Task OnProjectChanged(int id) { _projectId = id; _siteId = null; await LoadSitesAsync(); await RefreshAsync(); }
+    private async Task OnSiteChanged(int? id) { _siteId = id; await RefreshAsync(); }
+    private async Task OnCutoffChanged(DateOnly? date) { _cutoff = date ?? Clock.Today; await RefreshAsync(); }
+    private async Task OnTemplateChanged(int id) { _templateId = id; _template = _templates.FirstOrDefault(t => t.Id == id); _links.Clear(); await Task.CompletedTask; }
+
+    private void Generate()
+    {
+        _links.Clear();
+        var query = $"proyecto={_projectId}&corte={(_cutoff ?? Clock.Today):yyyy-MM-dd}&plantilla={_templateId}" +
+                    (Current?.NeedsSite == true && _siteId is not null ? $"&nodo={_siteId}" : string.Empty);
+        var name = _preview!.FileBaseName;
+        if (_excel) { _links.Add(($"{name}.xlsx", $"exportes/{_key}/xlsx?{query}")); }
+        if (_pdf) { _links.Add(($"{name}.pdf", $"exportes/{_key}/pdf?{query}")); }
+    }
+
+    // Una plantilla nueva parte de los colores de la actual, pero es un registro nuevo (nunca la estándar).
+    private ExportTemplate? NewTemplateFromCurrent() => _template is null ? null : new ExportTemplate
+    {
+        HeaderColor = _template.HeaderColor, AccentColor = _template.AccentColor, Landscape = _template.Landscape, ZebraRows = _template.ZebraRows,
+    };
+
+    private async Task TemplateAsync(bool edit)
+    {
+        var columns = _preview?.Sections.FirstOrDefault()?.Columns ?? [];
+        var dialog = await Dialogs.ShowAsync<TemplateDialog>(edit ? "Editar plantilla de diseño" : "Nueva plantilla de diseño",
+            new DialogParameters
+            {
+                ["Model"] = edit ? _template : NewTemplateFromCurrent(), ["CurrentKey"] = _key, ["Definitions"] = Reports.Definitions.ToList(), ["Columns"] = columns.ToList(),
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadTemplatesAsync();
+        }
+    }
+}

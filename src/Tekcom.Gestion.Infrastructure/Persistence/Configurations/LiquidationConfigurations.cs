@@ -29,3 +29,17 @@ public sealed class FatMeasurementConfiguration : IEntityTypeConfiguration<FatMe
         b.HasIndex(x => new { x.SiteId, x.FatCode });
     }
 }
+
+public sealed class ExportTemplateConfiguration : IEntityTypeConfiguration<ExportTemplate>
+{
+    public void Configure(EntityTypeBuilder<ExportTemplate> b)
+    {
+        b.Property(x => x.Name).HasMaxLength(100).IsRequired();
+        b.Property(x => x.ReportKey).HasMaxLength(40);
+        b.Property(x => x.HeaderColor).HasMaxLength(9).IsRequired();
+        b.Property(x => x.AccentColor).HasMaxLength(9).IsRequired();
+        b.Property(x => x.FooterNote).HasMaxLength(300);
+        b.Property(x => x.HiddenColumns).HasMaxLength(500);
+        b.Ignore(x => x.HiddenSet);
+    }
+}

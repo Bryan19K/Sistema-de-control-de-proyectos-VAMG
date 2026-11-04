@@ -17,8 +17,8 @@ costo. Varias librerías populares cambiaron de licencia recientemente.
 | EF Core, ASP.NET Core Identity | 10.x | MIT | Sin restricciones. |
 | xUnit | 2.9.x | Apache 2.0 | Sin restricciones. |
 | **FluentAssertions** | **7.2.x (fijada)** | Apache 2.0 | **La versión 8+ pasó a licencia comercial de pago.** No actualizar a 8.x. Si hace falta una versión más nueva, migrar a *AwesomeAssertions* (fork con licencia Apache 2.0 y la misma API). |
-| ClosedXML (Sprint 4) | — | MIT | Sin restricciones. |
-| QuestPDF (Sprint 4) | — | Community | Gratuita solo para empresas con ingresos anuales menores a 1 millón USD. Verificar antes de usarla y declarar `QuestPDF.Settings.License = LicenseType.Community`. |
+| ClosedXML | 0.105.x | MIT | Sin restricciones. |
+| QuestPDF | 2026.9.x | Community | Gratuita solo para empresas con ingresos anuales menores a 1 millón USD. **TEK-COM debe confirmar que cumple ese límite**; si no, hay que comprar la licencia correspondiente. El código ya declara `QuestPDF.Settings.License = LicenseType.Community` (en `ReportExporter`). |
 | Hangfire (Sprint 6) | — | LGPL v3 | La versión Core es gratuita para uso comercial. |
 
 Las versiones se administran de forma centralizada en `Directory.Packages.props`

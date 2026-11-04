@@ -790,3 +790,6 @@ code {
 .tk-drop-ok { outline: 2px dashed rgba(30, 158, 85, 0.4); outline-offset: -4px; border-radius: 12px; }
 .tk-drop-no { opacity: 0.85; }
 .tk-task { cursor: pointer; }
+
+.tk-color { display: inline-flex; align-items: center; gap: 8px; color: var(--tk-text-2); font-size: 0.9rem; }
+.tk-color input[type=color] { width: 44px; height: 32px; border: 1px solid #c9d2dc; border-radius: 6px; padding: 2px; background: #fff; }

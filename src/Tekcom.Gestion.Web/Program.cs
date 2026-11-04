@@ -91,6 +91,39 @@ app.MapGet("/plantillas/proyeccion.xlsx", (Tekcom.Gestion.Application.Import.IPr
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "plantilla-proyeccion.xlsx"))
     .RequireAuthorization();
 
+// Descarga de reportes en Excel o PDF (solo con sesión iniciada).
+app.MapGet("/exportes/{key}/{format}", async (
+    string key, string format, int proyecto, int? nodo, string? corte, int? plantilla,
+    System.Security.Claims.ClaimsPrincipal user,
+    Tekcom.Gestion.Application.Reports.IReportService reports,
+    Tekcom.Gestion.Application.Reports.IReportExporter exporter,
+    Tekcom.Gestion.Application.Reports.IExportTemplateService templates,
+    Tekcom.Gestion.Application.Services.IUserAdminService users) =>
+{
+    try
+    {
+        var preparedBy = await users.DisplayNameAsync(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty);
+        DateOnly? cutoff = DateOnly.TryParse(corte, out var parsed) ? parsed : null;
+        var document = await reports.BuildAsync(new Tekcom.Gestion.Application.Reports.ReportRequest
+        {
+            Key = key, ProjectId = proyecto, SiteId = nodo, CutoffDate = cutoff, PreparedBy = preparedBy,
+        });
+        var template = await templates.GetAsync(plantilla);
+
+        return format.ToLowerInvariant() switch
+        {
+            "xlsx" => Results.File(exporter.ToExcel(document, template),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{document.FileBaseName}.xlsx"),
+            "pdf" => Results.File(exporter.ToPdf(document, template), "application/pdf", $"{document.FileBaseName}.pdf"),
+            _ => Results.NotFound(),
+        };
+    }
+    catch (Tekcom.Gestion.Application.Common.BusinessRuleException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+}).RequireAuthorization();
+
 // Endpoints adicionales que necesitan las páginas de /Account.
 app.MapAdditionalIdentityEndpoints();
 

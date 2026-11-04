@@ -22,6 +22,16 @@ public static class CatalogSeeder
         await EnsureProjectTypesAsync(db, ct);
         await EnsureStageDefinitionsAsync(db, ct);
         await EnsureBaseCatalogAsync(db, ct);
+        await EnsureExportTemplatesAsync(db, ct);
+    }
+
+    public static async Task EnsureExportTemplatesAsync(ApplicationDbContext db, CancellationToken ct = default)
+    {
+        if (!await db.ExportTemplates.AnyAsync(t => t.IsSystem, ct))
+        {
+            db.ExportTemplates.Add(new ExportTemplate { Name = "Estándar TEK-COM", IsSystem = true });
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     public static async Task EnsureProjectTypesAsync(ApplicationDbContext db, CancellationToken ct = default)

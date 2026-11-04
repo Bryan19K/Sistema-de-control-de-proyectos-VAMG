@@ -32,6 +32,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<FeederLine> FeederLines => Set<FeederLine>();
     public DbSet<FeederEntry> FeederEntries => Set<FeederEntry>();
 
+    // Exportes
+    public DbSet<ExportTemplate> ExportTemplates => Set<ExportTemplate>();
+
     // Liquidación y mediciones
     public DbSet<Liquidation> Liquidations => Set<Liquidation>();
     public DbSet<LiquidationJustification> LiquidationJustifications => Set<LiquidationJustification>();

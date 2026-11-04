@@ -71,6 +71,9 @@ public interface IMaterialService
 public interface IUserAdminService
 {
     Task<List<UserListItem>> ListAsync(CancellationToken ct = default);
+
+    /// <summary>Nombre completo del usuario (o su correo si no lo tiene), para el campo "Elaborado por".</summary>
+    Task<string> DisplayNameAsync(string userId, CancellationToken ct = default);
     Task CreateAsync(string email, string fullName, string password, IEnumerable<string> roles, CancellationToken ct = default);
     Task SetRolesAsync(string userId, IEnumerable<string> roles, CancellationToken ct = default);
     Task ResetPasswordAsync(string userId, string newPassword, CancellationToken ct = default);
@@ -154,7 +157,7 @@ public interface ITaskService
 public interface IInventoryService
 {
     /// <summary>Stock calculado de cada material que pasa por bodega, con faltantes y estado.</summary>
-    Task<List<StockRow>> StockAsync(int projectId, CancellationToken ct = default);
+    Task<List<StockRow>> StockAsync(int projectId, DateOnly? asOf = null, CancellationToken ct = default);
 
     Task<decimal> AvailableAsync(int projectId, int materialId, CancellationToken ct = default);
 

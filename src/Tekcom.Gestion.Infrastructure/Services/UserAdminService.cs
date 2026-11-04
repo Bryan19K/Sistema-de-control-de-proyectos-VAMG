@@ -24,6 +24,17 @@ public sealed class UserAdminService(UserManager<ApplicationUser> users) : IUser
         return result;
     }
 
+    public async Task<string> DisplayNameAsync(string userId, CancellationToken ct = default)
+    {
+        var user = await users.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(user.FullName) ? user.Email ?? user.UserName ?? string.Empty : user.FullName;
+    }
+
     public async Task CreateAsync(string email, string fullName, string password, IEnumerable<string> roles, CancellationToken ct = default)
     {
         email = (email ?? string.Empty).Trim();

@@ -68,6 +68,9 @@ public sealed class StockRow
     public decimal Delivered { get; init; }
     public decimal Returned { get; init; }
 
+    /// <summary>Total instalado en campo (nodos y feeder). No afecta el stock de bodega.</summary>
+    public decimal Installed { get; init; }
+
     /// <summary>Suma neta de los ajustes (positivos y negativos).</summary>
     public decimal AdjustmentNet { get; init; }
 

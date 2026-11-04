@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Tekcom.Gestion.Application.Common.Interfaces;
 using Tekcom.Gestion.Application.Import;
+using Tekcom.Gestion.Application.Reports;
 using Tekcom.Gestion.Application.Services;
 using Tekcom.Gestion.Infrastructure.Identity;
 using Tekcom.Gestion.Infrastructure.Persistence;
@@ -64,6 +65,9 @@ public static class DependencyInjection
         services.AddScoped<ITaskService, TaskService>();
         services.AddSingleton<IFileStorage, LocalFileStorage>();
         services.AddScoped<IExcelImportService, Import.ExcelImportService>();
+        services.AddScoped<IReportService, Reports.ReportService>();
+        services.AddSingleton<IReportExporter, Reports.ReportExporter>();
+        services.AddScoped<IExportTemplateService, Reports.ExportTemplateService>();
         services.AddScoped<IProjectionImportService, Import.ProjectionImportService>();
 
         services.Configure<SeedAdminOptions>(configuration.GetSection(SeedAdminOptions.SectionName));

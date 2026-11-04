@@ -1,0 +1,133 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Reports
+@using Tekcom.Gestion.Domain.Entities
+@inject IExportTemplateService Templates
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_name" Label="Nombre de la plantilla" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudSelect T="string" @bind-Value="_reportKey" Label="Aplica a" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       HelperText="Con un reporte específico, las columnas ocultas solo afectan a ese reporte.">
+                <MudSelectItem T="string" Value="@((string?)null)">Todos los reportes</MudSelectItem>
+                @foreach (var d in Definitions)
+                {
+                    <MudSelectItem T="string" Value="@d.Key">@d.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <div style="display:flex; gap:24px; flex-wrap:wrap">
+                <label class="tk-color"><span>Color del encabezado</span><input type="color" @bind="_header" @bind:event="oninput" /> <code>@_header</code></label>
+                <label class="tk-color"><span>Color de acento</span><input type="color" @bind="_accent" @bind:event="oninput" /> <code>@_accent</code></label>
+            </div>
+            <MudSwitch T="bool" @bind-Value="_landscape" Label="Hoja horizontal" Color="Color.Primary" />
+            <MudSwitch T="bool" @bind-Value="_zebra" Label="Filas alternadas (cebra)" Color="Color.Primary" />
+            <MudTextField @bind-Value="_footer" Label="Texto al pie (opcional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+            @if (Columns.Count > 0)
+            {
+                <MudText Typo="Typo.subtitle2">Columnas que se muestran (@(Definitions.FirstOrDefault(d => d.Key == CurrentKey)?.Name))</MudText>
+                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr))">
+                    @foreach (var column in Columns)
+                    {
+                        var local = column;
+                        <MudCheckBox T="bool" Value="!_hidden.Contains(local.Key)" ValueChanged="v => Toggle(local.Key, v)" Label="@local.Header" Size="Size.Small" />
+                    }
+                </div>
+            }
+            <MudText Typo="Typo.caption" Class="tk-muted">
+                El encabezado fijo (logo TEK-COM, reporte, proyecto, fecha de corte y "Elaborado por") siempre se incluye.
+            </MudText>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        @if (Model is { Id: > 0 })
+        {
+            <MudButton Color="Color.Error" OnClick="DeleteAsync">Eliminar</MudButton>
+            <MudSpacer />
+        }
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ExportTemplate? Model { get; set; }
+    [Parameter] public string CurrentKey { get; set; } = string.Empty;
+    [Parameter] public List<ReportDefinition> Definitions { get; set; } = [];
+    [Parameter] public List<ReportColumn> Columns { get; set; } = [];
+
+    private string _name = string.Empty;
+    private string? _reportKey;
+    private string _header = "#12304f";
+    private string _accent = "#e8742c";
+    private bool _landscape = true;
+    private bool _zebra = true;
+    private string? _footer;
+    private readonly HashSet<string> _hidden = new(StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        if (Model is { Id: > 0 })
+        {
+            _name = Model.Name;
+            _reportKey = Model.ReportKey;
+            _header = Model.HeaderColor;
+            _accent = Model.AccentColor;
+            _landscape = Model.Landscape;
+            _zebra = Model.ZebraRows;
+            _footer = Model.FooterNote;
+            foreach (var key in Model.HiddenSet)
+            {
+                _hidden.Add(key);
+            }
+        }
+        else
+        {
+            _reportKey = CurrentKey;
+            if (Model is not null)
+            {
+                _header = Model.HeaderColor;
+                _accent = Model.AccentColor;
+                _landscape = Model.Landscape;
+                _zebra = Model.ZebraRows;
+            }
+        }
+    }
+
+    private void Toggle(string key, bool visible)
+    {
+        if (visible) { _hidden.Remove(key); } else { _hidden.Add(key); }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Templates.SaveAsync(new ExportTemplate
+            {
+                Id = Model is { Id: > 0 } ? Model.Id : 0, Name = _name, ReportKey = _reportKey, HeaderColor = _header, AccentColor = _accent,
+                Landscape = _landscape, ZebraRows = _zebra, FooterNote = _footer, HiddenColumns = string.Join(",", _hidden),
+            });
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        try
+        {
+            await Templates.DeleteAsync(Model!.Id);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

@@ -20,13 +20,13 @@ public sealed class InventoryService(
     ICurrentUserService currentUser,
     IDateTimeProvider clock) : IInventoryService
 {
-    public async Task<List<StockRow>> StockAsync(int projectId, CancellationToken ct = default)
+    public async Task<List<StockRow>> StockAsync(int projectId, DateOnly? asOf = null, CancellationToken ct = default)
     {
         await using var db = factory.CreateDbContext();
         var projected = await quantities.GetProjectedByMaterialAsync(projectId, ct);
 
         var movements = await db.InventoryMovements.AsNoTracking()
-            .Where(m => m.ProjectId == projectId && !m.IsVoided && m.Type != MovementType.Installed)
+            .Where(m => m.ProjectId == projectId && !m.IsVoided && (asOf == null || m.Date <= asOf))
             .Select(m => new { m.MaterialId, m.Type, m.Quantity, m.IsIncrease })
             .ToListAsync(ct);
 
@@ -233,6 +233,7 @@ public sealed class InventoryService(
             Received = list.Where(m => m.Type == MovementType.Receipt).Sum(m => m.Quantity),
             Delivered = list.Where(m => m.Type == MovementType.Delivery).Sum(m => m.Quantity),
             Returned = list.Where(m => m.Type == MovementType.Return).Sum(m => m.Quantity),
+            Installed = list.Where(m => m.Type == MovementType.Installed).Sum(m => m.Quantity),
             AdjustmentNet = list.Where(m => m.Type == MovementType.Adjustment).Sum(m => m.IsIncrease ? m.Quantity : -m.Quantity),
             ProjectedTotal = projectedTotal,
         };

@@ -17,6 +17,8 @@
 
   <ItemGroup Label="Excel y PDF">
     <PackageVersion Include="ClosedXML" Version="0.105.1" />
+    <!-- QuestPDF: licencia Community, gratuita para empresas con ingresos anuales menores a 1 millón de USD (ver ADR-002). -->
+    <PackageVersion Include="QuestPDF" Version="2026.9.1" />
   </ItemGroup>
 
   <ItemGroup Label="UI">
