@@ -21,6 +21,7 @@ APP_DIR=/opt/tekcom
 [ "$(id -u)" -eq 0 ] || { echo "Este script debe correr como root."; exit 1; }
 command -v apt-get >/dev/null || { echo "Solo se soporta Ubuntu/Debian (no se encontró apt-get)."; exit 1; }
 export DEBIAN_FRONTEND=noninteractive
+trap 'echo "ERROR: el script se detuvo en la línea $LINENO (comando: $BASH_COMMAND)"' ERR
 
 echo "==> 1/6 Paquetes base"
 apt-get update -y
@@ -38,7 +39,8 @@ systemctl enable --now docker
 docker compose version >/dev/null
 
 echo "==> 3/6 Firewall (SSH, HTTP y HTTPS)"
-SSH_PORT="$(sshd -T 2>/dev/null | awk '/^port /{print $2; exit}')"
+# El "|| true" evita que pipefail aborte el script cuando awk cierra la tubería antes de tiempo.
+SSH_PORT="$(sshd -T 2>/dev/null | awk '/^port /{print $2}' | head -n1 || true)"
 SSH_PORT="${SSH_PORT:-22}"
 ufw allow "${SSH_PORT}/tcp"
 ufw allow 80/tcp
