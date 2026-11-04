@@ -52,8 +52,15 @@ read -r -p "Correo del administrador de la aplicación: " ADMIN_EMAIL < /dev/tty
 echo "Servidor: $HOST  ·  Dirección de la aplicación: https://$DOMAIN"
 
 paso "1/5 Llave SSH para las publicaciones automáticas"
-ssh-keygen -q -t ed25519 -N "" -C "deploy-tekcom" -f "$WORK/deploy_key"
-PUBKEY="$(cat "$WORK/deploy_key.pub")"
+# La llave va en ~/.ssh (permisos estrictos); en /tmp del Codespace ssh la rechaza por "bad permissions".
+mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+KEY="$HOME/.ssh/tekcom_deploy_$$"
+trap 'ssh -O exit -o ControlPath="$WORK/cm" "root@$HOST" >/dev/null 2>&1 || true; rm -rf "$WORK" "$KEY" "$KEY.pub"' EXIT
+ssh-keygen -q -t ed25519 -N "" -C "deploy-tekcom" -f "$KEY"
+chmod 600 "$KEY"
+MODO="$(stat -c %a "$KEY")"
+[ "$MODO" = "600" ] || fallo "La llave quedó con permisos $MODO en $KEY y ssh la rechazaría."
+PUBKEY="$(cat "$KEY.pub")"
 
 # Una sola conexión reutilizada: la contraseña de root se pide una vez.
 SSH_ROOT=(ssh -o StrictHostKeyChecking=accept-new -o ControlMaster=auto -o ControlPath="$WORK/cm" -o ControlPersist=15m "root@$HOST")
@@ -65,7 +72,7 @@ curl -fsSL "$RAW/setup-server.sh" -o "$WORK/setup-server.sh"
 
 paso "3/5 Probando la llave en el servidor"
 SSH_USER=deploy
-PROBAR=(ssh -i "$WORK/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "deploy@$HOST" true)
+PROBAR=(ssh -i "$KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "deploy@$HOST" true)
 if ! "${PROBAR[@]}" 2>/dev/null; then
   aviso "La llave no fue aceptada a la primera. Reescribiendo la llave en el servidor y reintentando..."
   "${SSH_ROOT[@]}" "install -d -m 700 -o deploy -g deploy /home/deploy/.ssh \
@@ -81,12 +88,12 @@ if ! "${PROBAR[@]}" 2>/dev/null; then
     echo "-----------------------------------------------------------------------"
     "${SSH_ROOT[@]}" "install -d -m 700 /root/.ssh && (grep -qxF '$PUBKEY' /root/.ssh/authorized_keys 2>/dev/null || printf '%s\n' '$PUBKEY' >> /root/.ssh/authorized_keys) && chmod 600 /root/.ssh/authorized_keys"
     SSH_USER=root
-    PROBAR=(ssh -i "$WORK/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "root@$HOST" true)
+    PROBAR=(ssh -i "$KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "root@$HOST" true)
     if ! "${PROBAR[@]}" 2>/dev/null; then
       aviso "Tampoco entró root con la llave. Levantando un SSH de diagnóstico en el servidor..."
       "${SSH_ROOT[@]}" 'ufw allow 2222/tcp >/dev/null 2>&1; (timeout 25 /usr/sbin/sshd -D -d -p 2222 -f /etc/ssh/sshd_config > /tmp/sshd-debug.log 2>&1 &); sleep 2' || true
       echo "--- Lado cliente ---"
-      ssh -v -p 2222 -i "$WORK/deploy_key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new "root@$HOST" true 2>&1 \
+      ssh -v -p 2222 -i "$KEY" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new "root@$HOST" true 2>&1 \
         | grep -Ei "Load key|sign_and_send|signing failed|Offering|accepts key|Authentications that can|no more auth|Permission denied|identity file" | cut -c1-170 | head -8 || true
       sleep 2
       echo "--- Lado servidor ---"
@@ -101,7 +108,7 @@ echo "Conexión por SSH con la llave correcta (usuario: $SSH_USER)"
 paso "4/5 Cargando los secretos en GitHub"
 # En Codespaces gh usa un token sin permiso para secretos; si falla, se pide autorizar una vez desde el navegador.
 cargar_secretos() {
-  gh secret set VPS_SSH_KEY -R "$REPO" < "$WORK/deploy_key" \
+  gh secret set VPS_SSH_KEY -R "$REPO" < "$KEY" \
     && gh secret set VPS_HOST -R "$REPO" --body "$HOST" \
     && gh secret set VPS_USER -R "$REPO" --body "$SSH_USER"
 }
@@ -116,7 +123,7 @@ if ! cargar_secretos 2>/dev/null; then
     aviso "No se pudieron cargar los secretos automáticamente. Cárguelos a mano en:"
     aviso "https://github.com/$REPO/settings/secrets/actions"
     aviso "VPS_HOST = $HOST    VPS_USER = $SSH_USER    VPS_SSH_KEY = (la llave de abajo, completa)"
-    cat "$WORK/deploy_key"
+    cat "$KEY"
     read -r -p "Cuando termine de cargarlos, presione Enter..." _ < /dev/tty
   }
 fi
