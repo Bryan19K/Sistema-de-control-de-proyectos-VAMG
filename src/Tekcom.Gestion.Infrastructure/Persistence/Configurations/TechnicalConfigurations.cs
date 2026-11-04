@@ -82,3 +82,14 @@ public sealed class MinuteItemConfiguration : IEntityTypeConfiguration<MinuteIte
         b.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId);
     }
 }
+
+public sealed class ProgressSnapshotConfiguration : IEntityTypeConfiguration<ProgressSnapshot>
+{
+    public void Configure(EntityTypeBuilder<ProgressSnapshot> b)
+    {
+        b.Property(x => x.ProgressPercent).HasPrecision(7, 2);
+        b.Property(x => x.ElapsedPercent).HasPrecision(7, 2);
+        b.HasIndex(x => new { x.ProjectId, x.Date });
+        b.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
+    }
+}

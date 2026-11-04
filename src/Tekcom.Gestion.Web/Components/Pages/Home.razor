@@ -12,6 +12,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject IDateTimeProvider Clock
 @inject IDashboardService Dashboard
+@inject IAttentionService AttentionService
 @inject ProjectSelection Selection
 
 <PageTitle>Inicio · TEK-COM</PageTitle>
@@ -117,6 +118,10 @@ else
 
     @if (_data.Projects.Count > 0)
     {
+        <SectionCard Title="@(_attention.Count == 0 ? "Requiere atención" : $"Requiere atención ({_attention.Count})")" Class="mt-6">
+            <AttentionList Items="_attention" />
+        </SectionCard>
+
         <div class="tk-toolbar mt-6">
             <h2 class="tk-section__title" style="margin:0">Gráficos del proyecto</h2>
             <ProjectPicker Value="_chartProjectId" Changed="OnChartProjectChanged" />
@@ -194,6 +199,7 @@ else
     private string firstName = string.Empty;
     private DashboardData? _data;
     private ProjectCharts? _charts;
+    private List<AttentionItem> _attention = [];
     private int _chartProjectId;
 
     private sealed record BarRow(string Label, decimal Projected, decimal Installed)
@@ -273,6 +279,7 @@ else
     {
         _chartProjectId = id;
         _charts = await Dashboard.GetChartsAsync(id);
+        _attention = await AttentionService.GetAsync(id);
     }
 
     protected override async Task OnInitializedAsync()
@@ -282,6 +289,7 @@ else
         if (_chartProjectId != 0)
         {
             _charts = await Dashboard.GetChartsAsync(_chartProjectId);
+            _attention = await AttentionService.GetAsync(_chartProjectId);
         }
 
         var state = await AuthState.GetAuthenticationStateAsync();

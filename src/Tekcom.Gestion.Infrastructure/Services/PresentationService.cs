@@ -2,6 +2,7 @@ using Tekcom.Gestion.Application.Common;
 using Tekcom.Gestion.Application.Common.Interfaces;
 using Tekcom.Gestion.Application.Models;
 using Tekcom.Gestion.Application.Services;
+using Tekcom.Gestion.Domain.Entities;
 using Tekcom.Gestion.Domain.Enums;
 using Tekcom.Gestion.Domain.Logic;
 
@@ -20,11 +21,16 @@ public sealed class PresentationService(
     ISprintService sprints,
     IMeasurementService measurements,
     ILiquidationService liquidation,
+    IDocumentService documents,
+    ISnapshotService snapshots,
+    IAttentionService attention,
     IDateTimeProvider clock) : IPresentationService
 {
     public async Task<PresentationData> GetAsync(int projectId, CancellationToken ct = default)
     {
         var project = await projects.GetAsync(projectId, ct) ?? throw new BusinessRuleException("Seleccione un proyecto.");
+        await snapshots.CaptureAsync(projectId, ct); // asegura el punto de hoy en la curva real
+        var history = await snapshots.ListAsync(projectId, ct);
         var today = clock.Today;
         var plan = await workPlan.GetAsync(projectId, ct);
         var siteList = await sites.ListAsync(projectId, ct);
@@ -71,6 +77,41 @@ public sealed class PresentationService(
             .Select(s => new SprintBar(s.Sprint.Name, s.ProgressPercent, s.Pace.ElapsedPercent, s.Pace.Status, s.Sprint.Status == SprintStatus.Closed))
             .ToList();
 
+        var docs = await documents.ListAsync(new DocumentFilter { ProjectId = projectId }, ct);
+        var evidence = siteList.Where(s => s.Site.OdnFinalized).OrderBy(s => s.Site.Code)
+            .Select(s =>
+            {
+                var own = docs.Where(x => x.SiteId == s.Site.Id).ToList();
+                return new EvidenceRow(s.Site.Id, s.Site.Code, true,
+                    own.Any(x => x.Kind == DocumentKind.Atp && x.IsSigned), own.Any(x => x.Kind == DocumentKind.Caes),
+                    own.Count(x => x.Kind == DocumentKind.Photo), own.Count,
+                    own.Where(x => x.Kind == DocumentKind.Photo && x.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                        .OrderByDescending(x => x.DocumentDate).Take(3).Select(x => x.Id).ToList());
+            }).ToList();
+
+        // Brigadas: avance de sus nodos y piezas entregadas/instaladas (solo unidades, no metros).
+        var brigadeOf = siteList.ToDictionary(s => s.Site.Id, s => s.Site.Contractor?.Name ?? "Sin brigada");
+        var movements = (await inventory.MovementsAsync(new MovementFilter { ProjectId = projectId, IncludeVoided = false, Take = 5000 }, ct))
+            .Where(m => m.Material?.Unit == "UND" && m.SiteId is not null).ToList();
+        var brigades = siteList.GroupBy(s => brigadeOf[s.Site.Id])
+            .Select(g => new BrigadeRow(g.Key, g.Count(), g.Count(x => x.Site.OdnFinalized),
+                Math.Round(g.Average(x => x.Site.OdnFinalized ? 100 : x.ProgressPercent), 1),
+                movements.Where(m => m.Type == MovementType.Delivery && brigadeOf.TryGetValue(m.SiteId!.Value, out var b) && b == g.Key).Sum(m => m.Quantity),
+                movements.Where(m => m.Type == MovementType.Installed && brigadeOf.TryGetValue(m.SiteId!.Value, out var b2) && b2 == g.Key).Sum(m => m.Quantity)))
+            .OrderByDescending(b => b.AverageProgress).ToList();
+
+        var thisMonday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+        var weekly = Enumerable.Range(0, 8).Select(i => thisMonday.AddDays(-7 * (7 - i)))
+            .Select(week =>
+            {
+                var inWeek = movements.Where(m => m.Type == MovementType.Installed && m.Date >= week && m.Date < week.AddDays(7)).ToList();
+                return new WeekInstalled(week, inWeek.Sum(m => m.Quantity),
+                    inWeek.GroupBy(m => brigadeOf.GetValueOrDefault(m.SiteId!.Value, "Sin brigada")).ToDictionary(g => g.Key, g => g.Sum(m => m.Quantity)));
+            }).ToList();
+
+        var weekAgo = history.Where(h => h.Date <= today.AddDays(-7)).OrderByDescending(h => h.Date).FirstOrDefault();
+        var attentionItems = await attention.GetAsync(projectId, ct);
+
         int measured = 0, ok = 0, bad = 0, closed = 0;
         foreach (var s in siteList)
         {
@@ -89,11 +130,17 @@ public sealed class PresentationService(
             Pace = pace,
             PlanStart = plan.IsEmpty ? project.PlannedStart : plan.Start,
             PlanEnd = plan.IsEmpty ? project.PlannedEnd : plan.End,
-            Curve = BuildCurve(plan, today),
+            Curve = BuildCurve(plan, today, history),
             Nodes = siteList.OrderByDescending(s => s.Site.OdnFinalized ? 100 : s.ProgressPercent).ThenBy(s => s.Site.Code)
                 .Select(s => new NodeBar(s.Site.Code, s.Site.OdnFinalized ? 100 : s.ProgressPercent, s.Pace.Status, s.Site.IsReadyToDeliver)).ToList(),
             StageColumns = stageColumns,
             StageRows = stageRows,
+            Evidence = evidence,
+            Brigades = brigades,
+            WeeklyInstalled = weekly,
+            Attention = attentionItems,
+            ProgressWeekAgo = weekAgo?.ProgressPercent,
+            HasSnapshots = history.Count >= 2,
             Charts = charts,
             Materials = stock,
             TasksByPerson = byPerson,
@@ -110,7 +157,7 @@ public sealed class PresentationService(
     /// Curva en S planificada (ponderada por la duración de cada actividad) contra el avance real. El real se arma con las
     /// fechas de fin reales registradas y, el día de hoy, con el avance actual del plan.
     /// </summary>
-    private static List<CurvePoint> BuildCurve(WorkPlanView plan, DateOnly today)
+    private static List<CurvePoint> BuildCurve(WorkPlanView plan, DateOnly today, List<ProgressSnapshot> history)
     {
         var activities = plan.Activities.Select(a => a.Activity).ToList();
         if (activities.Count == 0 || plan.Start is null || plan.End is null)
@@ -130,7 +177,13 @@ public sealed class PresentationService(
             var date = d > end ? end : d;
             var planned = activities.Sum(a => Weight(a) * PlannedShare(a, date)) / total * 100;
             decimal? real = null;
-            if (date <= today)
+            if (date <= today && history.Count >= 2)
+            {
+                // Con fotos diarias, el real es la última foto hasta esa fecha (sin inventar historia).
+                var shot = history.Where(h => h.Date <= date).OrderByDescending(h => h.Date).FirstOrDefault();
+                real = date == today ? plan.Progress : shot?.ProgressPercent;
+            }
+            else if (date <= today)
             {
                 real = date == today
                     ? plan.Progress

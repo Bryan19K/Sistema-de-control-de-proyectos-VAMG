@@ -81,6 +81,30 @@ public sealed class DashboardService(
         };
     }
 
+    public async Task<ProjectComparison?> ComparisonAsync(int projectId, CancellationToken ct = default)
+    {
+        var project = await projects.GetAsync(projectId, ct);
+        if (project is null) { return null; }
+
+        await using var db = factory.CreateDbContext();
+        var tasks = await db.Tasks.AsNoTracking().Where(t => t.ProjectId == projectId).ToListAsync(ct);
+        var row = await BuildRowAsync(project, tasks, ct);
+        var overdue = tasks.Count(t => t.Status != TaskItemStatus.Done && t.DueDate < clock.Today);
+        return new ProjectComparison(project.Id, project.Name, project.ProjectType?.Name ?? string.Empty, project.Status,
+            row.Progress, row.Pace, row.Sites, row.ReadySites, overdue);
+    }
+
+    public async Task<List<ProjectComparison>> CompareAllAsync(CancellationToken ct = default)
+    {
+        var result = new List<ProjectComparison>();
+        foreach (var project in (await projects.ListAsync(ct)).Where(p => p.Status != ProjectStatus.Closed))
+        {
+            if (await ComparisonAsync(project.Id, ct) is { } c) { result.Add(c); }
+        }
+
+        return result.OrderBy(c => c.Name).ToList();
+    }
+
     public async Task<ProjectCharts> GetChartsAsync(int projectId, CancellationToken ct = default)
     {
         var siteList = await sites.ListAsync(projectId, ct);

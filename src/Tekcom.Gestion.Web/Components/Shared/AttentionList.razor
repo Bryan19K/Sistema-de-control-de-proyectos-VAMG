@@ -1,0 +1,28 @@
+@using Tekcom.Gestion.Application.Models
+
+@if (Items.Count == 0)
+{
+    <div class="tk-attn-ok"><MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" /> Todo en orden: no hay nada que requiera atención.</div>
+}
+else
+{
+    <ul class="tk-attn">
+        @foreach (var item in Items)
+        {
+            <li class="tk-attn__item tk-attn__item--@item.Severity.ToString().ToLowerInvariant()">
+                <span class="tk-attn__icon" aria-hidden="true">
+                    <MudIcon Icon="@(item.Severity == AttentionSeverity.Critical ? Icons.Material.Filled.ErrorOutline : Icons.Material.Filled.WarningAmber)" Size="Size.Small" />
+                </span>
+                <span class="tk-attn__body">
+                    <strong>@item.Title</strong>
+                    <span>@item.Detail</span>
+                </span>
+                <a class="tk-attn__link tk-no-print" href="@item.Href">Ver</a>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<AttentionItem> Items { get; set; } = [];
+}

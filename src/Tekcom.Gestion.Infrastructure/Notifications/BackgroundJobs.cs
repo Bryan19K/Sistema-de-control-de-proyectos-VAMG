@@ -80,6 +80,10 @@ public static class BackgroundJobs
         manager.AddOrUpdate<NotificationJobs>(NotificationJobs.ChecksJobId,
             j => j.RunChecksAsync(CancellationToken.None), configuration["Hangfire:ChecksCron"] ?? "0 7-18 * * *", options);
 
+        // Foto diaria del avance: todos los días a las 23:30.
+        manager.AddOrUpdate<NotificationJobs>(NotificationJobs.SnapshotJobId,
+            j => j.CaptureSnapshotsAsync(CancellationToken.None), configuration["Hangfire:SnapshotCron"] ?? "30 23 * * *", options);
+
         // Resumen diario: todos los días a las 7:00.
         manager.AddOrUpdate<NotificationJobs>(NotificationJobs.SummaryJobId,
             j => j.SendDailySummaryAsync(CancellationToken.None), configuration["Hangfire:SummaryCron"] ?? "0 7 * * *", options);

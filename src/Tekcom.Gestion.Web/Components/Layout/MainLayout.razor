@@ -1,6 +1,10 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@using Tekcom.Gestion.Web.Services
+@inject ThemeState Theme
+@inject IJSRuntime JS
 
-<MudThemeProvider Theme="TekcomTheme.Theme" />
+<MudThemeProvider Theme="TekcomTheme.Theme" IsDarkMode="Theme.IsDark" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -33,6 +37,22 @@
 
 @code {
     private bool drawerOpen = true;
+
+    protected override void OnInitialized() => Theme.Changed += OnThemeChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // El tema ya se aplicó en la página (script de App.razor); aquí solo se sincroniza con MudBlazor.
+            var saved = await JS.InvokeAsync<string>("tkTheme.get");
+            Theme.Set(saved == "dark");
+        }
+    }
+
+    private void OnThemeChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Theme.Changed -= OnThemeChanged;
 
     private void ToggleDrawer() => drawerOpen = !drawerOpen;
 }

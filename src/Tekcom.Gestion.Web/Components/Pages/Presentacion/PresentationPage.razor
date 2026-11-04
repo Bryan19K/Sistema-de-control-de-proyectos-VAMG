@@ -65,6 +65,15 @@ else
                 <span class="tk-stat__value"><PaceChip Pace="d.Pace" /></span>
                 <span class="tk-stat__note">avance menos tiempo transcurrido</span>
             </div>
+            @if (d.ProgressWeekAgo is { } before)
+            {
+                var delta = d.Progress - before;
+                <div class="tk-stat">
+                    <span class="tk-stat__label">Esta semana</span>
+                    <span class="tk-stat__value tk-stat__value--@(delta > 0 ? "ok" : delta < 0 ? "bad" : "")">@(delta >= 0 ? "+" : "")@delta.ToString("0.#") pts</span>
+                    <span class="tk-stat__note">contra hace 7 días (@before.ToString("0.#")%)</span>
+                </div>
+            }
             <div class="tk-stat">
                 <span class="tk-stat__label">Cierre planificado</span>
                 <span class="tk-stat__value">@UiText.LongDate(d.PlanEnd)</span>
@@ -89,6 +98,11 @@ else
     </div>
 
     <div class="tk-chart-grid">
+        @* ================= Requiere atención ================= *@
+        <SectionCard Title="@(d.Attention.Count == 0 ? "Requiere atención" : $"Requiere atención ({d.Attention.Count})")" Class="tk-span-2">
+            <AttentionList Items="d.Attention" />
+        </SectionCard>
+
         @* ================= 1. Curva ================= *@
         <SectionCard Title="Avance real contra planificado" Class="tk-span-2">
             @if (d.Curve.Count < 2)
@@ -139,7 +153,7 @@ else
                         </g>
                     }
                 </svg>
-                <div class="tk-note">El avance real se arma con las actividades terminadas (fecha real de fin) y, hoy, con el avance actual del plan.</div>
+                <div class="tk-note">@(d.HasSnapshots ? "El avance real sale de la foto diaria que guarda el sistema cada noche y de la de hoy." : "Todavía hay pocas fotos diarias: el avance real se arma con las actividades terminadas (fecha real de fin) y, hoy, con el avance actual del plan. Mejora solo cada día.")</div>
                 <details class="tk-details">
                     <summary>Ver datos en tabla</summary>
                     <div class="tk-table-wrap"><table class="tk-table">
@@ -298,6 +312,88 @@ else
             }
         </SectionCard>
 
+        @* ================= Evidencias ================= *@
+        <SectionCard Title="Evidencias de nodos finalizados" Class="tk-span-2">
+            @if (d.Evidence.Count == 0)
+            {
+                <EmptyState Title="Todavía no hay nodos finalizados" Icon="@Icons.Material.Outlined.VerifiedUser" Description="Cuando un nodo termine su ODN aparece aquí con su ATP firmado, CAES y fotos de cierre." />
+            }
+            else
+            {
+                var signed = d.Evidence.Count(e => e.SignedAtp);
+                <div class="tk-meter tk-meter--wide mb-4" data-tip="@($"{signed} de {d.Evidence.Count}|Nodos finalizados con ATP firmado")" tabindex="0">
+                    <span class="tk-meter__track"><span class="tk-meter__fill tk-meter__fill--@(signed == d.Evidence.Count ? "ok" : "info")" style="width:@Pct(signed * 100m / d.Evidence.Count)%"></span></span>
+                    <span class="tk-meter__value">@signed de @d.Evidence.Count con ATP firmado</span>
+                </div>
+                <div class="tk-evidence">
+                    @foreach (var e in d.Evidence)
+                    {
+                        <div class="tk-evidence__row">
+                            <a class="tk-evidence__site" href="@($"documentos?nodo={e.SiteId}")">@e.SiteCode</a>
+                            <span class="tk-chip tk-chip--@(e.SignedAtp ? "success" : "warning")">@(e.SignedAtp ? "ATP firmado" : "Falta ATP firmado")</span>
+                            <span class="tk-chip tk-chip--@(e.HasCaes ? "success" : "neutral")">@(e.HasCaes ? "CAES" : "Sin CAES")</span>
+                            <span class="tk-chip tk-chip--@(e.Photos > 0 ? "info" : "neutral")">@e.Photos foto(s)</span>
+                            <span class="tk-evidence__thumbs">
+                                @foreach (var id in e.PhotoIds) { <a href="@($"archivos/documentos/{id}")" target="_blank" rel="noopener"><img loading="lazy" src="@($"archivos/documentos/{id}")" alt="@($"Foto de cierre del nodo {e.SiteCode}")" /></a> }
+                            </span>
+                        </div>
+                    }
+                </div>
+            }
+        </SectionCard>
+
+        @* ================= Brigadas ================= *@
+        <SectionCard Title="Brigadas: avance de sus nodos">
+            @if (d.Brigades.Count == 0)
+            {
+                <EmptyState Title="Sin brigadas" Icon="@Icons.Material.Outlined.Groups" Description="Asigne una brigada a cada nodo para ver su productividad." />
+            }
+            else
+            {
+                <div class="tk-hbars">
+                    @foreach (var b in d.Brigades)
+                    {
+                        <div class="tk-hbar" data-tip="@($"{b.AverageProgress:0.#}%|{b.Name}: {b.FinishedSites} de {b.Sites} nodos finalizados · {UiText.Number(b.Installed)} de {UiText.Number(b.Delivered)} piezas instaladas")" tabindex="0">
+                            <span class="tk-hbar__label">@b.Name</span>
+                            <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--s1" style="width:@Pct(b.AverageProgress)%"></span></span>
+                            <span class="tk-hbar__value">@b.AverageProgress.ToString("0")%</span>
+                        </div>
+                    }
+                </div>
+                <details class="tk-details">
+                    <summary>Ver datos en tabla</summary>
+                    <div class="tk-table-wrap"><table class="tk-table">
+                        <thead><tr><th>Brigada</th><th>Nodos</th><th>Finalizados</th><th>Avance</th><th>Piezas entregadas</th><th>Piezas instaladas</th></tr></thead>
+                        <tbody>@foreach (var b in d.Brigades) { <tr><td>@b.Name</td><td class="num">@b.Sites</td><td class="num">@b.FinishedSites</td><td class="num">@b.AverageProgress.ToString("0.#")%</td><td class="num">@UiText.Number(b.Delivered)</td><td class="num">@UiText.Number(b.Installed)</td></tr> }</tbody>
+                    </table></div>
+                </details>
+            }
+        </SectionCard>
+
+        <SectionCard Title="Piezas instaladas por semana">
+            @if (d.WeeklyInstalled.All(w => w.Total == 0))
+            {
+                <EmptyState Title="Sin instalaciones registradas" Icon="@Icons.Material.Outlined.Construction" Description="Registre lo instalado en los nodos para ver la productividad semanal." />
+            }
+            else
+            {
+                var maxWeek = d.WeeklyInstalled.Max(w => w.Total);
+                <div class="tk-cols tk-cols--short">
+                    <div class="tk-cols__axis"><span>@UiText.Number(maxWeek)</span><span>@UiText.Number(maxWeek / 2)</span><span>0</span></div>
+                    <div class="tk-cols__plot tk-cols__plot--half" role="img" aria-label="Piezas instaladas por semana">
+                        @foreach (var w in d.WeeklyInstalled)
+                        {
+                            <div class="tk-col" data-tip="@($"{UiText.Number(w.Total)} piezas|Semana del {UiText.ShortDate(w.WeekStart)}{(w.ByBrigade.Count == 0 ? string.Empty : " · " + string.Join(", ", w.ByBrigade.Select(b => $"{b.Key}: {UiText.Number(b.Value)}")))}")" tabindex="0">
+                                <span class="tk-col__track"><span class="tk-col__fill tk-col__fill--info" style="height:@Pct(maxWeek <= 0 ? 0 : w.Total * 100m / maxWeek)%"></span></span>
+                                <span class="tk-col__label">@w.WeekStart.ToString("dd/MM", Culture)</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="tk-note">Solo piezas en unidades (cajas, herrajes, etc.); los metros de cable no se suman.</div>
+            }
+        </SectionCard>
+
         @* ================= 6. Bodega ================= *@
         <SectionCard Title="Bodega: materiales principales" Class="tk-span-2">
             @if (d.Materials.Count == 0)
@@ -432,7 +528,9 @@ else
 
     // El real solo se dibuja donde hay datos: puntos con avance mayor que cero y el de hoy (no se inventa historia).
     private static List<CurvePoint> RealPoints(PresentationData d) =>
-        d.Curve.Where(p => p.Real is > 0 || p.Date == d.Today).Where(p => p.Real is not null).ToList();
+        d.HasSnapshots
+            ? d.Curve.Where(p => p.Real is not null).ToList()
+            : d.Curve.Where(p => p.Real is > 0 || p.Date == d.Today).Where(p => p.Real is not null).ToList();
 
     private static string PolyPoints(PresentationData d, List<CurvePoint> pts) =>
         string.Join(' ', pts.Select(p => $"{F(X(d, p.Date))},{F(Y(p.Real!.Value))}"));

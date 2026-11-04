@@ -1467,6 +1467,74 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.ToTable("PlanTemplates");
                 });
 
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ProgressSnapshot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<decimal>("ElapsedPercent")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal>("ProgressPercent")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SitesFinished")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SitesReady")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TasksDone")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TasksTotal")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalSites")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Date");
+
+                    b.ToTable("ProgressSnapshots");
+                });
+
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.Project", b =>
                 {
                     b.Property<int>("Id")
@@ -2957,6 +3025,17 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Navigation("Minute");
 
                     b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ProgressSnapshot", b =>
+                {
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.Project", b =>

@@ -63,6 +63,8 @@ public static class DependencyInjection
         services.AddScoped<IWorkPlanService, WorkPlanService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IPresentationService, PresentationService>();
+        services.AddScoped<ISnapshotService, SnapshotService>();
+        services.AddScoped<IAttentionService, AttentionService>();
         services.AddScoped<IMeasurementService, MeasurementService>();
         services.AddScoped<ISprintService, SprintService>();
         services.AddScoped<ITaskService, TaskService>();
