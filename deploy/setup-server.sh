@@ -57,12 +57,18 @@ if ! id deploy >/dev/null 2>&1; then
     echo "deploy:${TEMP_PASSWORD}" | chpasswd
   fi
 fi
+# Con llave pública, la contraseña es aleatoria y nadie la conoce: sirve solo para que la cuenta no quede
+# bloqueada (algunas versiones de sshd rechazan las llaves de cuentas bloqueadas).
+if [ -n "${DEPLOY_PUBKEY:-}" ] && passwd -S deploy 2>/dev/null | awk '{exit !($2=="L" || $2=="LK")}'; then
+  echo "deploy:$(openssl rand -hex 24)" | chpasswd
+fi
 usermod -aG docker deploy
 if [ -n "${DEPLOY_PUBKEY:-}" ]; then
   install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
   grep -qxF "$DEPLOY_PUBKEY" /home/deploy/.ssh/authorized_keys 2>/dev/null || echo "$DEPLOY_PUBKEY" >> /home/deploy/.ssh/authorized_keys
-  chown deploy:deploy /home/deploy/.ssh/authorized_keys
+  chown -R deploy:deploy /home/deploy/.ssh
   chmod 600 /home/deploy/.ssh/authorized_keys
+  chmod 755 /home/deploy
 fi
 install -d -m 755 -o deploy -g deploy "$APP_DIR" "$APP_DIR/backups"
 

@@ -64,8 +64,12 @@ curl -fsSL "$RAW/setup-server.sh" -o "$WORK/setup-server.sh"
   < "$WORK/setup-server.sh" | tee "$WORK/setup.log"
 
 paso "3/5 Probando la llave en el servidor"
-ssh -i "$WORK/deploy_key" -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "deploy@$HOST" 'echo "Conexión como deploy correcta"' \
-  || fallo "No se pudo entrar como deploy con la llave."
+PROBAR=(ssh -i "$WORK/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "deploy@$HOST" 'echo "Conexión como deploy correcta"')
+if ! "${PROBAR[@]}"; then
+  aviso "La llave no fue aceptada. Datos del servidor para el diagnóstico:"
+  "${SSH_ROOT[@]}" 'id deploy; passwd -S deploy; ls -ld /home/deploy /home/deploy/.ssh; ls -l /home/deploy/.ssh; sshd -T 2>/dev/null | grep -Ei "^(pubkeyauthentication|usepam|allowusers|allowgroups|authorizedkeysfile|passwordauthentication) "; ls /etc/ssh/sshd_config.d/ 2>/dev/null; journalctl -u ssh -u sshd -n 12 --no-pager 2>/dev/null | tail -12' || true
+  fallo "No se pudo entrar como deploy con la llave. Mande una captura de lo de arriba."
+fi
 
 paso "4/5 Cargando los secretos en GitHub"
 # En Codespaces gh usa un token sin permiso para secretos; si falla, se pide autorizar una vez desde el navegador.
