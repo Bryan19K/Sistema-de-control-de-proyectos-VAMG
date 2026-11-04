@@ -13,13 +13,17 @@ COPY tests/Tekcom.Gestion.Application.Tests/*.csproj tests/Tekcom.Gestion.Applic
 RUN dotnet restore Tekcom.Gestion.sln
 
 COPY src/ src/
+# Se vuelve a restaurar con el código completo: el SDK decide qué recursos de Blazor incluir
+# (por ejemplo _framework/blazor.web.js) viendo las páginas .razor, que en el paso anterior no estaban.
 RUN dotnet publish src/Tekcom.Gestion.Web/Tekcom.Gestion.Web.csproj \
-    --configuration Release --no-restore --output /app/publish
+    --configuration Release --output /app/publish \
+    && test -f /app/publish/wwwroot/_framework/blazor.web.js \
+    || (echo "ERROR: falta _framework/blazor.web.js en la publicación" && exit 1)
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
-# libfontconfig1: necesaria para generar PDF (QuestPDF/Skia). tzdata: zona horaria de El Salvador.
+# libfontconfig1: PDF (QuestPDF/Skia). libgssapi-krb5-2: la pide Npgsql al conectar. tzdata: hora de El Salvador.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libfontconfig1 tzdata \
+    && apt-get install -y --no-install-recommends libfontconfig1 libgssapi-krb5-2 tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
