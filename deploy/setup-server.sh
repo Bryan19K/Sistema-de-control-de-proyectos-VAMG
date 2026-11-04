@@ -7,20 +7,26 @@
 #     curl -fsSL https://raw.githubusercontent.com/Bryan19K/Sistema-de-control-de-proyectos-VAMG/main/deploy/setup-server.sh | bash
 #
 # Variables opcionales (se anteponen al comando):
-#   DOMAIN=vps3795068.trouble-free.net   dominio que apunta al servidor (HTTPS automático)
+#   DOMAIN=gestion.miempresa.com         dominio propio que apunte a la IP (por defecto: IP-con-guiones.sslip.io)
 #   SEED_ADMIN_EMAIL=correo@empresa.com  correo del primer administrador
 #   DEPLOY_PUBKEY="ssh-ed25519 AAAA..."  llave pública para el usuario deploy (si se omite, se crea una contraseña temporal)
 #
 # Es seguro volver a correrlo: no cambia contraseñas ni sobrescribe el archivo .env existente.
 set -euo pipefail
 
-DOMAIN="${DOMAIN:-vps3795068.trouble-free.net}"
+# Sin dominio propio se usa sslip.io: <ip-con-guiones>.sslip.io resuelve a esa IP y permite HTTPS gratis.
+# (El nombre vpsNNNN.trouble-free.net del panel no tiene registro DNS público, por eso no sirve.)
+if [ -z "${DOMAIN:-}" ]; then
+  PUBLIC_IP="$(curl -fsS --max-time 10 https://api.ipify.org || hostname -I | awk '{print $1}')"
+  DOMAIN="$(echo "$PUBLIC_IP" | tr . -).sslip.io"
+fi
 SEED_ADMIN_EMAIL="${SEED_ADMIN_EMAIL:-admin@tekcom.com}"
 APP_DIR=/opt/tekcom
 
 [ "$(id -u)" -eq 0 ] || { echo "Este script debe correr como root."; exit 1; }
 command -v apt-get >/dev/null || { echo "Solo se soporta Ubuntu/Debian (no se encontró apt-get)."; exit 1; }
 export DEBIAN_FRONTEND=noninteractive
+trap 'echo "ERROR: el script se detuvo en la línea $LINENO (comando: $BASH_COMMAND)"' ERR
 
 echo "==> 1/6 Paquetes base"
 apt-get update -y
@@ -28,13 +34,18 @@ apt-get install -y ca-certificates curl ufw openssl cron unattended-upgrades
 
 echo "==> 2/6 Docker"
 if ! command -v docker >/dev/null; then
-  curl -fsSL https://get.docker.com | sh
+  # Instalador oficial; si aún no soporta esta versión de Ubuntu, se usan los paquetes de la distribución.
+  if ! curl -fsSL https://get.docker.com | sh; then
+    echo "El instalador oficial falló; se usan los paquetes de Ubuntu (docker.io + compose)."
+    apt-get install -y docker.io docker-compose-v2 || apt-get install -y docker.io docker-compose-plugin
+  fi
 fi
 systemctl enable --now docker
 docker compose version >/dev/null
 
 echo "==> 3/6 Firewall (SSH, HTTP y HTTPS)"
-SSH_PORT="$(sshd -T 2>/dev/null | awk '/^port /{print $2; exit}')"
+# El "|| true" evita que pipefail aborte el script cuando awk cierra la tubería antes de tiempo.
+SSH_PORT="$(sshd -T 2>/dev/null | awk '/^port /{print $2}' | head -n1 || true)"
 SSH_PORT="${SSH_PORT:-22}"
 ufw allow "${SSH_PORT}/tcp"
 ufw allow 80/tcp
@@ -51,12 +62,18 @@ if ! id deploy >/dev/null 2>&1; then
     echo "deploy:${TEMP_PASSWORD}" | chpasswd
   fi
 fi
+# Con llave pública, la contraseña es aleatoria y nadie la conoce: sirve solo para que la cuenta no quede
+# bloqueada (algunas versiones de sshd rechazan las llaves de cuentas bloqueadas).
+if [ -n "${DEPLOY_PUBKEY:-}" ] && passwd -S deploy 2>/dev/null | awk '{exit !($2=="L" || $2=="LK")}'; then
+  echo "deploy:$(openssl rand -hex 24)" | chpasswd
+fi
 usermod -aG docker deploy
 if [ -n "${DEPLOY_PUBKEY:-}" ]; then
   install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
   grep -qxF "$DEPLOY_PUBKEY" /home/deploy/.ssh/authorized_keys 2>/dev/null || echo "$DEPLOY_PUBKEY" >> /home/deploy/.ssh/authorized_keys
-  chown deploy:deploy /home/deploy/.ssh/authorized_keys
+  chown -R deploy:deploy /home/deploy/.ssh
   chmod 600 /home/deploy/.ssh/authorized_keys
+  chmod 755 /home/deploy
 fi
 install -d -m 755 -o deploy -g deploy "$APP_DIR" "$APP_DIR/backups"
 
@@ -96,7 +113,7 @@ fi
 
 echo "==> 6/6 Respaldo diario a las 3:00"
 cat > /etc/cron.d/tekcom-backup <<'CRON'
-0 3 * * * deploy /opt/tekcom/backup.sh >> /opt/tekcom/backups/backup.log 2>&1
+0 3 * * * root /opt/tekcom/backup.sh >> /opt/tekcom/backups/backup.log 2>&1
 CRON
 chmod 644 /etc/cron.d/tekcom-backup
 

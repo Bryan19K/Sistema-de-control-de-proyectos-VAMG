@@ -35,6 +35,10 @@ services:
       SeedAdmin__Password: ${SEED_ADMIN_PASSWORD:?falta SEED_ADMIN_PASSWORD en .env}
       Storage__Path: /data/uploads
       DataProtection__Path: /data/keys
+      # Registro de las conexiones en vivo (Blazor/SignalR) para poder diagnosticar problemas de conexión.
+      Logging__LogLevel__Microsoft.AspNetCore.Http.Connections: Information
+      Logging__LogLevel__Microsoft.AspNetCore.SignalR: Information
+      Logging__LogLevel__Microsoft.AspNetCore.Components.Server: Information
       Hangfire__TimeZone: ${TIMEZONE:-America/El_Salvador}
       # Opcionales: se activan cuando se completan en .env (ver docs/DESPLIEGUE.md).
       Email__Host: ${EMAIL_HOST:-}

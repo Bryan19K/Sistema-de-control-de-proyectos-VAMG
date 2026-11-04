@@ -3,12 +3,28 @@
 La aplicación corre en un VPS con **Docker**: PostgreSQL, la aplicación y **Caddy** (que consigue solo el
 certificado HTTPS). GitHub Actions publica cada cambio que llegue a `main`.
 
-- Dirección: `https://vps3795068.trouble-free.net`
+- Dirección: `https://162-35-14-225.sslip.io`
 - Todo se puede hacer desde el celular usando la terminal del Codespace.
+
+## Camino rápido: todo con un solo comando
+
+Desde la terminal del Codespace (pestaña Terminal), pegue esto y siga las preguntas:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Bryan19K/Sistema-de-control-de-proyectos-VAMG/claude/desarrollo-inicial-5m8ya1/deploy/instalar-todo.sh)
+```
+
+Pide el correo del administrador y la contraseña de `root` del VPS (una vez). Prepara el servidor, crea y autoriza la llave,
+carga los secretos en GitHub (si hace falta, le pide autorizar una vez desde el navegador) y lanza la primera publicación.
+Al final muestra el usuario y la contraseña de la aplicación.
+
+Los pasos de abajo son lo mismo hecho a mano; solo sirven si el comando rápido falla.
 
 ## Paso 1 · Aprobar el pull request
 
-Abra el pull request en GitHub, revíselo y apruébelo. **Todavía no haga el merge**: primero se prepara el servidor.
+Los archivos de despliegue (Dockerfile, `deploy/`, flujo de Actions) ya están en `main`. El pull request solo trae el ajuste
+final de esta guía. Revíselo y apruébelo, pero **no haga el merge todavía**: el merge dispara la publicación y antes hay que
+preparar el servidor y cargar los secretos.
 
 ## Paso 2 · Conectarse al VPS (desde la terminal del Codespace)
 
@@ -21,16 +37,16 @@ Si el SSH no responde, el panel de InterServer tiene una consola web (VNC) que s
 
 ## Paso 3 · Preparar el servidor (una sola vez)
 
-En la terminal del Codespace, ya dentro de la carpeta del repositorio y en la rama del pull request:
+Conéctese al VPS (paso 2) y, ya dentro, corra:
 
 ```bash
-ssh root@TU_IP 'bash -s' < deploy/setup-server.sh
+curl -fsSL https://raw.githubusercontent.com/Bryan19K/Sistema-de-control-de-proyectos-VAMG/main/deploy/setup-server.sh | bash
 ```
 
-Para poner su correo como administrador, anteponga la variable:
+Para poner su correo como administrador, anteponga la variable al `bash`:
 
 ```bash
-ssh root@TU_IP 'SEED_ADMIN_EMAIL=su@correo.com bash -s' < deploy/setup-server.sh
+curl -fsSL https://raw.githubusercontent.com/Bryan19K/Sistema-de-control-de-proyectos-VAMG/main/deploy/setup-server.sh | SEED_ADMIN_EMAIL=su@correo.com bash
 ```
 
 El script instala Docker, activa el firewall (SSH, 80 y 443), crea el usuario `deploy`, deja preparado
@@ -39,9 +55,9 @@ El script instala Docker, activa el firewall (SSH, 80 y 443), crea el usuario `d
 - la contraseña temporal del usuario `deploy` (se usa en el paso 4), y
 - el correo y la contraseña inicial del administrador de la aplicación. **Guárdelos.**
 
+Cuando termine, salga del servidor con `exit`.
+
 Es seguro volver a correrlo: no cambia contraseñas ni sobrescribe el `.env`.
-(Una vez que el código esté en `main` también sirve:
-`curl -fsSL https://raw.githubusercontent.com/Bryan19K/Sistema-de-control-de-proyectos-VAMG/main/deploy/setup-server.sh | bash` desde el propio servidor.)
 
 ## Paso 4 · Llave para que GitHub publique solo
 
@@ -67,9 +83,9 @@ Opcional, cuando la llave ya funcione: bloquee la contraseña temporal con
 
 ## Paso 5 · Publicar
 
-Haga el **merge del pull request a `main`**. En la pestaña **Actions** verá el despliegue:
+Haga el **merge del pull request a `main`** (o, desde la pestaña **Actions**, elija *Publicar en el VPS* y **Run workflow**). Verá el despliegue:
 compila, prueba, construye la imagen, la sube a `ghcr.io` y la instala en el servidor.
-Cuando termine en verde, abra `https://vps3795068.trouble-free.net` e inicie sesión con el administrador del paso 3.
+Cuando termine en verde, abra `https://162-35-14-225.sslip.io` e inicie sesión con el administrador del paso 3.
 
 La primera vez Caddy tarda unos segundos en conseguir el certificado. Desde entonces, cada merge a `main` se publica solo.
 
@@ -105,6 +121,7 @@ o descargar los respaldos de vez en cuando.
 
 - **El workflow falla en "Verificar secretos":** falta alguno de `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (paso 4).
 - **Falla el SSH desde Actions:** la llave no quedó autorizada; repita `ssh-copy-id` del paso 4.
+- **Dirección web:** sin dominio propio se usa `IP-con-guiones.sslip.io` (por ejemplo `162-35-14-225.sslip.io`), que apunta sola a la IP y da HTTPS gratis. El nombre `vpsNNNN.trouble-free.net` del panel de InterServer **no** tiene registro DNS público y no sirve. Con un dominio propio, cámbielo en `DOMAIN=` de `/opt/tekcom/.env` y haga `docker compose up -d`.
 - **El sitio no abre con HTTPS:** el dominio debe apuntar a la IP del VPS y los puertos 80 y 443 estar abiertos
   (también en el firewall del panel de InterServer, si tiene uno). Revise `docker compose logs caddy`.
 - **Datos locales de pruebas:** la base del servidor es independiente de cualquier base local.
