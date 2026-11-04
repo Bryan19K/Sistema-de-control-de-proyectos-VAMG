@@ -10,7 +10,13 @@ namespace Tekcom.Gestion.Application.Tests.Import;
 
 public class ExcelImportTests
 {
-    private const string RealFile = "docs/excel-origen/PROYECTO_FTTH_2026_61.xlsx";
+    // El Excel real con datos del negocio no viaja en el repositorio: se lee de la carpeta TEKCOM_REAL_XLS
+    // (archivo que contenga "FTTH_2026_61") y, si no está, las pruebas que lo usan se omiten.
+    private static readonly string? RealFile = Environment.GetEnvironmentVariable("TEKCOM_REAL_XLS") is { } dir && Directory.Exists(dir)
+        ? Directory.GetFiles(dir, "*FTTH_2026_61*.xlsx").FirstOrDefault()
+        : null;
+
+    private static bool HasRealFile => RealFile is not null;
     private static readonly ImportTarget NewProject = new(null, "2601-2607", "Construcción de FTTH - Sonsonate");
 
     private static ExcelImportService Service(TestDb db) =>
@@ -18,13 +24,15 @@ public class ExcelImportTests
 
     private static async Task<ImportAnalysis> AnalyzeRealAsync(ExcelImportService service)
     {
-        await using var stream = File.OpenRead(TestDb.RepoFile(RealFile));
+        await using var stream = File.OpenRead(RealFile!);
         return await service.AnalyzeAsync(stream, "PROYECTO_FTTH_2026_61.xlsx");
     }
 
     [Fact]
     public async Task Analizar_el_excel_real_lee_los_20_nodos_sin_errores()
     {
+        if (!HasRealFile) { return; }
+
         using var db = await TestDb.CreateAsync();
         var analysis = await AnalyzeRealAsync(Service(db));
 
@@ -37,6 +45,8 @@ public class ExcelImportTests
     [Fact]
     public async Task Analizar_reporta_la_columna_de_mangas_como_no_importada()
     {
+        if (!HasRealFile) { return; }
+
         using var db = await TestDb.CreateAsync();
         var analysis = await AnalyzeRealAsync(Service(db));
 
@@ -47,6 +57,8 @@ public class ExcelImportTests
     [Fact]
     public async Task Analizar_los_totales_leidos_coinciden_con_la_fila_TOTAL_del_excel()
     {
+        if (!HasRealFile) { return; }
+
         using var db = await TestDb.CreateAsync();
         var analysis = await AnalyzeRealAsync(Service(db));
 
@@ -73,6 +85,8 @@ public class ExcelImportTests
     [Fact]
     public async Task Importar_crea_proyecto_nodos_contratistas_y_valida_los_totales_contra_la_base()
     {
+        if (!HasRealFile) { return; }
+
         using var db = await TestDb.CreateAsync();
         var service = Service(db);
         var analysis = await AnalyzeRealAsync(service);
@@ -96,6 +110,8 @@ public class ExcelImportTests
     [Fact]
     public async Task Importar_asocia_SUB_BOX_con_NAP_de_paso_sin_duplicar_materiales()
     {
+        if (!HasRealFile) { return; }
+
         using var db = await TestDb.CreateAsync();
         var service = Service(db);
         await service.ApplyAsync(await AnalyzeRealAsync(service), NewProject);
@@ -115,6 +131,8 @@ public class ExcelImportTests
     [Fact]
     public async Task Importar_separa_aros_y_treboles_leyendo_el_comentario_de_la_celda()
     {
+        if (!HasRealFile) { return; }
+
         using var db = await TestDb.CreateAsync();
         var service = Service(db);
         await service.ApplyAsync(await AnalyzeRealAsync(service), NewProject);
@@ -132,6 +150,8 @@ public class ExcelImportTests
     [Fact]
     public async Task Importar_deja_el_feeder_global_y_los_estados_de_las_etapas()
     {
+        if (!HasRealFile) { return; }
+
         using var db = await TestDb.CreateAsync();
         var service = Service(db);
         await service.ApplyAsync(await AnalyzeRealAsync(service), NewProject);
@@ -159,6 +179,8 @@ public class ExcelImportTests
     [Fact]
     public async Task Importar_dos_veces_no_duplica_nada()
     {
+        if (!HasRealFile) { return; }
+
         using var db = await TestDb.CreateAsync();
         var service = Service(db);
         await service.ApplyAsync(await AnalyzeRealAsync(service), NewProject);

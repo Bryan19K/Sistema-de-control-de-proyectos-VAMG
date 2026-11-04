@@ -1,6 +1,6 @@
 # Análisis del Excel `PROYECTO_FTTH_2026_61.xlsx`
 
-Archivo: `docs/excel-origen/PROYECTO_FTTH_2026_61.xlsx` · Proyecto: **FTTH Nextwave 2601-2607 · Sonsonate**
+Archivo: `PROYECTO_FTTH_2026_61.xlsx` (ya no está en el repositorio) · Proyecto: **FTTH Nextwave 2601-2607 · Sonsonate**
 Analizado el 2026-11-04. Las cifras de abajo las recalculé desde los datos crudos, porque muchas
 fórmulas del archivo están rotas (ver "Problemas detectados").
 
