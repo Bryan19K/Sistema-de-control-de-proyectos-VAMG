@@ -78,6 +78,9 @@ public interface IUserAdminService
     Task SetRolesAsync(string userId, IEnumerable<string> roles, CancellationToken ct = default);
     Task ResetPasswordAsync(string userId, string newPassword, CancellationToken ct = default);
     Task SetLockedAsync(string userId, bool locked, string currentUserId, CancellationToken ct = default);
+
+    /// <summary>Teléfono para los avisos por WhatsApp. Vacío lo quita.</summary>
+    Task SetPhoneAsync(string userId, string? phone, CancellationToken ct = default);
 }
 
 public sealed record FeederProgress(FeederLine Line, decimal Installed)

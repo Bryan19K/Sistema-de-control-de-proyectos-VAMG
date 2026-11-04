@@ -99,6 +99,20 @@ El repositorio trae un Dev Container con .NET 10 y SQL Server listos. Pasos en
    dotnet test
    ```
 
+## Notificaciones (correo y WhatsApp)
+
+Los avisos salen por dos canales que se activan solos cuando se configuran; mientras no lo estén, no envían nada:
+
+| Canal | Variables (user-secrets en local, Configuración del App Service en Azure) |
+|---|---|
+| Correo (SMTP) | `Email__Host`, `Email__Port`, `Email__User`, `Email__Password`, `Email__FromAddress`, `Email__UseSsl` |
+| WhatsApp Business Cloud API | `WhatsApp__PhoneNumberId`, `WhatsApp__AccessToken`, `WhatsApp__TemplateName` (plantilla aprobada por Meta con un parámetro de cuerpo; sin plantilla solo se puede escribir dentro de las 24 h de una conversación abierta por el usuario) |
+
+- Los trabajos corren con Hangfire: revisión cada hora de 7:00 a 18:00 y resumen diario a las 7:00 (hora de El Salvador, ajustable con `Hangfire__ChecksCron`, `Hangfire__SummaryCron` y `Hangfire__TimeZone`). En SQL Server la cola vive en el esquema `HangFire`; con SQLite (solo desarrollo) vive en memoria.
+- Panel de trabajos en `/hangfire`, solo para administradores. `Hangfire__Enabled=false` desactiva los trabajos.
+- Qué se avisa y por qué canal se cambia en **Configuración → Notificaciones**, donde también está la bitácora y el botón de prueba. Los teléfonos para WhatsApp se registran por usuario en **Configuración → Usuarios**.
+- Un mismo aviso no se repite el mismo día al mismo destinatario.
+
 ## Migraciones de base de datos
 
 Las migraciones viven en `src/Tekcom.Gestion.Infrastructure/Persistence/Migrations`.

@@ -165,3 +165,26 @@ public enum StockStatus
     Shortage = 2,
     Negative = 3,
 }
+
+public enum NotificationType
+{
+    TaskAssigned = 0,
+    TaskDueSoon = 1,
+    TaskOverdue = 2,
+    SprintBehind = 3,
+    ProjectBehind = 4,
+    LowStock = 5,
+    DailySummary = 6,
+}
+
+public enum NotificationChannelKind
+{
+    Email = 0,
+    WhatsApp = 1,
+}
+
+public enum NotificationStatus
+{
+    Sent = 0,
+    Failed = 1,
+}

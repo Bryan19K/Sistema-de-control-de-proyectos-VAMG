@@ -167,6 +167,49 @@ public static class UiText
         _ => StatusChip.Kind.Neutral,
     };
 
+    public static string NotificationTypeName(NotificationType type) => type switch
+    {
+        NotificationType.TaskAssigned => "Tarea asignada",
+        NotificationType.TaskDueSoon => "Tarea por vencer",
+        NotificationType.TaskOverdue => "Tarea vencida",
+        NotificationType.SprintBehind => "Sprint atrasado",
+        NotificationType.ProjectBehind => "Proyecto atrasado",
+        NotificationType.LowStock => "Stock bajo",
+        NotificationType.DailySummary => "Resumen diario",
+        _ => type.ToString(),
+    };
+
+    public static string NotificationTypeHelp(NotificationType type) => type switch
+    {
+        NotificationType.TaskAssigned => "Al asignar una tarea, se avisa a su responsable.",
+        NotificationType.TaskDueSoon => "Un día antes de la fecha límite, al responsable.",
+        NotificationType.TaskOverdue => "Cada día mientras la tarea siga vencida, al responsable.",
+        NotificationType.SprintBehind => "Sprint activo con ritmo atrasado. A administración, supervisores y gerencia.",
+        NotificationType.ProjectBehind => "Proyecto activo con ritmo atrasado. A administración, supervisores y gerencia.",
+        NotificationType.LowStock => "Materiales en o bajo su stock mínimo. A administración y bodega.",
+        NotificationType.DailySummary => "Resumen de las 7:00 con los indicadores. A administración, supervisores y gerencia.",
+        _ => string.Empty,
+    };
+
+    public static string ChannelName(NotificationChannelKind kind) => kind switch
+    {
+        NotificationChannelKind.Email => "Correo",
+        NotificationChannelKind.WhatsApp => "WhatsApp",
+        _ => kind.ToString(),
+    };
+
+    private static readonly TimeZoneInfo LocalZone = ResolveZone();
+
+    private static TimeZoneInfo ResolveZone()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("America/El_Salvador"); }
+        catch (TimeZoneNotFoundException) { return TimeZoneInfo.Local; }
+    }
+
+    /// <summary>Fecha y hora en la hora de El Salvador.</summary>
+    public static string LocalDateTime(DateTimeOffset value) =>
+        TimeZoneInfo.ConvertTime(value, LocalZone).ToString("dd/MM/yy HH:mm");
+
     private static readonly string[] Days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
     /// <summary>Etiqueta de la fecha límite: Hoy, Mañana, Vencida, día de la semana o fecha.</summary>

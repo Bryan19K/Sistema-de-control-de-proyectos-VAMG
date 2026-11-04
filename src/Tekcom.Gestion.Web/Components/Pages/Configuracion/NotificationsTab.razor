@@ -1,0 +1,142 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Notifications
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject INotificationService Notifications
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject UserAccess Access
+
+<div class="tk-two-col">
+    @foreach (var channel in Notifications.Channels())
+    {
+        var status = channel;
+        <div class="tk-card tk-section">
+            <div class="tk-section__header">
+                <h3 class="tk-section__title" style="font-size:1.1rem">@UiText.ChannelName(status.Kind)</h3>
+                @if (status.IsConfigured) { <StatusChip Status="StatusChip.Kind.Ok" Text="Activo" /> }
+                else { <StatusChip Status="StatusChip.Kind.Neutral" Text="Sin configurar" /> }
+            </div>
+            @if (status.IsConfigured)
+            {
+                <p class="tk-muted">Listo para enviar. Pruebe con un mensaje a su propio usuario.</p>
+                <button type="button" class="tk-btn tk-btn--outline" disabled="@_sending" @onclick="() => TestAsync(status.Kind)">Enviar prueba a mi usuario</button>
+            }
+            else
+            {
+                <p class="tk-muted">@status.MissingSetup</p>
+                <p class="tk-muted" style="font-size:0.9rem">
+                    @(status.Kind == NotificationChannelKind.Email
+                        ? "Se configura con las variables Email__Host, Email__Port, Email__User, Email__Password y Email__FromAddress."
+                        : "Se configura con WhatsApp__PhoneNumberId, WhatsApp__AccessToken y, para escribir fuera de las 24 h, WhatsApp__TemplateName.")
+                    Los secretos no van en el repositorio: use las variables de la aplicación en Azure o user-secrets.
+                </p>
+            }
+        </div>
+    }
+</div>
+
+<div class="tk-toolbar mt-6">
+    <h3 class="tk-section__title" style="margin:0; font-size:1.1rem">Qué se avisa y por dónde</h3>
+    <span class="grow"></span>
+    <a class="tk-btn tk-btn--outline" href="hangfire" target="_blank" rel="noopener">Panel de trabajos programados</a>
+</div>
+
+<div class="tk-table-wrap">
+    <table class="tk-table">
+        <thead><tr><th>Aviso</th><th>Activo</th><th>Correo</th><th>WhatsApp</th></tr></thead>
+        <tbody>
+            @foreach (var rule in _rules)
+            {
+                var r = rule;
+                <tr>
+                    <td><strong>@UiText.NotificationTypeName(r.Type)</strong><div class="tk-muted" style="font-size:0.88rem">@UiText.NotificationTypeHelp(r.Type)</div></td>
+                    <td><MudSwitch T="bool" Value="r.Enabled" ValueChanged="v => SaveAsync(r, enabled: v)" Color="Color.Primary" aria-label="@($"Activar {UiText.NotificationTypeName(r.Type)}")" /></td>
+                    <td><MudCheckBox T="bool" Value="r.SendEmail" ValueChanged="v => SaveAsync(r, email: v)" Disabled="@(!r.Enabled)" Size="Size.Small" aria-label="Correo" /></td>
+                    <td><MudCheckBox T="bool" Value="r.SendWhatsApp" ValueChanged="v => SaveAsync(r, whatsApp: v)" Disabled="@(!r.Enabled)" Size="Size.Small" aria-label="WhatsApp" /></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<p class="tk-muted mt-2" style="font-size:0.9rem">La revisión corre cada hora de 7:00 a 18:00 (hora de El Salvador) y el resumen diario a las 7:00. Un mismo aviso no se repite el mismo día.</p>
+
+<div class="tk-toolbar mt-6">
+    <h3 class="tk-section__title" style="margin:0; font-size:1.1rem">Bitácora de avisos</h3>
+    <span class="grow"></span>
+    <button type="button" class="tk-btn tk-btn--outline" @onclick="RefreshAsync">Actualizar</button>
+</div>
+
+@if (_log.Count == 0)
+{
+    <EmptyState Title="Todavía no se ha enviado ningún aviso" Icon="@Icons.Material.Outlined.NotificationsNone"
+                Description="Cuando se envíe un aviso (o falle) quedará registrado aquí con su destinatario y resultado." />
+}
+else
+{
+    <div class="tk-table-wrap">
+        <table class="tk-table">
+            <thead><tr><th>Fecha</th><th>Aviso</th><th>Canal</th><th>Destino</th><th>Estado</th><th>Detalle</th></tr></thead>
+            <tbody>
+                @foreach (var entry in _log)
+                {
+                    <tr>
+                        <td class="num">@UiText.LocalDateTime(entry.CreatedAt)</td>
+                        <td>@UiText.NotificationTypeName(entry.Type)</td>
+                        <td>@UiText.ChannelName(entry.Channel)</td>
+                        <td>@entry.Recipient</td>
+                        <td>
+                            @if (entry.Status == NotificationStatus.Sent) { <StatusChip Status="StatusChip.Kind.Ok" Text="Enviado" /> }
+                            else { <StatusChip Status="StatusChip.Kind.Atrasado" Text="Falló" /> }
+                        </td>
+                        <td class="@(entry.Status == NotificationStatus.Failed ? "text-danger" : "muted")" title="@entry.Body">@(entry.Error ?? entry.Subject)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<NotificationRule> _rules = [];
+    private List<NotificationLog> _log = [];
+    private bool _sending;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _rules = await Notifications.RulesAsync();
+        _log = await Notifications.LogAsync(100);
+    }
+
+    private async Task RefreshAsync() => _log = await Notifications.LogAsync(100);
+
+    private async Task SaveAsync(NotificationRule rule, bool? enabled = null, bool? email = null, bool? whatsApp = null)
+    {
+        rule.Enabled = enabled ?? rule.Enabled;
+        rule.SendEmail = email ?? rule.SendEmail;
+        rule.SendWhatsApp = whatsApp ?? rule.SendWhatsApp;
+        await Notifications.SaveRuleAsync(rule.Type, rule.Enabled, rule.SendEmail, rule.SendWhatsApp);
+    }
+
+    private async Task TestAsync(NotificationChannelKind kind)
+    {
+        _sending = true;
+        try
+        {
+            var log = await Notifications.SendTestAsync(await Access.UserIdAsync(), kind);
+            Snackbar.Add(log.Status == NotificationStatus.Sent
+                ? $"Prueba enviada a {log.Recipient}."
+                : $"No se pudo enviar: {log.Error}", log.Status == NotificationStatus.Sent ? Severity.Success : Severity.Error);
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        finally
+        {
+            _sending = false;
+            await RefreshAsync();
+        }
+    }
+}

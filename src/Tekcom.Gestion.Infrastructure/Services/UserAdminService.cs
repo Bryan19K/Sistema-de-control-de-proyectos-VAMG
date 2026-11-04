@@ -18,10 +18,22 @@ public sealed class UserAdminService(UserManager<ApplicationUser> users) : IUser
         {
             var roles = await users.GetRolesAsync(user);
             result.Add(new UserListItem(user.Id, user.Email ?? user.UserName ?? string.Empty, user.FullName,
-                roles.OrderBy(r => r).ToList(), await users.IsLockedOutAsync(user)));
+                roles.OrderBy(r => r).ToList(), await users.IsLockedOutAsync(user), user.PhoneNumber));
         }
 
         return result;
+    }
+
+    public async Task SetPhoneAsync(string userId, string? phone, CancellationToken ct = default)
+    {
+        var user = await users.FindByIdAsync(userId) ?? throw new BusinessRuleException("El usuario no existe.");
+        var clean = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
+        if (clean is not null && clean.Count(char.IsDigit) < 8)
+        {
+            throw new BusinessRuleException("El teléfono debe tener al menos 8 dígitos.");
+        }
+
+        Ensure(await users.SetPhoneNumberAsync(user, clean));
     }
 
     public async Task<string> DisplayNameAsync(string userId, CancellationToken ct = default)

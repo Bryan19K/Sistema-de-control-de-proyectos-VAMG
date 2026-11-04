@@ -24,6 +24,12 @@
                               HelperText="Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo." Variant="Variant.Outlined" Margin="Margin.Dense" />
             }
 
+            @if (Mode == DialogMode.Contact)
+            {
+                <MudTextField @bind-Value="_phone" Label="Teléfono (WhatsApp)" Placeholder="7777-1234" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              HelperText="Si tiene 8 dígitos se le antepone el código de El Salvador (503). Déjelo vacío para no avisar por WhatsApp." />
+            }
+
             @if (Mode is DialogMode.Create or DialogMode.Roles)
             {
                 <MudText Typo="Typo.subtitle2">Roles</MudText>
@@ -42,21 +48,24 @@
 </MudDialog>
 
 @code {
-    public enum DialogMode { Create, Roles, Password }
+    public enum DialogMode { Create, Roles, Password, Contact }
 
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     [Parameter] public DialogMode Mode { get; set; }
     [Parameter] public string? UserId { get; set; }
     [Parameter] public string? Email { get; set; }
+    [Parameter] public string? Phone { get; set; }
     [Parameter] public IEnumerable<string>? CurrentRoles { get; set; }
 
     private string? _email;
     private string? _fullName;
     private string? _password;
+    private string? _phone;
     private readonly HashSet<string> _roles = [];
 
     protected override void OnInitialized()
     {
+        _phone = Phone;
         foreach (var role in CurrentRoles ?? [])
         {
             _roles.Add(role);
@@ -84,6 +93,9 @@
                     break;
                 case DialogMode.Roles:
                     await Users.SetRolesAsync(UserId!, _roles);
+                    break;
+                case DialogMode.Contact:
+                    await Users.SetPhoneAsync(UserId!, _phone);
                     break;
                 case DialogMode.Password:
                     await Users.ResetPasswordAsync(UserId!, _password ?? string.Empty);

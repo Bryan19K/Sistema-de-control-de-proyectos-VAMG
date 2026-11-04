@@ -21,6 +21,14 @@
     <PackageVersion Include="QuestPDF" Version="2026.9.1" />
   </ItemGroup>
 
+  <ItemGroup Label="Notificaciones y trabajos programados">
+    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.25" />
+    <PackageVersion Include="Hangfire.SqlServer" Version="1.8.25" />
+    <!-- InMemory solo se usa en desarrollo/pruebas con SQLite; en producción los trabajos viven en SQL Server. -->
+    <PackageVersion Include="Hangfire.InMemory" Version="1.0.0" />
+    <PackageVersion Include="MailKit" Version="4.18.2" />
+  </ItemGroup>
+
   <ItemGroup Label="UI">
     <PackageVersion Include="MudBlazor" Version="9.12.0" />
   </ItemGroup>

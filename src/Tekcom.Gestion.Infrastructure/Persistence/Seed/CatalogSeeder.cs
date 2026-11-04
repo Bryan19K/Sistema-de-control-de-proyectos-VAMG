@@ -24,6 +24,24 @@ public static class CatalogSeeder
         await EnsureBaseCatalogAsync(db, ct);
         await EnsureExportTemplatesAsync(db, ct);
         await EnsurePlanTemplatesAsync(db, ct);
+        await EnsureNotificationRulesAsync(db, ct);
+    }
+
+    public static async Task EnsureNotificationRulesAsync(ApplicationDbContext db, CancellationToken ct = default)
+    {
+        var existing = await db.NotificationRules.Select(r => r.Type).ToListAsync(ct);
+        foreach (var type in Enum.GetValues<NotificationType>().Where(t => !existing.Contains(t)))
+        {
+            db.NotificationRules.Add(new NotificationRule
+            {
+                Type = type,
+                Enabled = true,
+                SendEmail = true,
+                SendWhatsApp = type != NotificationType.DailySummary,
+            });
+        }
+
+        await db.SaveChangesAsync(ct);
     }
 
     public static async Task EnsurePlanTemplatesAsync(ApplicationDbContext db, CancellationToken ct = default)

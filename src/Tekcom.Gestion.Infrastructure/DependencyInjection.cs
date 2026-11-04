@@ -72,12 +72,22 @@ public static class DependencyInjection
         services.AddScoped<IExportTemplateService, Reports.ExportTemplateService>();
         services.AddScoped<IProjectionImportService, Import.ProjectionImportService>();
 
+        // Avisos: correo y WhatsApp (cada canal se activa solo cuando está configurado) + Hangfire.
+        services.Configure<Notifications.EmailOptions>(configuration.GetSection(Notifications.EmailOptions.SectionName));
+        services.Configure<Notifications.WhatsAppOptions>(configuration.GetSection(Notifications.WhatsAppOptions.SectionName));
+        services.AddSingleton<Application.Notifications.INotificationChannel, Notifications.EmailChannel>();
+        services.AddHttpClient<Notifications.WhatsAppChannel>(c => c.Timeout = TimeSpan.FromSeconds(30));
+        services.AddTransient<Application.Notifications.INotificationChannel>(sp => sp.GetRequiredService<Notifications.WhatsAppChannel>());
+        services.AddScoped<Application.Notifications.INotificationService, Notifications.NotificationService>();
+        services.AddScoped<Notifications.NotificationJobs>();
+        Notifications.BackgroundJobs.AddBackgroundJobs(services, configuration, connectionString, useSqlite);
+
         services.Configure<SeedAdminOptions>(configuration.GetSection(SeedAdminOptions.SectionName));
 
         services
             .AddIdentityCore<ApplicationUser>(options =>
             {
-                // No hay servicio de correo todavía (Sprint 6); no se exige confirmar la cuenta.
+                // Todavía no se exige confirmar la cuenta por correo: los usuarios los crea el administrador.
                 options.SignIn.RequireConfirmedAccount = false;
                 options.User.RequireUniqueEmail = true;
                 options.Password.RequiredLength = 8;

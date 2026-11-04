@@ -19,7 +19,9 @@ costo. Varias librerías populares cambiaron de licencia recientemente.
 | **FluentAssertions** | **7.2.x (fijada)** | Apache 2.0 | **La versión 8+ pasó a licencia comercial de pago.** No actualizar a 8.x. Si hace falta una versión más nueva, migrar a *AwesomeAssertions* (fork con licencia Apache 2.0 y la misma API). |
 | ClosedXML | 0.105.x | MIT | Sin restricciones. |
 | QuestPDF | 2026.9.x | Community | Gratuita solo para empresas con ingresos anuales menores a 1 millón USD. **TEK-COM debe confirmar que cumple ese límite**; si no, hay que comprar la licencia correspondiente. El código ya declara `QuestPDF.Settings.License = LicenseType.Community` (en `ReportExporter`). |
-| Hangfire (Sprint 6) | — | LGPL v3 | La versión Core es gratuita para uso comercial. |
+| Hangfire (Core, AspNetCore, SqlServer) | 1.8.x | LGPL v3 | La versión Core es gratuita para uso comercial. No se usa Hangfire Pro. |
+| Hangfire.InMemory | 1.0.x | LGPL v3 | Solo para desarrollo y pruebas con SQLite; en SQL Server los trabajos se guardan en la base. |
+| MailKit | 4.18.x | MIT | Sin restricciones. Envío de correo por SMTP. |
 
 Las versiones se administran de forma centralizada en `Directory.Packages.props`
 (Central Package Management) con fijado transitivo, y `NuGetAuditMode=all` hace fallar la

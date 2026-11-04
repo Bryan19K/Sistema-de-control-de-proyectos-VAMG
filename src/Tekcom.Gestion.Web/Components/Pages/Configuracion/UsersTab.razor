@@ -14,7 +14,7 @@
 
 <div class="tk-table-wrap">
     <table class="tk-table">
-        <thead><tr><th>Usuario</th><th>Nombre</th><th>Roles</th><th>Estado</th><th></th></tr></thead>
+        <thead><tr><th>Usuario</th><th>Nombre</th><th>Teléfono</th><th>Roles</th><th>Estado</th><th></th></tr></thead>
         <tbody>
             @foreach (var u in _users)
             {
@@ -22,10 +22,12 @@
                 <tr>
                     <td>@user.Email</td>
                     <td>@(string.IsNullOrWhiteSpace(user.FullName) ? "—" : user.FullName)</td>
+                    <td>@(string.IsNullOrWhiteSpace(user.Phone) ? "—" : user.Phone)</td>
                     <td>@string.Join(", ", user.Roles.Select(UiText.RoleName))</td>
                     <td>@if (user.IsLockedOut) { <StatusChip Status="StatusChip.Kind.Atrasado" Text="Bloqueado" /> } else { <StatusChip Status="StatusChip.Kind.Ok" Text="Activo" /> }</td>
                     <td class="tk-actions-cell">
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => RolesAsync(user)">Roles</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => ContactAsync(user)">Teléfono</MudButton>
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => PasswordAsync(user)">Contraseña</MudButton>
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => ToggleLockAsync(user)">@(user.IsLockedOut ? "Desbloquear" : "Bloquear")</MudButton>
                     </td>
@@ -43,7 +45,7 @@
     private async Task ShowAsync(string title, UserDialogs.DialogMode mode, UserListItem? user = null)
     {
         var dialog = await Dialogs.ShowAsync<UserDialogs>(title,
-            new DialogParameters { ["Mode"] = mode, ["UserId"] = user?.Id, ["Email"] = user?.Email, ["CurrentRoles"] = user?.Roles },
+            new DialogParameters { ["Mode"] = mode, ["UserId"] = user?.Id, ["Email"] = user?.Email, ["CurrentRoles"] = user?.Roles, ["Phone"] = user?.Phone },
             new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         if (!(await dialog.Result)!.Canceled)
         {
@@ -53,6 +55,7 @@
 
     private Task CreateAsync() => ShowAsync("Nuevo usuario", UserDialogs.DialogMode.Create);
     private Task RolesAsync(UserListItem user) => ShowAsync("Roles del usuario", UserDialogs.DialogMode.Roles, user);
+    private Task ContactAsync(UserListItem user) => ShowAsync("Teléfono del usuario", UserDialogs.DialogMode.Contact, user);
     private Task PasswordAsync(UserListItem user) => ShowAsync("Cambiar contraseña", UserDialogs.DialogMode.Password, user);
 
     private async Task ToggleLockAsync(UserListItem user)

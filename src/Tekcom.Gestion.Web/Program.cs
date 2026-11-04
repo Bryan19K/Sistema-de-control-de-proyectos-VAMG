@@ -1,3 +1,4 @@
+using Hangfire;
 using System.Globalization;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -132,6 +133,17 @@ app.MapAdditionalIdentityEndpoints();
 if (app.Configuration.GetValue("Database:ApplyMigrationsOnStartup", defaultValue: true))
 {
     await DatabaseInitializer.InitializeAsync(app.Services);
+}
+
+// Trabajos programados (avisos) y su panel de control, solo para administradores.
+Tekcom.Gestion.Infrastructure.Notifications.BackgroundJobs.ScheduleNotificationJobs(app.Services);
+if (app.Configuration.GetValue("Hangfire:Enabled", true))
+{
+    app.MapHangfireDashboard("/hangfire", new Hangfire.DashboardOptions
+    {
+        Authorization = [new Tekcom.Gestion.Web.Services.AdminDashboardAuthorizationFilter()],
+        DashboardTitle = "TEK-COM · Trabajos programados",
+    });
 }
 
 app.Run();

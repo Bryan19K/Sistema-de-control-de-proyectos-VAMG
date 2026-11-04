@@ -45,7 +45,7 @@ public sealed class DashboardService(
             rows.Add(await BuildRowAsync(project, tasks.Where(t => t.ProjectId == project.Id).ToList(), ct));
 
             lowStock += (await inventory.StockAsync(project.Id, null, ct))
-                .Count(r => r.Status is StockStatus.Low or StockStatus.Shortage or StockStatus.Negative);
+                .Count(r => r.Status is StockStatus.Low or StockStatus.Negative);
 
             var activeSprint = (await sprints.ListAsync(project.Id, ct))
                 .Where(s => s.Sprint.Status == SprintStatus.Active)

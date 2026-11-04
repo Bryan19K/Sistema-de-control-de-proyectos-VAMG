@@ -37,6 +37,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<WorkPlanActivity> WorkPlanActivities => Set<WorkPlanActivity>();
     public DbSet<ActivityDependency> ActivityDependencies => Set<ActivityDependency>();
     public DbSet<PlanTemplate> PlanTemplates => Set<PlanTemplate>();
+    public DbSet<NotificationRule> NotificationRules => Set<NotificationRule>();
+    public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
 
     // Exportes
     public DbSet<ExportTemplate> ExportTemplates => Set<ExportTemplate>();

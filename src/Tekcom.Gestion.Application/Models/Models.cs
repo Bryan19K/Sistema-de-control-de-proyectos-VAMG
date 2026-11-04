@@ -60,7 +60,8 @@ public sealed record UserListItem(
     string Email,
     string FullName,
     IReadOnlyList<string> Roles,
-    bool IsLockedOut);
+    bool IsLockedOut,
+    string? Phone = null);
 
 public sealed class StockRow
 {

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Tekcom.Gestion.Application.Common;
 using Tekcom.Gestion.Application.Common.Interfaces;
+using Tekcom.Gestion.Application.Notifications;
 using Tekcom.Gestion.Application.Services;
 using Tekcom.Gestion.Domain.Entities;
 using Tekcom.Gestion.Domain.Enums;
@@ -11,7 +12,8 @@ namespace Tekcom.Gestion.Infrastructure.Services;
 public sealed class TaskService(
     IDbContextFactory<ApplicationDbContext> factory,
     IFileStorage storage,
-    IDateTimeProvider clock) : ITaskService
+    IDateTimeProvider clock,
+    INotificationDispatcher? notifier = null) : ITaskService
 {
     private static IQueryable<TaskItem> WithDetails(IQueryable<TaskItem> query) => query
         .Include(t => t.Site)
@@ -121,6 +123,8 @@ public sealed class TaskService(
             : await db.Tasks.FirstAsync(t => t.Id == task.Id, ct);
 
         var statusChanged = isNew || entity.Status != task.Status;
+        var newAssignee = string.IsNullOrWhiteSpace(task.AssigneeUserId) ? null : task.AssigneeUserId;
+        var assigneeChanged = newAssignee is not null && entity.AssigneeUserId != newAssignee;
         entity.Title = title;
         entity.Description = string.IsNullOrWhiteSpace(task.Description) ? null : task.Description.Trim();
         entity.SprintId = task.SprintId;
@@ -138,6 +142,11 @@ public sealed class TaskService(
         }
 
         await db.SaveChangesAsync(ct);
+        if (assigneeChanged)
+        {
+            notifier?.TaskAssigned(entity.Id);
+        }
+
         return entity;
     }
 
