@@ -65,6 +65,9 @@ public static class DependencyInjection
         services.AddScoped<IMeasurementService, MeasurementService>();
         services.AddScoped<ISprintService, SprintService>();
         services.AddScoped<ITaskService, TaskService>();
+        services.AddScoped<IEquipmentService, EquipmentService>();
+        services.AddScoped<IDocumentService, DocumentService>();
+        services.AddScoped<IMinuteService, MinuteService>();
         services.AddSingleton<IFileStorage, LocalFileStorage>();
         services.AddScoped<IExcelImportService, Import.ExcelImportService>();
         services.AddScoped<IReportService, Reports.ReportService>();

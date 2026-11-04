@@ -86,6 +86,15 @@ app.MapGet("/adjuntos/tareas/{id:int}", async (int id, Tekcom.Gestion.Applicatio
         : Results.File(found.Value.Content, found.Value.Attachment.ContentType, found.Value.Attachment.FileName);
 }).RequireAuthorization();
 
+// Descarga de documentos de proyecto (ATP, CAES, minutas firmadas, fotos). Solo con sesión iniciada.
+app.MapGet("/archivos/documentos/{id:int}", async (int id, Tekcom.Gestion.Application.Services.IDocumentService documents) =>
+{
+    var found = await documents.OpenAsync(id);
+    return found is null
+        ? Results.NotFound()
+        : Results.File(found.Value.Content, found.Value.Document.ContentType, found.Value.Document.FileName);
+}).RequireAuthorization();
+
 // Plantilla de Excel para importar la proyección de diseño.
 app.MapGet("/plantillas/proyeccion.xlsx", (Tekcom.Gestion.Application.Import.IProjectionImportService importer) =>
     Results.File(importer.BuildTemplate(),

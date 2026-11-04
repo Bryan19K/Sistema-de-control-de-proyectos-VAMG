@@ -1,0 +1,264 @@
+@page "/seriales"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IEquipmentService EquipmentService
+@inject IDialogService Dialogs
+@inject ProjectSelection Selection
+@inject UserAccess Access
+
+<PageTitle>Seriales · TEK-COM</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_projectId == 0)
+{
+    <PageHeader Title="Seriales" Subtitle="OLT, tarjetas, puertos y SFP con serial y estado" />
+    <SectionCard>
+        <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.FolderOpen" Description="Cree un proyecto para registrar sus equipos.">
+            <a href="proyectos" class="tk-btn tk-btn--outline mt-4">Ir a proyectos</a>
+        </EmptyState>
+    </SectionCard>
+}
+else
+{
+    <PageHeader Title="Seriales" Subtitle="OLT, tarjetas, puertos y SFP con serial y estado">
+        <Actions>
+            <a class="tk-btn tk-btn--outline" href="@($"exportes/seriales/xlsx?proyecto={_projectId}")" download>Excel</a>
+            <a class="tk-btn tk-btn--outline" href="@($"exportes/seriales/pdf?proyecto={_projectId}")" download>PDF</a>
+            @if (_canEdit)
+            {
+                <button type="button" class="tk-btn tk-btn--outline" @onclick="() => TransceiverDialogAsync(null, null, null)">+ SFP</button>
+                <button type="button" class="tk-btn tk-btn--primary" @onclick="() => EquipmentDialogAsync(null)">+ Equipo</button>
+            }
+        </Actions>
+    </PageHeader>
+
+    <div class="tk-toolbar">
+        <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
+        <div class="tk-segment" role="tablist">
+            <button type="button" class="@Seg(true)" @onclick="() => _equipmentView = true">Equipos (@_equipment.Count)</button>
+            <button type="button" class="@Seg(false)" @onclick="() => _equipmentView = false">SFP (@_all.Count)</button>
+        </div>
+        @if (!_equipmentView)
+        {
+            <MudTextField T="string" Value="_search" ValueChanged="OnSearchAsync" Placeholder="Buscar serial, modelo o equipo" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Immediate="false" Clearable="true" Style="min-width:280px" />
+            <MudSelect T="TransceiverStatus?" Value="_status" ValueChanged="OnStatusAsync" Clearable="true" Placeholder="Todos los estados" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Style="min-width:200px">
+                @foreach (var status in Enum.GetValues<TransceiverStatus>())
+                {
+                    <MudSelectItem T="TransceiverStatus?" Value="status">@SpanishNames.Of(status)</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    </div>
+
+    @if (_equipmentView)
+    {
+        @if (_equipment.Count == 0)
+        {
+            <SectionCard>
+                <EmptyState Title="Todavía no hay equipos registrados" Icon="@Icons.Material.Outlined.Router"
+                            Description="Registre la OLT del proyecto, sus tarjetas por ranura y los SFP con su serial y puerto.">
+                    @if (_canEdit) { <button type="button" class="tk-btn tk-btn--primary mt-4" @onclick="() => EquipmentDialogAsync(null)">+ Equipo</button> }
+                </EmptyState>
+            </SectionCard>
+        }
+
+        @foreach (var view in _equipment)
+        {
+            var e = view.Equipment;
+            <section class="tk-card tk-section mb-4">
+                <header class="tk-section__header">
+                    <div>
+                        <h2 class="tk-section__title">@e.Name <span class="tk-muted" style="font-weight:400; font-size:0.95rem">· @SpanishNames.Of(e.Kind)</span></h2>
+                        <div class="tk-muted" style="font-size:0.92rem">
+                            @(string.Join(" · ", new[] { string.Join(' ', new[] { e.Brand, e.Model }.Where(x => !string.IsNullOrWhiteSpace(x))), string.IsNullOrWhiteSpace(e.Serial) ? null : $"Serial {e.Serial}", e.Site is null ? null : $"Nodo {e.Site.Code}" }.Where(x => !string.IsNullOrWhiteSpace(x))))
+                        </div>
+                    </div>
+                    <div class="tk-section__header-right">
+                        <StatusChip Status="EquipmentKind(e.Status)" Text="@SpanishNames.Of(e.Status)" />
+                        <span class="tk-muted">Puertos @view.PortsUsed/@view.Ports</span>
+                        @if (_canEdit)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => EquipmentDialogAsync(e)">Editar</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => SlotDialogAsync(e.Id, null, view.Slots)">+ Tarjeta</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => TransceiverDialogAsync(null, e.Id, null)">+ SFP</MudButton>
+                        }
+                    </div>
+                </header>
+
+                @if (view.Slots.Count > 0)
+                {
+                    <div class="tk-table-wrap">
+                        <table class="tk-table">
+                            <thead><tr><th>Ranura</th><th>Tarjeta</th><th>Serial tarjeta</th><th>Puertos</th><th>Estado</th><th>SFP instalados</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var slot in view.Slots)
+                                {
+                                    var used = view.Transceivers.Count(t => t.SlotId == slot.Id && t.Status == TransceiverStatus.Installed);
+                                    <tr>
+                                        <td class="num strong">@slot.SlotNumber</td>
+                                        <td>@(slot.CardModel ?? "—")</td>
+                                        <td>@(slot.CardSerial ?? "—")</td>
+                                        <td class="num">@slot.PortCount</td>
+                                        <td><StatusChip Status="EquipmentKind(slot.Status)" Text="@SpanishNames.Of(slot.Status)" /></td>
+                                        <td class="num">@used/@slot.PortCount</td>
+                                        <td class="tk-actions-cell">
+                                            @if (_canEdit)
+                                            {
+                                                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => SlotDialogAsync(e.Id, slot, view.Slots)">Editar</MudButton>
+                                                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => TransceiverDialogAsync(null, e.Id, slot.Id)">+ SFP</MudButton>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                @if (view.Transceivers.Count > 0)
+                {
+                    <h3 class="tk-subtitle mt-4">SFP de este equipo</h3>
+                    @TransceiverTable(view.Transceivers, view.Slots)
+                }
+                else if (view.Slots.Count == 0)
+                {
+                    <p class="tk-muted">Sin tarjetas ni SFP registrados.</p>
+                }
+            </section>
+        }
+    }
+    else
+    {
+        @if (_visible.Count == 0)
+        {
+            <SectionCard>
+                <EmptyState Title="No hay SFP que mostrar" Icon="@Icons.Material.Outlined.Cable"
+                            Description="Registre cada SFP con su serial. Puede dejarlos en stock y asignarlos a un puerto cuando se instalen." />
+            </SectionCard>
+        }
+        else
+        {
+            <div class="tk-card">@TransceiverTable(_visible, null)</div>
+        }
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private bool _canEdit;
+    private bool _equipmentView = true;
+    private int _projectId;
+    private string? _search;
+    private TransceiverStatus? _status;
+
+    private List<EquipmentView> _equipment = [];
+    private List<Transceiver> _all = [];
+    private List<Transceiver> _visible = [];
+
+    private string Seg(bool equipment) => _equipmentView == equipment ? "tk-segment__item is-active" : "tk-segment__item";
+
+    private static StatusChip.Kind EquipmentKind(EquipmentStatus status) => status switch
+    {
+        EquipmentStatus.Operational or EquipmentStatus.Installed => StatusChip.Kind.Ok,
+        EquipmentStatus.Faulty => StatusChip.Kind.Atrasado,
+        EquipmentStatus.Planned => StatusChip.Kind.EnTiempo,
+        _ => StatusChip.Kind.Neutral,
+    };
+
+    private static StatusChip.Kind SfpKind(TransceiverStatus status) => status switch
+    {
+        TransceiverStatus.Installed => StatusChip.Kind.Ok,
+        TransceiverStatus.Faulty => StatusChip.Kind.Atrasado,
+        TransceiverStatus.InStock => StatusChip.Kind.EnTiempo,
+        _ => StatusChip.Kind.Neutral,
+    };
+
+    private RenderFragment TransceiverTable(List<Transceiver> list, List<EquipmentSlot>? slots) => @<div class="tk-table-wrap">
+        <table class="tk-table">
+            <thead><tr><th>Serial</th><th>Modelo</th><th>λ</th><th>Equipo</th><th>Ubicación</th><th>Estado</th><th>Instalado</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var t in list)
+                {
+                    var sfp = t;
+                    <tr>
+                        <td class="strong">@sfp.Serial</td>
+                        <td>@(sfp.Model ?? "—")</td>
+                        <td class="num">@(sfp.WavelengthNm is null ? "—" : $"{sfp.WavelengthNm} nm")</td>
+                        <td>@(sfp.Equipment?.Name ?? "—")</td>
+                        <td>@(sfp.Slot is null ? "—" : $"Ranura {sfp.Slot.SlotNumber}{(sfp.PortNumber is null ? string.Empty : $" · puerto {sfp.PortNumber}")}")</td>
+                        <td><StatusChip Status="SfpKind(sfp.Status)" Text="@SpanishNames.Of(sfp.Status)" /></td>
+                        <td class="num">@UiText.ShortDate(sfp.InstalledOn)</td>
+                        <td class="tk-actions-cell">
+                            @if (_canEdit) { <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => TransceiverDialogAsync(sfp, null, null)">Editar</MudButton> }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        await LoadAsync();
+    }
+
+    private async Task OnProjectChanged(int id)
+    {
+        _projectId = id;
+        await LoadAsync();
+    }
+
+    private async Task OnSearchAsync(string? text)
+    {
+        _search = text;
+        await LoadAsync();
+    }
+
+    private async Task OnStatusAsync(TransceiverStatus? status)
+    {
+        _status = status;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_projectId != 0)
+        {
+            _equipment = await EquipmentService.ListAsync(_projectId);
+            _all = await EquipmentService.TransceiversAsync(_projectId);
+            _visible = await EquipmentService.TransceiversAsync(_projectId, _search, _status);
+        }
+
+        _loading = false;
+    }
+
+    private async Task ShowAsync<TDialog>(string title, DialogParameters parameters) where TDialog : ComponentBase
+    {
+        var dialog = await Dialogs.ShowAsync<TDialog>(title, parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if ((await dialog.Result)?.Canceled == false)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private Task EquipmentDialogAsync(Equipment? equipment) =>
+        ShowAsync<EquipmentDialog>(equipment is null ? "Nuevo equipo" : "Editar equipo", new DialogParameters { ["ProjectId"] = _projectId, ["Model"] = equipment });
+
+    private Task SlotDialogAsync(int equipmentId, EquipmentSlot? slot, List<EquipmentSlot> existing) =>
+        ShowAsync<SlotDialog>(slot is null ? "Nueva tarjeta" : "Editar tarjeta",
+            new DialogParameters { ["EquipmentId"] = equipmentId, ["Model"] = slot, ["SuggestedNumber"] = existing.Count == 0 ? 1 : existing.Max(s => s.SlotNumber) + 1 });
+
+    private Task TransceiverDialogAsync(Transceiver? sfp, int? equipmentId, int? slotId) =>
+        ShowAsync<TransceiverDialog>(sfp is null ? "Nuevo SFP" : "Editar SFP",
+            new DialogParameters { ["ProjectId"] = _projectId, ["Model"] = sfp, ["EquipmentId"] = equipmentId, ["SlotId"] = slotId, ["Equipment"] = _equipment });
+}

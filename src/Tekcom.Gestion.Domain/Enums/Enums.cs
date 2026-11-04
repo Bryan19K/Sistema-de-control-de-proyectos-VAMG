@@ -188,3 +188,38 @@ public enum NotificationStatus
     Sent = 0,
     Failed = 1,
 }
+
+public enum EquipmentKind
+{
+    Olt = 0,
+    Switch = 1,
+    Router = 2,
+    Other = 9,
+}
+
+public enum EquipmentStatus
+{
+    Planned = 0,
+    Installed = 1,
+    Operational = 2,
+    Faulty = 3,
+    Retired = 4,
+}
+
+public enum TransceiverStatus
+{
+    InStock = 0,
+    Installed = 1,
+    Faulty = 2,
+    Replaced = 3,
+}
+
+public enum DocumentKind
+{
+    Atp = 0,
+    Caes = 1,
+    Minute = 2,
+    Photo = 3,
+    Annex = 4,
+    Other = 9,
+}

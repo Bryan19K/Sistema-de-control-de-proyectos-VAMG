@@ -1,0 +1,95 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IMinuteService Minutes
+@inject ISiteService Sites
+@inject IUserAdminService Users
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="8"><MudTextField @bind-Value="_model.Title" Label="Título" Required="true" Placeholder="Reunión semanal de proyectos" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="4"><DatePick Label="Fecha" Value="_model.Date" ValueChanged="d => _model.Date = d ?? _model.Date" /></MudItem>
+            </MudGrid>
+            <MudTextField @bind-Value="_model.Attendees" Label="Asistentes" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_model.Summary" Label="Resumen y acuerdos" Lines="4" Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+            <MudText Typo="Typo.subtitle2">Pendientes</MudText>
+            @foreach (var item in _items)
+            {
+                var row = item;
+                <div class="tk-minute-item">
+                    <MudCheckBox T="bool" @bind-Value="row.IsDone" Dense="true" aria-label="Cerrado" />
+                    <MudTextField @bind-Value="row.Description" Placeholder="Pendiente" Variant="Variant.Outlined" Margin="Margin.Dense" Class="grow" />
+                    <MudSelect T="string" @bind-Value="row.ResponsibleUserId" Placeholder="Responsable" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:150px">
+                        @foreach (var user in _users)
+                        {
+                            <MudSelectItem T="string" Value="user.Id">@(string.IsNullOrWhiteSpace(user.FullName) ? user.Email : user.FullName)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSelect T="int?" @bind-Value="row.SiteId" Placeholder="Nodo" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:100px">
+                        @foreach (var site in _sites)
+                        {
+                            <MudSelectItem T="int?" Value="site.Id">@site.Code</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <DatePick Label="Fecha límite" Value="row.DueDate" ValueChanged="d => row.DueDate = d" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Close" Size="Size.Small" OnClick="() => _items.Remove(row)" aria-label="Quitar pendiente" />
+                </div>
+            }
+            <div><MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="AddItem">+ Pendiente</MudButton></div>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public int? MinuteId { get; set; }
+
+    private Minute _model = new();
+    private List<MinuteItem> _items = [];
+    private List<Site> _sites = [];
+    private List<UserListItem> _users = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sites = (await Sites.ListAsync(ProjectId)).Select(s => s.Site).ToList();
+        _users = await Users.ListAsync();
+        var existing = MinuteId is null ? null : await Minutes.GetAsync(MinuteId.Value);
+        _model = existing ?? new Minute { ProjectId = ProjectId, Date = Clock.Today };
+        _items = existing?.Items.OrderBy(i => i.Id).Select(i => new MinuteItem
+        {
+            Id = i.Id, Description = i.Description, ResponsibleUserId = i.ResponsibleUserId, SiteId = i.SiteId, DueDate = i.DueDate, IsDone = i.IsDone,
+        }).ToList() ?? [];
+        if (_items.Count == 0)
+        {
+            AddItem();
+        }
+    }
+
+    private void AddItem() => _items.Add(new MinuteItem());
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _model.Items = _items.Where(i => !string.IsNullOrWhiteSpace(i.Description) || i.Id != 0).ToList();
+            await Minutes.SaveAsync(_model);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

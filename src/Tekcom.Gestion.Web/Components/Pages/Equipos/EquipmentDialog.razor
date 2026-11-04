@@ -1,0 +1,99 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@inject IEquipmentService Equipment
+@inject ISiteService Sites
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_model.Name" Label="Nombre" Required="true" Placeholder="OLT Sonsonate" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudGrid Spacing="2">
+                <MudItem xs="6">
+                    <MudSelect T="EquipmentKind" @bind-Value="_model.Kind" Label="Tipo" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var kind in Enum.GetValues<EquipmentKind>())
+                        {
+                            <MudSelectItem T="EquipmentKind" Value="kind">@SpanishNames.Of(kind)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudSelect T="EquipmentStatus" @bind-Value="_model.Status" Label="Estado" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var status in Enum.GetValues<EquipmentStatus>())
+                        {
+                            <MudSelectItem T="EquipmentStatus" Value="status">@SpanishNames.Of(status)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6"><MudTextField @bind-Value="_model.Brand" Label="Marca" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="6"><MudTextField @bind-Value="_model.Model" Label="Modelo" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            </MudGrid>
+            <MudTextField @bind-Value="_model.Serial" Label="Serial" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudSelect T="int?" @bind-Value="_model.SiteId" Label="Nodo donde está" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var site in _sites)
+                {
+                    <MudSelectItem T="int?" Value="site.Id">Nodo @site.Code</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="_model.Notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        @if (_model.Id != 0)
+        {
+            <MudButton Color="Color.Error" OnClick="RemoveAsync">Quitar</MudButton>
+            <MudSpacer />
+        }
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public Equipment? Model { get; set; }
+
+    private Equipment _model = new();
+    private List<Site> _sites = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sites = (await Sites.ListAsync(ProjectId)).Select(s => s.Site).ToList();
+        _model = Model is null
+            ? new Equipment { ProjectId = ProjectId }
+            : new Equipment
+            {
+                Id = Model.Id, ProjectId = Model.ProjectId, SiteId = Model.SiteId, Kind = Model.Kind, Name = Model.Name, Brand = Model.Brand,
+                Model = Model.Model, Serial = Model.Serial, Status = Model.Status, Notes = Model.Notes,
+            };
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Equipment.SaveEquipmentAsync(_model);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        try
+        {
+            await Equipment.RemoveEquipmentAsync(_model.Id);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+}

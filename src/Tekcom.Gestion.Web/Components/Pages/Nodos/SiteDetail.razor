@@ -39,6 +39,8 @@ else
                 Subtitle="@($"{_project?.Name} · {site.Zone ?? "Sin zona"} · {site.Contractor?.Name ?? "Sin brigada"} · Supervisor: {site.Supervisor?.Name ?? "—"}")">
         <Actions>
             <a href="nodos" class="tk-btn tk-btn--outline">Todos los nodos</a>
+            <a href="@($"documentos?nodo={site.Id}")" class="tk-btn tk-btn--outline">Documentos</a>
+            <a href="@($"exportes/atp/pdf?proyecto={site.ProjectId}&nodo={site.Id}")" class="tk-btn tk-btn--outline" download>ATP PDF</a>
             @if (site.MapUrl is not null)
             {
                 <a href="@site.MapUrl" target="_blank" rel="noopener" class="tk-btn tk-btn--outline">Ver en el mapa</a>

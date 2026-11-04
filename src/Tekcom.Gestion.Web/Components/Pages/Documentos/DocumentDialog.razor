@@ -1,0 +1,153 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@inject IDocumentService Documents
+@inject ISiteService Sites
+@inject ITaskService Tasks
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            @if (Model is null)
+            {
+                <div>
+                    <InputFile OnChange="OnFileAsync" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.docx,.zip" />
+                    <MudText Typo="Typo.caption" Class="tk-muted d-block">@(_file is null ? "Elija el archivo (máximo 20 MB)." : $"{_file.Name} · {_file.Size / 1024} KB")</MudText>
+                </div>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2">Archivo: <strong>@Model.FileName</strong></MudText>
+            }
+
+            <MudTextField @bind-Value="_title" Label="Título" Required="true" Placeholder="ATP SON19 firmado" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudGrid Spacing="2">
+                <MudItem xs="6">
+                    <MudSelect T="DocumentKind" @bind-Value="_kind" Label="Tipo" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var kind in Enum.GetValues<DocumentKind>())
+                        {
+                            <MudSelectItem T="DocumentKind" Value="kind">@SpanishNames.Of(kind)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6"><DatePick Label="Fecha del documento" Value="_date" ValueChanged="d => _date = d ?? _date" /></MudItem>
+            </MudGrid>
+            <MudCheckBox T="bool" @bind-Value="_signed" Label="Es la copia firmada" Dense="true" />
+            <MudSelect T="int?" @bind-Value="_siteId" Label="Nodo" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var site in _sites)
+                {
+                    <MudSelectItem T="int?" Value="site.Id">Nodo @site.Code</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="int?" @bind-Value="_taskId" Label="Tarea vinculada" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var task in _tasks)
+                {
+                    <MudSelectItem T="int?" Value="task.Id">@task.Title</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="_notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        @if (Model is not null)
+        {
+            <MudButton Color="Color.Error" OnClick="RemoveAsync">Quitar</MudButton>
+            <MudSpacer />
+        }
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_saving">@(Model is null ? "Subir" : "Guardar")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public ProjectDocument? Model { get; set; }
+    [Parameter] public int? SiteId { get; set; }
+
+    private IBrowserFile? _file;
+    private string _title = string.Empty;
+    private DocumentKind _kind = DocumentKind.Atp;
+    private DateOnly _date;
+    private bool _signed;
+    private int? _siteId;
+    private int? _taskId;
+    private string? _notes;
+    private bool _saving;
+    private List<Site> _sites = [];
+    private List<TaskItem> _tasks = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sites = (await Sites.ListAsync(ProjectId)).Select(s => s.Site).ToList();
+        _tasks = await Tasks.ListAsync(new TaskFilter { ProjectId = ProjectId });
+        _date = Clock.Today;
+        _siteId = SiteId;
+        if (Model is not null)
+        {
+            _title = Model.Title;
+            _kind = Model.Kind;
+            _date = Model.DocumentDate;
+            _signed = Model.IsSigned;
+            _siteId = Model.SiteId;
+            _taskId = Model.TaskItemId;
+            _notes = Model.Notes;
+        }
+    }
+
+    private void OnFileAsync(InputFileChangeEventArgs args)
+    {
+        _file = args.File;
+        if (string.IsNullOrWhiteSpace(_title))
+        {
+            _title = Path.GetFileNameWithoutExtension(args.File.Name);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            if (Model is null)
+            {
+                if (_file is null)
+                {
+                    Snackbar.Add("Elija el archivo.", Severity.Warning);
+                    return;
+                }
+
+                await using var stream = _file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+                await Documents.UploadAsync(new DocumentUpload(ProjectId, _siteId, _taskId, _kind, _title, _date, _signed, _notes, _file.Name, _file.ContentType), stream);
+            }
+            else
+            {
+                await Documents.UpdateAsync(Model.Id, _title, _kind, _date, _signed, _notes, _siteId, _taskId);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        catch (IOException)
+        {
+            Snackbar.Add("El archivo supera los 20 MB.", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        await Documents.RemoveAsync(Model!.Id);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}

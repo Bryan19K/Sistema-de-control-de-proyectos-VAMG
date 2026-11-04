@@ -1,0 +1,297 @@
+@page "/documentos"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IDocumentService DocumentService
+@inject IMinuteService MinuteService
+@inject ISiteService SiteService
+@inject IUserAdminService UserService
+@inject IDateTimeProvider Clock
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ProjectSelection Selection
+@inject UserAccess Access
+
+<PageTitle>Documentos · TEK-COM</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_projectId == 0)
+{
+    <PageHeader Title="Documentos" Subtitle="ATP, minutas y anexos por proyecto y por nodo" />
+    <SectionCard>
+        <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.FolderOpen" Description="Cree un proyecto para adjuntar sus documentos.">
+            <a href="proyectos" class="tk-btn tk-btn--outline mt-4">Ir a proyectos</a>
+        </EmptyState>
+    </SectionCard>
+}
+else
+{
+    <PageHeader Title="Documentos" Subtitle="ATP, minutas, pendientes y documentos firmados por proyecto y por nodo">
+        <Actions>
+            @if (_tab == Tab.Documents && _siteId is not null)
+            {
+                <a class="tk-btn tk-btn--outline" href="@($"exportes/atp/xlsx?proyecto={_projectId}&nodo={_siteId}")" download>ATP Excel</a>
+                <a class="tk-btn tk-btn--outline" href="@($"exportes/atp/pdf?proyecto={_projectId}&nodo={_siteId}")" download>ATP PDF</a>
+            }
+            @if (_tab != Tab.Documents)
+            {
+                <a class="tk-btn tk-btn--outline" href="@($"exportes/minutas/xlsx?proyecto={_projectId}")" download>Excel</a>
+                <a class="tk-btn tk-btn--outline" href="@($"exportes/minutas/pdf?proyecto={_projectId}")" download>PDF</a>
+            }
+            @if (_canEdit)
+            {
+                @if (_tab == Tab.Documents)
+                {
+                    <button type="button" class="tk-btn tk-btn--primary" @onclick="() => DocumentDialogAsync(null)">+ Subir documento</button>
+                }
+                else
+                {
+                    <button type="button" class="tk-btn tk-btn--primary" @onclick="() => MinuteDialogAsync(null)">+ Minuta</button>
+                }
+            }
+        </Actions>
+    </PageHeader>
+
+    <div class="tk-toolbar">
+        <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
+        <div class="tk-segment" role="tablist">
+            <button type="button" class="@Seg(Tab.Documents)" @onclick="() => _tab = Tab.Documents">Documentos (@_documents.Count)</button>
+            <button type="button" class="@Seg(Tab.Minutes)" @onclick="() => _tab = Tab.Minutes">Minutas (@_minutes.Count)</button>
+            <button type="button" class="@Seg(Tab.Pending)" @onclick="() => _tab = Tab.Pending">Pendientes (@_pending.Count)</button>
+        </div>
+        @if (_tab is Tab.Documents or Tab.Pending)
+        {
+            <MudSelect T="int?" Value="_siteId" ValueChanged="OnSiteChanged" Clearable="true" Placeholder="Todos los nodos" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Style="min-width:180px">
+                @foreach (var site in _sites)
+                {
+                    <MudSelectItem T="int?" Value="site.Id">Nodo @site.Code</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        @if (_tab == Tab.Documents)
+        {
+            <MudSelect T="DocumentKind?" Value="_kind" ValueChanged="OnKindChanged" Clearable="true" Placeholder="Todos los tipos" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Style="min-width:170px">
+                @foreach (var kind in Enum.GetValues<DocumentKind>())
+                {
+                    <MudSelectItem T="DocumentKind?" Value="kind">@SpanishNames.Of(kind)</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    </div>
+
+    @switch (_tab)
+    {
+        case Tab.Documents:
+            @if (_documents.Count == 0)
+            {
+                <SectionCard>
+                    <EmptyState Title="Todavía no hay documentos" Icon="@Icons.Material.Outlined.Description"
+                                Description="Suba el ATP firmado, el CAES, las minutas firmadas y las fotos de cierre de cada nodo, con su fecha y quién los subió." />
+                </SectionCard>
+            }
+            else
+            {
+                <div class="tk-card">
+                    <div class="tk-table-wrap">
+                        <table class="tk-table">
+                            <thead><tr><th>Tipo</th><th>Título</th><th>Nodo</th><th>Tarea</th><th>Fecha</th><th>Firmado</th><th>Subió</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var d in _documents)
+                                {
+                                    var doc = d;
+                                    <tr>
+                                        <td><StatusChip Status="@(doc.Kind == DocumentKind.Atp ? StatusChip.Kind.EnTiempo : StatusChip.Kind.Neutral)" Text="@SpanishNames.Of(doc.Kind)" /></td>
+                                        <td><a class="tk-row-link" href="@($"archivos/documentos/{doc.Id}")" download="@doc.FileName">@doc.Title</a><div class="tk-muted" style="font-size:0.85rem">@doc.FileName · @(doc.Size / 1024) KB</div></td>
+                                        <td>@(doc.Site?.Code ?? "—")</td>
+                                        <td>@(doc.TaskItem?.Title ?? "—")</td>
+                                        <td class="num">@UiText.ShortDate(doc.DocumentDate)</td>
+                                        <td>@if (doc.IsSigned) { <StatusChip Status="StatusChip.Kind.Ok" Text="Firmado" /> } else { <span class="muted">—</span> }</td>
+                                        <td class="muted">@doc.CreatedBy<div style="font-size:0.85rem">@UiText.LocalDateTime(doc.CreatedAt)</div></td>
+                                        <td class="tk-actions-cell">@if (_canEdit) { <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => DocumentDialogAsync(doc)">Editar</MudButton> }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            break;
+
+        case Tab.Minutes:
+            @if (_minutes.Count == 0)
+            {
+                <SectionCard>
+                    <EmptyState Title="Todavía no hay minutas" Icon="@Icons.Material.Outlined.EventNote"
+                                Description="Registre las reuniones del proyecto con sus acuerdos. Los pendientes quedan abiertos hasta que se cierren." />
+                </SectionCard>
+            }
+
+            @foreach (var minute in _minutes)
+            {
+                var m = minute;
+                <section class="tk-card tk-minute-card">
+                    <div class="tk-minute-card__head">
+                        <span class="tk-minute-card__title">@m.Title</span>
+                        <span class="tk-muted">@UiText.ShortDate(m.Date) · @m.Items.Count(i => i.IsDone)/@m.Items.Count pendientes cerrados
+                            @if (_canEdit) { <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="ml-2" OnClick="() => MinuteDialogAsync(m.Id)">Editar</MudButton> }
+                        </span>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(m.Attendees)) { <div class="tk-muted" style="font-size:0.92rem">Asistentes: @m.Attendees</div> }
+                    @if (!string.IsNullOrWhiteSpace(m.Summary)) { <div class="tk-minute-card__summary">@m.Summary</div> }
+                    @if (m.Items.Count > 0)
+                    {
+                        <ul class="tk-list">
+                            @foreach (var item in m.Items.OrderBy(i => i.IsDone).ThenBy(i => i.DueDate ?? DateOnly.MaxValue))
+                            {
+                                <li class="tk-list__item">
+                                    <MudCheckBox T="bool" Value="item.IsDone" ValueChanged="v => SetDoneAsync(item.Id, v)" Disabled="@(!_canEdit)" Dense="true" aria-label="Cerrado" />
+                                    <span style="@(item.IsDone ? "text-decoration:line-through; color:var(--tk-text-3)" : string.Empty)">@item.Description</span>
+                                    @if (item.Site is not null) { <StatusChip Status="StatusChip.Kind.Neutral" Text="@item.Site.Code" /> }
+                                    @if (!item.IsDone && UiText.Due(item.DueDate, Clock.Today, false) is { } due) { <StatusChip Status="due.Kind" Text="@due.Text" /> }
+                                    @if (item.ResponsibleUserId is not null) { <span class="tk-muted">@NameOf(item.ResponsibleUserId)</span> }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            }
+            break;
+
+        case Tab.Pending:
+            @if (VisiblePending.Count == 0)
+            {
+                <SectionCard>
+                    <EmptyState Title="No hay pendientes abiertos" Icon="@Icons.Material.Outlined.TaskAlt" Description="Los pendientes de las minutas aparecen aquí hasta que se cierren." />
+                </SectionCard>
+            }
+            else
+            {
+                <div class="tk-card">
+                    <div class="tk-table-wrap">
+                        <table class="tk-table">
+                            <thead><tr><th></th><th>Pendiente</th><th>Nodo</th><th>Responsable</th><th>Fecha límite</th><th>Minuta</th></tr></thead>
+                            <tbody>
+                                @foreach (var item in VisiblePending)
+                                {
+                                    var p = item;
+                                    <tr>
+                                        <td style="width:50px"><MudCheckBox T="bool" Value="false" ValueChanged="v => SetDoneAsync(p.Id, v)" Disabled="@(!_canEdit)" Dense="true" aria-label="Cerrar pendiente" /></td>
+                                        <td>@p.Description</td>
+                                        <td>@(p.Site?.Code ?? "—")</td>
+                                        <td>@(p.ResponsibleUserId is null ? "—" : NameOf(p.ResponsibleUserId))</td>
+                                        <td>@if (UiText.Due(p.DueDate, Clock.Today, false) is { } due) { <StatusChip Status="due.Kind" Text="@due.Text" /> } else { <span class="muted">—</span> }</td>
+                                        <td class="muted">@UiText.ShortDate(p.Minute?.Date) · @p.Minute?.Title</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            break;
+    }
+}
+
+@code {
+    private enum Tab { Documents, Minutes, Pending }
+
+    [SupplyParameterFromQuery(Name = "nodo")] public int? SiteQuery { get; set; }
+
+    private Tab _tab = Tab.Documents;
+    private bool _loading = true;
+    private bool _canEdit;
+    private int _projectId;
+    private int? _siteId;
+    private DocumentKind? _kind;
+
+    private List<Site> _sites = [];
+    private List<ProjectDocument> _documents = [];
+    private List<Minute> _minutes = [];
+    private List<MinuteItem> _pending = [];
+    private Dictionary<string, string> _users = [];
+
+    private string Seg(Tab tab) => _tab == tab ? "tk-segment__item is-active" : "tk-segment__item";
+
+    private List<MinuteItem> VisiblePending => _siteId is null ? _pending : _pending.Where(p => p.SiteId == _siteId).ToList();
+
+    private string NameOf(string userId) => _users.TryGetValue(userId, out var name) ? name : "—";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        _users = (await UserService.ListAsync()).ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace(u.FullName) ? u.Email : u.FullName);
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        _siteId = SiteQuery;
+        await LoadAsync();
+    }
+
+    private async Task OnProjectChanged(int id)
+    {
+        _projectId = id;
+        _siteId = null;
+        await LoadAsync();
+    }
+
+    private async Task OnSiteChanged(int? id)
+    {
+        _siteId = id;
+        await LoadAsync();
+    }
+
+    private async Task OnKindChanged(DocumentKind? kind)
+    {
+        _kind = kind;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_projectId != 0)
+        {
+            _sites = (await SiteService.ListAsync(_projectId)).Select(s => s.Site).OrderBy(s => s.Code).ToList();
+            if (_siteId is { } id && _sites.All(s => s.Id != id)) { _siteId = null; }
+            _documents = await DocumentService.ListAsync(new DocumentFilter { ProjectId = _projectId, SiteId = _siteId, Kind = _kind });
+            _minutes = await MinuteService.ListAsync(_projectId);
+            _pending = await MinuteService.PendingAsync(_projectId);
+        }
+
+        _loading = false;
+    }
+
+    private async Task SetDoneAsync(int itemId, bool done)
+    {
+        try
+        {
+            await MinuteService.SetItemDoneAsync(itemId, done);
+            await LoadAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DocumentDialogAsync(ProjectDocument? document)
+    {
+        var dialog = await Dialogs.ShowAsync<DocumentDialog>(document is null ? "Subir documento" : "Editar documento",
+            new DialogParameters { ["ProjectId"] = _projectId, ["Model"] = document, ["SiteId"] = _siteId },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if ((await dialog.Result)?.Canceled == false) { await LoadAsync(); }
+    }
+
+    private async Task MinuteDialogAsync(int? minuteId)
+    {
+        var dialog = await Dialogs.ShowAsync<MinuteDialog>(minuteId is null ? "Nueva minuta" : "Editar minuta",
+            new DialogParameters { ["ProjectId"] = _projectId, ["MinuteId"] = minuteId },
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+        if ((await dialog.Result)?.Canceled == false) { await LoadAsync(); }
+    }
+}

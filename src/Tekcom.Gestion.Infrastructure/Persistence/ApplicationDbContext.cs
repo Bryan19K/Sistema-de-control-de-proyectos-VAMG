@@ -37,6 +37,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<WorkPlanActivity> WorkPlanActivities => Set<WorkPlanActivity>();
     public DbSet<ActivityDependency> ActivityDependencies => Set<ActivityDependency>();
     public DbSet<PlanTemplate> PlanTemplates => Set<PlanTemplate>();
+    public DbSet<Equipment> EquipmentItems => Set<Equipment>();
+    public DbSet<EquipmentSlot> EquipmentSlots => Set<EquipmentSlot>();
+    public DbSet<Transceiver> Transceivers => Set<Transceiver>();
+    public DbSet<ProjectDocument> Documents => Set<ProjectDocument>();
+    public DbSet<Minute> Minutes => Set<Minute>();
+    public DbSet<MinuteItem> MinuteItems => Set<MinuteItem>();
     public DbSet<NotificationRule> NotificationRules => Set<NotificationRule>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
 

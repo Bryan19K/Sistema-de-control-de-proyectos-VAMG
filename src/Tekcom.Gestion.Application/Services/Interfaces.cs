@@ -248,3 +248,63 @@ public interface IDashboardService
     /// <summary>Datos para los gráficos de un proyecto: instalación, nodos, tareas y feeder.</summary>
     Task<ProjectCharts> GetChartsAsync(int projectId, CancellationToken ct = default);
 }
+
+public sealed record EquipmentView(Equipment Equipment, List<EquipmentSlot> Slots, List<Transceiver> Transceivers)
+{
+    public int Ports => Slots.Sum(s => s.PortCount);
+    public int PortsUsed => Transceivers.Count(t => t.Status == TransceiverStatus.Installed && t.PortNumber is not null);
+}
+
+public interface IEquipmentService
+{
+    Task<List<EquipmentView>> ListAsync(int projectId, int? siteId = null, CancellationToken ct = default);
+    Task<Equipment> SaveEquipmentAsync(Equipment equipment, CancellationToken ct = default);
+
+    /// <summary>Solo se puede quitar un equipo sin tarjetas ni SFP; si ya se usó, se marca como Retirado.</summary>
+    Task RemoveEquipmentAsync(int equipmentId, CancellationToken ct = default);
+
+    Task<EquipmentSlot> SaveSlotAsync(EquipmentSlot slot, CancellationToken ct = default);
+    Task RemoveSlotAsync(int slotId, CancellationToken ct = default);
+
+    Task<List<Transceiver>> TransceiversAsync(int projectId, string? search = null, TransceiverStatus? status = null, CancellationToken ct = default);
+
+    /// <summary>Guarda el SFP: serial único por proyecto, puerto dentro de la tarjeta y un solo SFP instalado por puerto.</summary>
+    Task<Transceiver> SaveTransceiverAsync(Transceiver transceiver, CancellationToken ct = default);
+    Task RemoveTransceiverAsync(int transceiverId, CancellationToken ct = default);
+}
+
+public sealed class DocumentFilter
+{
+    public int ProjectId { get; set; }
+    public int? SiteId { get; set; }
+    public int? TaskItemId { get; set; }
+    public DocumentKind? Kind { get; set; }
+}
+
+public sealed record DocumentUpload(
+    int ProjectId, int? SiteId, int? TaskItemId, DocumentKind Kind, string Title, DateOnly Date,
+    bool IsSigned, string? Notes, string FileName, string ContentType);
+
+public interface IDocumentService
+{
+    Task<List<ProjectDocument>> ListAsync(DocumentFilter filter, CancellationToken ct = default);
+    Task<ProjectDocument> UploadAsync(DocumentUpload upload, Stream content, CancellationToken ct = default);
+    Task UpdateAsync(int documentId, string title, DocumentKind kind, DateOnly date, bool isSigned, string? notes, int? siteId, int? taskItemId, CancellationToken ct = default);
+    Task<(ProjectDocument Document, Stream Content)?> OpenAsync(int documentId, CancellationToken ct = default);
+
+    /// <summary>Quita el documento de las listas (borrado lógico); el archivo se conserva.</summary>
+    Task RemoveAsync(int documentId, CancellationToken ct = default);
+}
+
+public interface IMinuteService
+{
+    Task<List<Minute>> ListAsync(int projectId, CancellationToken ct = default);
+    Task<Minute?> GetAsync(int minuteId, CancellationToken ct = default);
+
+    /// <summary>Guarda la minuta y sincroniza sus pendientes: agrega los nuevos, actualiza los existentes y quita los que ya no están.</summary>
+    Task<Minute> SaveAsync(Minute minute, CancellationToken ct = default);
+    Task SetItemDoneAsync(int itemId, bool done, CancellationToken ct = default);
+
+    /// <summary>Pendientes sin cerrar de todas las minutas del proyecto, opcionalmente de un nodo.</summary>
+    Task<List<MinuteItem>> PendingAsync(int projectId, int? siteId = null, CancellationToken ct = default);
+}

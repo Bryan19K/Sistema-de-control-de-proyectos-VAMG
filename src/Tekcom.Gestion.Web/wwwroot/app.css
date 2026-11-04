@@ -829,3 +829,12 @@ code {
 .tk-hbar__fill--warning { background: var(--tk-warning); }
 .tk-hbar__fill--muted { background: #9aa6b8; }
 .tk-hbar__value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--tk-navy); }
+
+/* ---------- Equipos, documentos y minutas ---------- */
+.tk-minute-item { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tk-minute-item .grow { flex: 1; min-width: 200px; }
+.tk-subtitle { font-size: 1rem; color: var(--tk-navy); margin: 0 0 8px; }
+.tk-minute-card { padding: 18px 22px; margin-bottom: 14px; }
+.tk-minute-card__head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+.tk-minute-card__title { font-weight: 700; color: var(--tk-navy); font-size: 1.05rem; }
+.tk-minute-card__summary { white-space: pre-line; color: var(--tk-text-2); margin: 8px 0; }

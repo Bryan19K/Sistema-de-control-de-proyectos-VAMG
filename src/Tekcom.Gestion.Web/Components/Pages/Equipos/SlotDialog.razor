@@ -1,0 +1,79 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@inject IEquipmentService Equipment
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudGrid Spacing="2">
+                <MudItem xs="6"><MudNumericField T="int" @bind-Value="_model.SlotNumber" Label="Ranura" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="6"><MudNumericField T="int" @bind-Value="_model.PortCount" Label="Puertos de la tarjeta" Min="0" Max="128" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            </MudGrid>
+            <MudTextField @bind-Value="_model.CardModel" Label="Modelo de tarjeta" Placeholder="GPFD" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_model.CardSerial" Label="Serial de la tarjeta" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudSelect T="EquipmentStatus" @bind-Value="_model.Status" Label="Estado" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var status in Enum.GetValues<EquipmentStatus>())
+                {
+                    <MudSelectItem T="EquipmentStatus" Value="status">@SpanishNames.Of(status)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="_model.Notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        @if (_model.Id != 0)
+        {
+            <MudButton Color="Color.Error" OnClick="RemoveAsync">Quitar tarjeta</MudButton>
+            <MudSpacer />
+        }
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int EquipmentId { get; set; }
+    [Parameter] public EquipmentSlot? Model { get; set; }
+    [Parameter] public int SuggestedNumber { get; set; }
+
+    private EquipmentSlot _model = new();
+
+    protected override void OnInitialized() =>
+        _model = Model is null
+            ? new EquipmentSlot { EquipmentId = EquipmentId, SlotNumber = SuggestedNumber, PortCount = 16 }
+            : new EquipmentSlot
+            {
+                Id = Model.Id, EquipmentId = Model.EquipmentId, SlotNumber = Model.SlotNumber, CardModel = Model.CardModel,
+                CardSerial = Model.CardSerial, PortCount = Model.PortCount, Status = Model.Status, Notes = Model.Notes,
+            };
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Equipment.SaveSlotAsync(_model);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        try
+        {
+            await Equipment.RemoveSlotAsync(_model.Id);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+}

@@ -1,0 +1,106 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@inject IEquipmentService EquipmentService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_model.Serial" Label="Serial del SFP" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudGrid Spacing="2">
+                <MudItem xs="8"><MudTextField @bind-Value="_model.Model" Label="Modelo" Placeholder="SFP+ 10G LR" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="4"><MudNumericField T="int?" @bind-Value="_model.WavelengthNm" Label="λ (nm)" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            </MudGrid>
+            <MudSelect T="TransceiverStatus" @bind-Value="_model.Status" Label="Estado" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var status in Enum.GetValues<TransceiverStatus>())
+                {
+                    <MudSelectItem T="TransceiverStatus" Value="status">@SpanishNames.Of(status)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="int?" Value="_model.EquipmentId" ValueChanged="OnEquipmentChanged" Label="Equipo" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var view in Equipment)
+                {
+                    <MudSelectItem T="int?" Value="view.Equipment.Id">@view.Equipment.Name</MudSelectItem>
+                }
+            </MudSelect>
+            @if (Slots.Count > 0)
+            {
+                <MudGrid Spacing="2">
+                    <MudItem xs="8">
+                        <MudSelect T="int?" @bind-Value="_model.SlotId" Label="Tarjeta (ranura)" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var slot in Slots)
+                            {
+                                <MudSelectItem T="int?" Value="slot.Id">Ranura @slot.SlotNumber@(string.IsNullOrWhiteSpace(slot.CardModel) ? string.Empty : $" · {slot.CardModel}") ({slot.PortCount} puertos)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="4"><MudNumericField T="int?" @bind-Value="_model.PortNumber" Label="Puerto" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                </MudGrid>
+            }
+            <MudTextField @bind-Value="_model.Notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        @if (_model.Id != 0)
+        {
+            <MudButton Color="Color.Error" OnClick="RemoveAsync">Quitar</MudButton>
+            <MudSpacer />
+        }
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public Transceiver? Model { get; set; }
+    [Parameter] public int? EquipmentId { get; set; }
+    [Parameter] public int? SlotId { get; set; }
+    [Parameter] public List<EquipmentView> Equipment { get; set; } = [];
+
+    private Transceiver _model = new();
+
+    private List<EquipmentSlot> Slots => Equipment.FirstOrDefault(e => e.Equipment.Id == _model.EquipmentId)?.Slots ?? [];
+
+    protected override void OnInitialized() =>
+        _model = Model is null
+            ? new Transceiver
+            {
+                ProjectId = ProjectId, EquipmentId = EquipmentId, SlotId = SlotId,
+                Status = EquipmentId is null ? TransceiverStatus.InStock : TransceiverStatus.Installed,
+            }
+            : new Transceiver
+            {
+                Id = Model.Id, ProjectId = Model.ProjectId, EquipmentId = Model.EquipmentId, SlotId = Model.SlotId, PortNumber = Model.PortNumber,
+                Model = Model.Model, Serial = Model.Serial, WavelengthNm = Model.WavelengthNm, Status = Model.Status, InstalledOn = Model.InstalledOn, Notes = Model.Notes,
+            };
+
+    private void OnEquipmentChanged(int? id)
+    {
+        _model.EquipmentId = id;
+        _model.SlotId = null;
+        _model.PortNumber = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await EquipmentService.SaveTransceiverAsync(_model);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        await EquipmentService.RemoveTransceiverAsync(_model.Id);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}

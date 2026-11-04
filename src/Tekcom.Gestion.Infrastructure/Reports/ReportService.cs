@@ -19,6 +19,11 @@ public sealed class ReportService(
     ILiquidationService liquidation,
     IProjectionService projection,
     IWorkPlanService workPlan,
+    IEquipmentService equipment,
+    IMinuteService minutes,
+    IDocumentService documents,
+    IMeasurementService measurements,
+    IUserAdminService users,
     IDateTimeProvider clock) : IReportService
 {
     public IReadOnlyList<ReportDefinition> Definitions { get; } =
@@ -30,6 +35,9 @@ public sealed class ReportService(
         new("sprints", "Estado de sprints", "Avance, tiempo transcurrido y ritmo de cada sprint."),
         new("avance", "Avance por nodo", "Avance, ritmo, ODN, feeder y etapas de cada nodo."),
         new("plan", "Plan de trabajo", "Fases y actividades con fechas plan y real, avance, ritmo y dependencias."),
+        new("atp", "ATP del nodo", "Instalación, etapas, mediciones de potencia, fusiones y registro de documentos y fotos del nodo, con firmas.", NeedsSite: true),
+        new("seriales", "Equipos y seriales SFP", "OLT y equipos con sus tarjetas, y cada SFP con serial, ubicación y estado."),
+        new("minutas", "Minutas y pendientes", "Minutas del proyecto y pendientes abiertos con responsable y fecha."),
         new("movimientos", "Bitácora de movimientos", "Todos los movimientos de bodega, incluidos los anulados."),
     ];
 
@@ -62,6 +70,9 @@ public sealed class ReportService(
             case "sprints": await SprintsAsync(document, project.Id, ct); break;
             case "avance": await ProgressAsync(document, project.Id, ct); break;
             case "plan": await PlanAsync(document, project.Id, ct); break;
+            case "atp": await AtpAsync(document, project.Id, request.SiteId!.Value, ct); break;
+            case "seriales": await SerialsAsync(document, project.Id, ct); break;
+            case "minutas": await MinutesAsync(document, project.Id, ct); break;
             case "movimientos": await MovementsAsync(document, project.Id, ct); break;
         }
 
@@ -331,6 +342,249 @@ public sealed class ReportService(
 
         document.Sections.Add(section);
         document.Notes.Add("El avance de la fase y del plan se pondera por la duración de sus actividades..");
+    }
+
+    private async Task AtpAsync(ReportDocument document, int projectId, int siteId, CancellationToken ct)
+    {
+        var summary = await sites.GetSummaryAsync(siteId, ct) ?? throw new BusinessRuleException("El nodo no existe.");
+        if (summary.Site.ProjectId != projectId)
+        {
+            throw new BusinessRuleException("El nodo no pertenece al proyecto elegido.");
+        }
+
+        var site = await sites.GetAsync(siteId, ct) ?? summary.Site;
+        var stages = await sites.StagesAsync(siteId, ct);
+        var fat = await measurements.SummaryAsync(siteId, ct);
+        var docs = await documents.ListAsync(new DocumentFilter { ProjectId = projectId, SiteId = siteId }, ct);
+
+        document.Subtitle = $"Nodo {site.Code}";
+        document.Facts.Add(("Nodo", site.Code));
+        document.Facts.Add(("Zona", site.Zone ?? "—"));
+        document.Facts.Add(("Contratista", site.Contractor?.Name ?? "—"));
+        document.Facts.Add(("Supervisor", site.Supervisor?.Name ?? "—"));
+        document.Facts.Add(("Avance del nodo", $"{summary.ProgressPercent:0.#}%"));
+        document.Facts.Add(("ODN", site.OdnFinalized ? "Finalizada" : "Pendiente"));
+        document.Facts.Add(("Feeder", FeederName(site.FeederStatus)));
+        document.Facts.Add(("Mediciones", fat.Measured == 0 ? "Sin mediciones" : $"{fat.Measured} FAT medidas ({fat.Acceptable} aceptables, {fat.NotAcceptable} no aceptables)"));
+
+        var installed = new ReportSection
+        {
+            Heading = "Instalación del nodo",
+            Columns =
+            [
+                new("Group", "Concepto", ReportColumnType.Text, 3),
+                new("Projected", "Proyectado", ReportColumnType.Decimal, 1.2),
+                new("Installed", "Instalado", ReportColumnType.Decimal, 1.2),
+                new("Pending", "Pendiente", ReportColumnType.Decimal, 1.2),
+                new("Percent", "Avance", ReportColumnType.Percent, 1),
+            ],
+        };
+        foreach (var (group, label) in AtpGroups)
+        {
+            if (summary.Quantities.TryGetValue(group, out var q) && q.Projected > 0)
+            {
+                installed.Rows.Add([label, q.Projected, q.Installed, Math.Max(0, q.Pending), q.Percent / 100m]);
+            }
+        }
+
+        document.Sections.Add(installed);
+
+        var stageSection = new ReportSection
+        {
+            Heading = "Etapas del flujo",
+            Columns =
+            [
+                new("Stage", "Etapa", ReportColumnType.Text, 3),
+                new("Status", "Estado", ReportColumnType.Text, 1.6),
+                new("Start", "Inicio real", ReportColumnType.Date, 1.4),
+                new("End", "Fin real", ReportColumnType.Date, 1.4),
+            ],
+        };
+        foreach (var stage in stages.Where(st => st.Status != StageStatus.NotApplicable).OrderBy(st => st.Definition?.SortOrder ?? 0))
+        {
+            stageSection.Rows.Add([stage.Definition?.Name ?? stage.Code.ToString(), SpanishNames.Of(stage.Status), stage.ActualStart, stage.ActualEnd]);
+        }
+
+        document.Sections.Add(stageSection);
+
+        var power = await measurements.ListAsync(siteId, ct);
+        if (power.Count > 0)
+        {
+            var powerSection = new ReportSection
+            {
+                Heading = "Mediciones de potencia por FAT",
+                Columns =
+                [
+                    new("Fat", "FAT", ReportColumnType.Text, 2),
+                    new("Date", "Fecha", ReportColumnType.Date, 1.4),
+                    new("Dbm", "Potencia (dBm)", ReportColumnType.Decimal, 1.4),
+                    new("Result", "Resultado", ReportColumnType.Text, 1.4),
+                    new("Notes", "Notas", ReportColumnType.Text, 3),
+                ],
+            };
+            foreach (var m in power.OrderBy(m => m.FatCode).ThenBy(m => m.Date))
+            {
+                powerSection.Rows.Add([m.FatCode, m.Date, m.PowerDbm, m.IsAcceptable ? "Aceptable" : "No aceptable", m.Notes]);
+            }
+
+            document.Sections.Add(powerSection);
+        }
+
+        var docSection = new ReportSection
+        {
+            Heading = "Documentos y registro fotográfico",
+            Columns =
+            [
+                new("Kind", "Tipo", ReportColumnType.Text, 1.2),
+                new("Title", "Título", ReportColumnType.Text, 3.4),
+                new("Date", "Fecha", ReportColumnType.Date, 1.4),
+                new("Signed", "Firmado", ReportColumnType.Text, 1),
+                new("File", "Archivo", ReportColumnType.Text, 3),
+                new("By", "Subió", ReportColumnType.Text, 2),
+            ],
+        };
+        foreach (var d in docs.OrderBy(d => d.Kind).ThenBy(d => d.DocumentDate))
+        {
+            docSection.Rows.Add([SpanishNames.Of(d.Kind), d.Title, d.DocumentDate, d.IsSigned ? "Sí" : "No", d.FileName, d.CreatedBy]);
+        }
+
+        document.Sections.Add(docSection);
+        if (docs.Count == 0)
+        {
+            document.Notes.Add("El nodo todavía no tiene documentos ni fotos adjuntos.");
+        }
+
+        document.Signatures.AddRange(["Contratista", "Supervisor TEK-COM", "Cliente"]);
+    }
+
+    private static readonly (QuantityGroup Group, string Label)[] AtpGroups =
+    [
+        (QuantityGroup.FcCable, "Cable FC (m)"),
+        (QuantityGroup.MpoCable, "Cable MPO (m)"),
+        (QuantityGroup.SubBox, "Sub-box (NAP de paso)"),
+        (QuantityGroup.EndBox, "End-box (NAP final)"),
+        (QuantityGroup.HubBox, "Hub-box"),
+        (QuantityGroup.XBox, "X-box"),
+        (QuantityGroup.Fusion, "Fusiones"),
+        (QuantityGroup.Crossing, "Cruces americanos"),
+    ];
+
+    private async Task SerialsAsync(ReportDocument document, int projectId, CancellationToken ct)
+    {
+        var all = await equipment.ListAsync(projectId, null, ct);
+        var equipmentSection = new ReportSection
+        {
+            Heading = "Equipos y tarjetas",
+            Columns =
+            [
+                new("Equipment", "Equipo", ReportColumnType.Text, 2.6),
+                new("Kind", "Tipo", ReportColumnType.Text, 1),
+                new("Site", "Nodo", ReportColumnType.Text, 1),
+                new("Model", "Marca / modelo", ReportColumnType.Text, 2.4),
+                new("Serial", "Serial", ReportColumnType.Text, 2.2),
+                new("Slot", "Ranura", ReportColumnType.Text, 1),
+                new("Card", "Tarjeta", ReportColumnType.Text, 2),
+                new("CardSerial", "Serial tarjeta", ReportColumnType.Text, 2.2),
+                new("Ports", "Puertos", ReportColumnType.Integer, 1),
+                new("Status", "Estado", ReportColumnType.Text, 1.4),
+            ],
+        };
+        foreach (var view in all)
+        {
+            var e = view.Equipment;
+            var model = string.Join(' ', new[] { e.Brand, e.Model }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            if (view.Slots.Count == 0)
+            {
+                equipmentSection.Rows.Add([e.Name, SpanishNames.Of(e.Kind), e.Site?.Code, model, e.Serial, null, null, null, null, SpanishNames.Of(e.Status)]);
+                continue;
+            }
+
+            var first = true;
+            foreach (var slot in view.Slots)
+            {
+                equipmentSection.Rows.Add([first ? e.Name : null, first ? SpanishNames.Of(e.Kind) : null, first ? e.Site?.Code : null,
+                    first ? model : null, first ? e.Serial : null, slot.SlotNumber.ToString(), slot.CardModel, slot.CardSerial,
+                    slot.PortCount, first ? SpanishNames.Of(e.Status) : SpanishNames.Of(slot.Status)]);
+                first = false;
+            }
+        }
+
+        document.Sections.Add(equipmentSection);
+
+        var sfp = await equipment.TransceiversAsync(projectId, null, null, ct);
+        var sfpSection = new ReportSection
+        {
+            Heading = "Transceptores SFP",
+            Columns =
+            [
+                new("Serial", "Serial SFP", ReportColumnType.Text, 2.4),
+                new("Model", "Modelo", ReportColumnType.Text, 2.2),
+                new("Wave", "λ (nm)", ReportColumnType.Integer, 1),
+                new("Equipment", "Equipo", ReportColumnType.Text, 2.4),
+                new("Slot", "Ranura", ReportColumnType.Text, 1),
+                new("Port", "Puerto", ReportColumnType.Text, 1),
+                new("Status", "Estado", ReportColumnType.Text, 1.4),
+                new("On", "Instalado", ReportColumnType.Date, 1.5),
+                new("Notes", "Notas", ReportColumnType.Text, 2.6),
+            ],
+        };
+        foreach (var t in sfp)
+        {
+            sfpSection.Rows.Add([t.Serial, t.Model, t.WavelengthNm, t.Equipment?.Name, t.Slot?.SlotNumber.ToString(), t.PortNumber?.ToString(),
+                SpanishNames.Of(t.Status), t.InstalledOn, t.Notes]);
+        }
+
+        document.Sections.Add(sfpSection);
+        document.Notes.Add($"Equipos: {all.Count} · SFP registrados: {sfp.Count} · instalados: {sfp.Count(t => t.Status == TransceiverStatus.Installed)} · en stock: {sfp.Count(t => t.Status == TransceiverStatus.InStock)}.");
+    }
+
+    private async Task MinutesAsync(ReportDocument document, int projectId, CancellationToken ct)
+    {
+        var list = await minutes.ListAsync(projectId, ct);
+        var names = (await users.ListAsync(ct)).ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace(u.FullName) ? u.Email : u.FullName);
+
+        var minuteSection = new ReportSection
+        {
+            Heading = "Minutas",
+            Columns =
+            [
+                new("Date", "Fecha", ReportColumnType.Date, 1.4),
+                new("Title", "Título", ReportColumnType.Text, 3),
+                new("Attendees", "Asistentes", ReportColumnType.Text, 3),
+                new("Summary", "Resumen", ReportColumnType.Text, 5),
+                new("Items", "Pendientes", ReportColumnType.Text, 1.2),
+            ],
+        };
+        foreach (var m in list)
+        {
+            minuteSection.Rows.Add([m.Date, m.Title, m.Attendees, m.Summary, $"{m.Items.Count(i => i.IsDone)}/{m.Items.Count} cerrados"]);
+        }
+
+        document.Sections.Add(minuteSection);
+
+        var pending = list.SelectMany(m => m.Items.Where(i => !i.IsDone).Select(i => (Minute: m, Item: i)))
+            .OrderBy(x => x.Item.DueDate ?? DateOnly.MaxValue).ToList();
+        var pendingSection = new ReportSection
+        {
+            Heading = "Pendientes abiertos",
+            Columns =
+            [
+                new("Item", "Pendiente", ReportColumnType.Text, 5),
+                new("Site", "Nodo", ReportColumnType.Text, 1),
+                new("Who", "Responsable", ReportColumnType.Text, 2.4),
+                new("Due", "Fecha límite", ReportColumnType.Date, 1.5),
+                new("Minute", "Minuta", ReportColumnType.Text, 3),
+            ],
+        };
+        foreach (var (minute, item) in pending)
+        {
+            pendingSection.Rows.Add([item.Description, item.Site?.Code,
+                item.ResponsibleUserId is not null && names.TryGetValue(item.ResponsibleUserId, out var who) ? who : null,
+                item.DueDate, $"{minute.Date:dd/MM/yyyy} · {minute.Title}"]);
+        }
+
+        document.Sections.Add(pendingSection);
+        document.Notes.Add($"Minutas: {list.Count} · pendientes abiertos: {pending.Count} · vencidos: {pending.Count(x => x.Item.DueDate < document.CutoffDate)}.");
     }
 
     private async Task MovementsAsync(ReportDocument document, int projectId, CancellationToken ct)
