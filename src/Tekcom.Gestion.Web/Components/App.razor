@@ -49,6 +49,13 @@
             }, 10000);
         })();
     </script>
+    <script>
+        window.tkFullscreen = function () {
+            var el = document.documentElement;
+            if (document.fullscreenElement) { document.exitFullscreen(); }
+            else if (el.requestFullscreen) { el.requestFullscreen(); }
+        };
+    </script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
     <script src="@Assets["Components/Account/Shared/PasskeySubmit.razor.js"]" type="module"></script>

@@ -231,3 +231,36 @@ public sealed class ProjectCharts
     public required Dictionary<TaskItemStatus, int> TasksByStatus { get; init; }
     public required List<FeederProgress> Feeder { get; init; }
 }
+
+// ---------------------------------------------------------------- Presentación
+
+public sealed record CurvePoint(DateOnly Date, decimal Planned, decimal? Real);
+
+public sealed record NodeBar(string Code, decimal Progress, PaceStatus Pace, bool Ready);
+
+public sealed record MaterialBar(string Name, string Unit, decimal Received, decimal Delivered, decimal Installed, decimal Returned);
+
+public sealed record SprintBar(string Name, decimal Progress, decimal Elapsed, PaceStatus Pace, bool Closed);
+
+public sealed record NamedCount(string Name, int Count);
+
+public sealed class PresentationData
+{
+    public required string ProjectName { get; init; }
+    public required DateOnly Today { get; init; }
+    public decimal Progress { get; init; }
+    public required PaceResult Pace { get; init; }
+    public DateOnly? PlanStart { get; init; }
+    public DateOnly? PlanEnd { get; init; }
+    public required List<CurvePoint> Curve { get; init; }
+    public required List<NodeBar> Nodes { get; init; }
+    public required ProjectCharts Charts { get; init; }
+    public required List<MaterialBar> Materials { get; init; }
+    public required List<NamedCount> TasksByPerson { get; init; }
+    public required List<SprintBar> Sprints { get; init; }
+    public int MeasuredFats { get; init; }
+    public int AcceptableFats { get; init; }
+    public int NotAcceptableFats { get; init; }
+    public int ClosedLiquidations { get; init; }
+    public int TotalSites { get; init; }
+}
