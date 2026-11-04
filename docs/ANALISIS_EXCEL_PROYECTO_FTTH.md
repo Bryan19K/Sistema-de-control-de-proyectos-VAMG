@@ -121,12 +121,17 @@ nodos en proceso es el 30 o 31 de octubre de 2026, ya vencida.
 | Comentarios de celda | **Notas** de la partida o del nodo |
 | Hoja de entrega, catálogo, inventario | Movimientos de bodega (Sprint 3); falta el archivo para importarlos |
 
-## Pendiente por confirmar
+## Respuestas de Bryan (2026-11-04)
 
-1. Enviar los archivos que faltan: **catálogo e ingresos, hoja de entrega, inventario, proyección de
-   diseño y seriales.**
-2. ¿FO de **80 m** es válido? ¿Existen MPO de **250 y 350 m**?
-3. ¿ATP, mediciones, correcciones estéticas y técnicas, y recepción final son **etapas del flujo**
-   después de las fusiones?
-4. ¿Qué significa **ACTUALIZADO** en "DATA STATUS"? ¿Y qué es un **trébol** en las notas del aro de sujeción?
-5. ¿El **feeder global en metros** y el **estado de feeder por nodo** conviven como dos datos distintos?
+1. **Archivos de bodega:** no los tiene; los maneja bodega. El Sprint 1 no depende de ellos.
+2. **Largos:** FO de 80 m es válido y se agregan los MPO de 250 y 350 m al catálogo.
+3. **ATP, mediciones, correcciones y recepción final** son etapas del flujo junto con las fusiones.
+   El ATP es el documento formal que se entrega al cliente. Las FATs se miden para comprobar que
+   llega la potencia correcta.
+4. **ACTUALIZADO** indica que ya se tomó la información de las bitácoras de los supervisores (sirve
+   para saber si hay que actualizar). **Trébol** es parte del aro de sujeción, pero se llevan por
+   separado: aros y tréboles.
+5. **Feeder:** conviven dos datos. El avance global en metros por tipo de fibra (hoja AVANCE FEEDER)
+   y un estado por nodo solo para saber si el feeder ya pasó por la ODN de ese nodo.
+
+Todo esto quedó incorporado en [`FLUJO_OPERATIVO.md`](FLUJO_OPERATIVO.md).

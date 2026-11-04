@@ -1,10 +1,10 @@
 # Flujo operativo por nodo (proyectos FTTH)
 
-> Fuente: indicaciones de Bryan Calderón del 2026-11-04. Lo de **"Decisiones confirmadas"** es
-> definitivo. Lo de **"Pendiente por confirmar"** es interpretación y no se implementa hasta que
-> Bryan lo confirme (regla 8 del plan: no inventar reglas de negocio).
+> Fuente: indicaciones de Bryan Calderón del 2026-11-04 y el Excel `PROYECTO_FTTH_2026_61.xlsx`.
+> Lo de **"Decisiones confirmadas"** es definitivo. Lo de **"Pendiente por confirmar"** es
+> interpretación y no se implementa hasta que Bryan lo confirme (regla 8 del plan).
 
-## Etapas de la ODN por nodo
+## Etapas del nodo
 
 Las etapas **no tienen un orden obligatorio**: a veces se salta la secuencia y el resultado es el
 mismo. El sistema las muestra en este orden de referencia, pero cada una se registra por separado.
@@ -14,43 +14,60 @@ mismo. El sistema las muestra en este orden de referencia, pero cada una se regi
 | Previo | Supervisión de CAES | Solo se supervisa en campo. **No afecta el flujo.** |
 | 1 | Replanteo del nodo | Junto a un supervisor, por nodo. |
 | 2 | Entrega de materiales | Por nodo, a la brigada contratista. |
-| 3 | Instalación de cable FC | Largos: 5, 50, 100, 120, 150, 180, 200, 250, 300, 350, 400, 450 y 500 m. |
-| 4 | Instalación de cable MPO | Largos: 100, 150, 200, 250, 300, 350, 400, 450 y 500 m. |
+| 3 | Instalación de cable FC | 14 largos: 5, 50, 80, 100, 120, 150, 180, 200, 250, 300, 350, 400, 450 y 500 m. |
+| 4 | Instalación de cable MPO | 9 largos: 100, 150, 200, 250, 300, 350, 400, 450 y 500 m. |
 | 5 | Instalación de FAT | Sub-box y end-box. |
 | 6 | Instalación de Hub-box y X-box | |
 | 7 | Fusiones en X-box | |
 | 8 | Cruces americanos | **Parte de la ODN.** Cantidad proyectada según el diseño; puede cambiar. |
+| 9 | Mediciones de FATs | Se miden las FATs para saber si les llega la potencia correcta. |
+| 10 | Correcciones estéticas y técnicas | Las que salen de las mediciones y la revisión. |
+| 11 | **ATP** | Documento formal que se entrega al cliente. Se adjunta firmado. |
+| 12 | Recepción final | |
 | Cierre | **ODN finalizada** | Se marca **a mano**. |
 
-## Feeder (troncal) por nodo
+## Feeder (troncal): dos niveles
 
-Cada nodo tiene un estado de feeder con tres opciones: **PENDIENTE, EN PROCESO, FINALIZADO**.
-Sirve para saber si la fibra del feeder (también llamado troncal) ya pasó por ese nodo y, con eso,
-cuánto está listo para entregar al cliente.
+1. **Avance global del feeder (todo el proyecto).** Metros proyectados e instalados por tipo de
+   fibra (12H, 24H, 48H y 96H), más cierres y ODF. Hoy: 41 000 m proyectados, 15 052 m instalados
+   (37 %). Sirve para ver cuánto del feeder está construido.
+2. **Estado del feeder por nodo.** Tres opciones: **PENDIENTE, EN PROCESO, FINALIZADO.** Solo sirve
+   para saber si el feeder ya pasó por la construcción de la ODN de ese nodo.
 
 ## Decisiones confirmadas
 
-1. **Sin orden obligatorio.** Las etapas se pueden registrar en cualquier orden. El sistema no
-   bloquea ni da avisos por saltarse la secuencia.
+1. **Sin orden obligatorio.** Las etapas se pueden registrar en cualquier orden, sin bloqueos ni avisos.
 2. **CAES no condiciona nada.** Es una supervisión de campo y aparece como casilla informativa.
-3. **Cruces americanos son parte de la ODN.** Se agregan siempre como una etapa más del nodo.
-   La cantidad **proyectada viene del diseño de construcción**, pero suele sufrir alteraciones
-   (suma o resta). Por eso la cantidad proyectada se puede **ajustar**, y cada ajuste queda
-   registrado con fecha, usuario y motivo. Se compara proyectado vs. ejecutado igual que el resto
-   de las partidas.
-4. **"ODN finalizada" se marca manualmente.** El sistema no la calcula ni la marca solo.
-5. **Estado de feeder por nodo, manual:** PENDIENTE, EN PROCESO o FINALIZADO. Es un dato aparte de
-   las etapas de la ODN.
+3. **Cruces americanos son parte de la ODN.** La cantidad **proyectada viene del diseño**, pero
+   suele cambiar (suma o resta). Cada ajuste queda registrado con fecha, usuario y motivo, y se
+   compara proyectado vs. ejecutado igual que el resto de las partidas.
+4. **"ODN finalizada" se marca manualmente.**
+5. **Estado de feeder por nodo, manual:** PENDIENTE, EN PROCESO o FINALIZADO.
 6. **Los cierres de distribución y de continuidad vienen de la proyección de diseño.**
-7. **Las etapas pesan por tiempo, no por valor.** Algunas tardan más. El avance del nodo se calcula
-   con los días planificados de cada etapa: avance = días de las etapas finalizadas ÷ días totales.
-   Los días de cada etapa son configurables en la plantilla del proyecto.
+7. **Las etapas pesan por tiempo, no por valor.** Avance del nodo = días de las etapas finalizadas
+   ÷ días totales. Los días de cada etapa se configuran en la plantilla del proyecto.
 8. **"Cable SFC" es el cable FC** (SC/APC) del catálogo.
 9. **Documentos firmados.** Cada nodo tiene una sección para adjuntar documentos firmados
-   (por ejemplo, el de supervisión de CAES), con fecha y usuario que los subió.
-10. **Los estados de las etapas** usan las mismas tres opciones: Pendiente, En proceso y Finalizado.
+   (por ejemplo, el ATP y el de CAES), con fecha y usuario que los subió.
+10. **Estados de las etapas:** Pendiente, En proceso y Finalizado. Las correcciones estéticas y
+    técnicas también admiten "En corrección" y "N/A", como en el Excel.
 11. **Nodo listo para entregar al cliente** = **ODN finalizada** y **feeder FINALIZADO**. El tablero
-    muestra cuántos nodos están listos del total del proyecto.
+    muestra cuántos nodos están listos del total.
+12. **Catálogo de largos.** Cable FC: 14 largos (incluye 80 m). Cable MPO: 9 largos (incluye 250 y
+    350 m). Cada largo es un material distinto.
+13. **ATP = entregable formal al cliente.** Va junto con las fusiones y las mediciones. Es una
+    etapa del nodo y su documento se adjunta firmado.
+14. **Mediciones de FATs.** Se miden para confirmar que llega la potencia correcta. Regla tomada del
+    Excel: el nodo está "listo para medir" cuando tiene el **90 %** de sus FATs instaladas (el
+    porcentaje es configurable). Cuando las mediciones se finalizan, queda "medido".
+15. **Aro de sujeción y trébol son materiales separados.** En el Excel los tréboles venían escritos
+    en el comentario de la celda del aro (por ejemplo, SON19: 54 aros y 222 tréboles). Al importar
+    se pasan a su propio material.
+16. **Control de bitácora del supervisor.** El estado "ACTUALIZADO" del Excel solo indica si Bryan ya
+    tomó la información de las bitácoras de los supervisores. En el sistema es una marca por nodo
+    para saber si hay bitácora pendiente de actualizar.
+17. **Bodega no tiene sus archivos disponibles todavía.** Catálogo de ingresos, hoja de entrega e
+    inventario los maneja bodega.
 
 ## Cómo lo modela el sistema
 
@@ -58,29 +75,33 @@ cuánto está listo para entregar al cliente.
    observaciones. Es la base del avance por nodo y del indicador de ritmo.
 2. **Avance ponderado por días planificados** (decisión 7). Mientras una etapa está En proceso no
    suma avance; suma cuando pasa a Finalizado.
-3. **El catálogo distingue cada largo de cable:** 13 de FC y 9 de MPO son materiales distintos
-   (como en el diseño: "Cable FC SC/APC 50 m", "Cable MPO 400 m").
-4. **Lo instalado alimenta la liquidación:** FC (etapa 3), MPO (4), FAT (5), Hub-box y X-box (6) y
-   cruces americanos (8). Así "Instalado" no se captura dos veces.
-5. **Cruces americanos con ajustes:** cantidad proyectada original (del diseño), ajustes con motivo
-   y cantidad ejecutada. El total proyectado vigente es original ± ajustes. Nada se borra
-   (principio 3).
+3. **El catálogo distingue cada largo de cable** (14 de FC y 9 de MPO, decisión 12).
+4. **Lo instalado se registra por día** (fecha, brigada, cantidad) y alimenta la liquidación: FC,
+   MPO, FAT, Hub-box, X-box, fusiones y cruces americanos. Así "Instalado" no se captura dos veces.
+5. **Cruces americanos con ajustes:** cantidad original del diseño, ajustes con motivo y cantidad
+   ejecutada. Total vigente = original ± ajustes. Nada se borra (principio 3).
 6. **Alias:** sub-box = NAP de paso y end-box = NAP final.
-7. **Ayuda con cierres:** si la proyección de un nodo no trae cierres de distribución ni de
+7. **Feeder:** tabla del proyecto (metros por tipo de fibra, cierres, ODF) y un estado por nodo.
+8. **Ayuda con cierres:** si la proyección de un nodo no trae cierres de distribución ni de
    continuidad, el sistema muestra el aviso "el feeder ya pasó por este nodo". Es solo una ayuda: el
-   estado del feeder lo sigue poniendo Bryan.
-8. **Bitácora:** cada cambio de estado o de cantidad queda en auditoría (quién, cuándo, motivo).
+   estado lo sigue poniendo Bryan.
+9. **Bitácora:** cada cambio de estado o de cantidad queda en auditoría (quién, cuándo, motivo).
 
 ## Dónde entra en el plan de sprints
 
-- **Sprint 1:** plantilla de etapas con días por etapa (incluye cruces americanos), casilla de CAES,
-  marca manual de ODN finalizada, estado de feeder por nodo, catálogo con los largos de FC y MPO.
-- **Sprint 3:** entrega de materiales por nodo, instalado por etapa, cruces americanos con ajustes,
-  cierres desde la proyección y liquidación.
+- **Sprint 1:** importar AVANCE ODN y AVANCE FEEDER del Excel; plantilla de etapas con días por
+  etapa; catálogo con los largos de FC y MPO, aro y trébol; estado de feeder por nodo; casilla de
+  CAES; marca manual de ODN finalizada; marca de bitácora pendiente.
+- **Sprint 3:** bodega (ingresos, entregas, inventario), instalado por día, cruces con ajustes,
+  cierres desde la proyección, mediciones y liquidación. Depende de los archivos de bodega o de
+  empezar a capturar desde cero.
 - **Sprint 5:** Gantt, avance por nodo ponderado por días e indicador de nodos listos para entregar.
 - **Sprint 6:** avisos de etapas atrasadas.
-- **Sprint 7:** adjuntos de documentos firmados por nodo (si no se adelantan antes).
+- **Sprint 7:** ATP con registro fotográfico y exporte, y adjuntos de documentos firmados.
 
 ## Pendiente por confirmar
 
-Nada por ahora. El flujo quedó cerrado el 2026-11-04.
+1. **Mediciones:** ¿se registra la **potencia medida de cada FAT** (valor en dBm) o solo el estado
+   de las mediciones del nodo, como hoy en el Excel?
+2. **Bitácoras:** ¿los supervisores van a cargar su bitácora **directamente en el sistema** (rol
+   Supervisor), o Bryan seguirá pasándola desde sus reportes?
