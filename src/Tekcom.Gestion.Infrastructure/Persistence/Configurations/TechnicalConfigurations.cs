@@ -93,3 +93,98 @@ public sealed class ProgressSnapshotConfiguration : IEntityTypeConfiguration<Pro
         b.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
     }
 }
+
+public sealed class ProjectPhaseConfiguration : IEntityTypeConfiguration<ProjectPhase>
+{
+    public void Configure(EntityTypeBuilder<ProjectPhase> b)
+    {
+        b.Property(x => x.Name).HasMaxLength(120).IsRequired();
+        b.Property(x => x.ParentName).HasMaxLength(120);
+        b.Property(x => x.Weight).HasPrecision(7, 2);
+        b.Property(x => x.Percent).HasPrecision(7, 2);
+        b.HasIndex(x => x.ProjectId);
+        b.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
+    }
+}
+
+public sealed class BuildingRecordConfiguration : IEntityTypeConfiguration<BuildingRecord>
+{
+    public void Configure(EntityTypeBuilder<BuildingRecord> b)
+    {
+        b.Property(x => x.Level).HasMaxLength(30);
+        b.Property(x => x.Name).HasMaxLength(160).IsRequired();
+        b.Property(x => x.ProgressPercent).HasPrecision(7, 2);
+        b.Property(x => x.Status).HasMaxLength(60);
+        b.Property(x => x.Notes).HasMaxLength(1000);
+        b.HasIndex(x => new { x.ProjectId, x.Kind });
+        b.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
+    }
+}
+
+public sealed class ExpenseFundConfiguration : IEntityTypeConfiguration<ExpenseFund>
+{
+    public void Configure(EntityTypeBuilder<ExpenseFund> b)
+    {
+        b.Property(x => x.Name).HasMaxLength(160).IsRequired();
+        b.Property(x => x.SourceKey).HasMaxLength(200).IsRequired();
+        b.HasIndex(x => x.SourceKey);
+    }
+}
+
+public sealed class ExpenseEntryConfiguration : IEntityTypeConfiguration<ExpenseEntry>
+{
+    public void Configure(EntityTypeBuilder<ExpenseEntry> b)
+    {
+        b.Property(x => x.Description).HasMaxLength(400).IsRequired();
+        b.Property(x => x.Category).HasMaxLength(60);
+        b.Property(x => x.Supplier).HasMaxLength(160);
+        b.Property(x => x.InvoiceNumber).HasMaxLength(60);
+        b.Property(x => x.Unit).HasMaxLength(20);
+        b.Property(x => x.Status).HasMaxLength(40);
+        b.Property(x => x.PaidBy).HasMaxLength(100);
+        b.Property(x => x.CostCenter).HasMaxLength(40);
+        b.Property(x => x.SourceKey).HasMaxLength(200).IsRequired();
+        b.Property(x => x.Quantity).HasPrecision(18, 4);
+        b.Property(x => x.UnitCost).HasPrecision(18, 4);
+        b.Property(x => x.Subtotal).HasPrecision(18, 4);
+        b.Property(x => x.Vat).HasPrecision(18, 4);
+        b.Property(x => x.Total).HasPrecision(18, 4);
+        b.HasIndex(x => x.SourceKey);
+        b.HasIndex(x => x.Date);
+        b.HasOne(x => x.Fund).WithMany().HasForeignKey(x => x.FundId);
+        b.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
+    }
+}
+
+public sealed class PriceItemConfiguration : IEntityTypeConfiguration<PriceItem>
+{
+    public void Configure(EntityTypeBuilder<PriceItem> b)
+    {
+        b.Property(x => x.Section).HasMaxLength(30).IsRequired();
+        b.Property(x => x.Item).HasMaxLength(160).IsRequired();
+        b.Property(x => x.Type).HasMaxLength(40);
+        b.Property(x => x.Unit).HasMaxLength(20);
+        b.Property(x => x.TargetPrice).HasPrecision(18, 4);
+        b.HasIndex(x => new { x.ProjectId, x.Section });
+        b.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
+    }
+}
+
+public sealed class ContractOrderConfiguration : IEntityTypeConfiguration<ContractOrder>
+{
+    public void Configure(EntityTypeBuilder<ContractOrder> b)
+    {
+        b.Property(x => x.Code).HasMaxLength(40).IsRequired();
+        b.Property(x => x.OrderNumber).HasMaxLength(40);
+        b.Property(x => x.ContractorName).HasMaxLength(120);
+        b.Property(x => x.MaterialStatus).HasMaxLength(40);
+        b.Property(x => x.ConstructionStatus).HasMaxLength(40);
+        b.Property(x => x.LiquidationStatus).HasMaxLength(40);
+        b.Property(x => x.Subtotal).HasPrecision(18, 4);
+        b.Property(x => x.Vat).HasPrecision(18, 4);
+        b.Property(x => x.Total).HasPrecision(18, 4);
+        b.HasIndex(x => new { x.ProjectId, x.Code });
+        b.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
+        b.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId);
+    }
+}

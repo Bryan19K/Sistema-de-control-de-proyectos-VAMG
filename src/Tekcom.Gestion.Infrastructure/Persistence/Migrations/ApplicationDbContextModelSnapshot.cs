@@ -222,6 +222,78 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.ToTable("ActivityDependencies");
                 });
 
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.BuildingRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("DetailJson")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Level")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal?>("ProgressPercent")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Kind");
+
+                    b.ToTable("BuildingRecords");
+                });
+
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.Client", b =>
                 {
                     b.Property<int>("Id")
@@ -262,6 +334,93 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Clients");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ContractOrder", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ConstructionStatus")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ContractorName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<int?>("HomesPassed")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LiquidationStatus")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("MaterialStatus")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("OrderNumber")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("SiteId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<decimal>("Vat")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SiteId");
+
+                    b.HasIndex("ProjectId", "Code");
+
+                    b.ToTable("ContractOrders");
                 });
 
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.Contractor", b =>
@@ -562,6 +721,177 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.HasIndex("EquipmentId", "SlotNumber");
 
                     b.ToTable("EquipmentSlots");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ExpenseEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("CostCenter")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<int?>("FundId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PaidBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("SourceKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<decimal?>("Subtotal")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("Supplier")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal?>("UnitCost")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<decimal?>("Vat")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date");
+
+                    b.HasIndex("FundId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("SourceKey");
+
+                    b.ToTable("ExpenseEntries");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ExpenseFund", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AssignedAmount")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("SourceKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceKey");
+
+                    b.ToTable("ExpenseFunds");
                 });
 
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ExportTemplate", b =>
@@ -1058,8 +1388,15 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
                     b.Property<int>("Group")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("HasSerial")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -1073,6 +1410,10 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("MinimumStock")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("Model")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1467,6 +1808,73 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.ToTable("PlanTemplates");
                 });
 
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.PriceItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Item")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Section")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TargetPrice")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("Type")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Section");
+
+                    b.ToTable("PriceItems");
+                });
+
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ProgressSnapshot", b =>
                 {
                     b.Property<int>("Id")
@@ -1594,6 +2002,10 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Property<int>("PaceMarginPercent")
                         .HasColumnType("integer");
 
+                    b.Property<string>("PendingWork")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<DateOnly?>("PlannedEnd")
                         .HasColumnType("date");
 
@@ -1605,6 +2017,10 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("ReadyToMeasurePercent")
                         .HasColumnType("integer");
+
+                    b.Property<decimal?>("ReportedProgress")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
 
                     b.Property<string>("ResponsibleName")
                         .HasMaxLength(150)
@@ -1717,6 +2133,68 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProjectId", "SiteId");
 
                     b.ToTable("Documents");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ProjectPhase", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("ParentName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<decimal>("Percent")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<decimal>("Weight")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectPhases");
                 });
 
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ProjectType", b =>
@@ -2825,6 +3303,35 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Navigation("Predecessor");
                 });
 
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.BuildingRecord", b =>
+                {
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ContractOrder", b =>
+                {
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Project");
+
+                    b.Navigation("Site");
+                });
+
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.DesignProjection", b =>
                 {
                     b.HasOne("Tekcom.Gestion.Domain.Entities.Site", "Site")
@@ -2882,6 +3389,23 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Equipment");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ExpenseEntry", b =>
+                {
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.ExpenseFund", "Fund")
+                        .WithMany()
+                        .HasForeignKey("FundId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Fund");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.FatMeasurement", b =>
@@ -3027,6 +3551,17 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Navigation("Site");
                 });
 
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.PriceItem", b =>
+                {
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ProgressSnapshot", b =>
                 {
                     b.HasOne("Tekcom.Gestion.Domain.Entities.Project", "Project")
@@ -3079,6 +3614,17 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Navigation("Site");
 
                     b.Navigation("TaskItem");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ProjectPhase", b =>
+                {
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.ProjectionAdjustment", b =>

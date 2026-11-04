@@ -46,6 +46,8 @@ public sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
         b.Property(x => x.Name).HasMaxLength(200).IsRequired();
         b.Property(x => x.Description).HasMaxLength(2000);
         b.Property(x => x.ResponsibleName).HasMaxLength(150);
+        b.Property(x => x.ReportedProgress).HasPrecision(7, 2);
+        b.Property(x => x.PendingWork).HasMaxLength(1000);
         b.HasIndex(x => x.Code);
     }
 }
@@ -89,6 +91,8 @@ public sealed class MaterialConfiguration : IEntityTypeConfiguration<Material>
         b.Property(x => x.Code).HasMaxLength(60);
         b.Property(x => x.Unit).HasMaxLength(20).IsRequired();
         b.Property(x => x.Notes).HasMaxLength(1000);
+        b.Property(x => x.Model).HasMaxLength(120);
+        b.Property(x => x.Description).HasMaxLength(600);
         b.HasIndex(x => x.Name);
     }
 }

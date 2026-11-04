@@ -5,7 +5,7 @@
 @using Tekcom.Gestion.Application.Services
 @using Tekcom.Gestion.Domain.Entities
 @using Tekcom.Gestion.Web.Services
-@inject IExcelImportService Importer
+@inject IDataImportCoordinator Importer
 @inject IProjectService Projects
 @inject ProjectSelection Selection
 @inject ISnackbar Snackbar
@@ -13,12 +13,12 @@
 
 <PageTitle>Importar Excel · TEK-COM</PageTitle>
 
-<PageHeader Title="Importar Excel" Subtitle="Carga el Excel de control (hojas AVANCE ODN y AVANCE FEEDER) sin duplicar lo que ya existe" />
+<PageHeader Title="Importar Excel" Subtitle="Suba cualquiera de los Excel de TEK-COM: el sistema detecta qué trae y lo carga sin duplicar" />
 
 <SectionCard Title="1. Elija el archivo" Class="mb-6">
     <p class="mb-3">
-        El sistema lee el archivo y le muestra un reporte <strong>antes de guardar nada</strong>. Las filas con error no se importan a la fuerza:
-        quedan listadas para que las corrija. Puede importar el mismo archivo otra vez sin duplicar datos.
+        Sirven el Excel de control FTTH (con sus hojas de bodega), el control de proyectos NextWave, el control de materiales de NextWave,
+        los gastos y el preciario. El sistema le muestra qué encontró <strong>antes de guardar nada</strong> y puede subir el mismo archivo otra vez sin duplicar.
     </p>
     <InputFile OnChange="OnFileAsync" accept=".xlsx" disabled="@_busy" />
     @if (_busy)
@@ -31,57 +31,92 @@
     }
 </SectionCard>
 
-@if (_result is not null)
+@if (_done is not null)
 {
     <div class="tk-alert tk-alert--info mb-6">
         <MudIcon Icon="@Icons.Material.Filled.CheckCircle" />
-        <span><strong>Importación terminada.</strong> Revise el resultado y la validación de totales.</span>
+        <span><strong>Importación terminada.</strong> Revise el resultado de cada bloque y la validación de totales.</span>
     </div>
-    <ImportReportView Report="_result" />
-    <div class="tk-toolbar">
-        <a href="nodos" class="tk-btn tk-btn--primary">Ver nodos y avance</a>
-        <a href="proyectos" class="tk-btn tk-btn--outline">Ver proyectos</a>
-    </div>
-}
-else if (_analysis is not null)
-{
-    <ImportReportView Report="_analysis.Report" />
-
-    <SectionCard Title="2. ¿Dónde se importa?" Class="mb-6">
-        <MudRadioGroup T="bool" @bind-Value="_useExisting">
-            <MudRadio T="bool" Value="false">Crear un proyecto nuevo con este Excel</MudRadio>
-            <MudRadio T="bool" Value="true" Disabled="_projects.Count == 0">Agregar a un proyecto existente</MudRadio>
-        </MudRadioGroup>
-
-        @if (_useExisting)
+    @foreach (var pack in _done)
+    {
+        <h2 class="tk-h2 mb-3">@pack.Title</h2>
+        @if (pack.Kind == PackKind.FtthControl)
         {
-            <MudSelect T="int" @bind-Value="_projectId" Label="Proyecto" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:420px" Class="mt-3">
-                @foreach (var p in _projects)
-                {
-                    <MudSelectItem T="int" Value="p.Id">@p.Name (@p.Code)</MudSelectItem>
-                }
-            </MudSelect>
+            <ImportReportView Report="pack.Report" />
         }
         else
         {
-            <div class="tk-toolbar mt-3">
-                <MudTextField @bind-Value="_newCode" Label="Código del proyecto" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:220px" />
-                <MudTextField @bind-Value="_newName" Label="Nombre del proyecto" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:360px" />
-            </div>
+            <PackReportView Report="pack.Report" />
         }
+    }
+    <div class="tk-toolbar">
+        <a href="proyectos" class="tk-btn tk-btn--primary">Ver proyectos</a>
+        <a href="materiales" class="tk-btn tk-btn--outline">Ver materiales</a>
+        <a href="edificios" class="tk-btn tk-btn--outline">Ver edificios</a>
+        <a href="gastos" class="tk-btn tk-btn--outline">Ver gastos</a>
+    </div>
+}
+else if (_packs.Count > 0)
+{
+    @foreach (var pack in _packs)
+    {
+        <h2 class="tk-h2 mb-1">@pack.Title</h2>
+        <p class="tk-muted mb-3">@pack.Description</p>
+        @if (pack.Kind == PackKind.FtthControl)
+        {
+            <ImportReportView Report="pack.Report" />
+        }
+        else
+        {
+            <PackReportView Report="pack.Report" />
+        }
+    }
 
-        <div class="tk-toolbar mt-4">
-            <button type="button" class="tk-btn tk-btn--primary" @onclick="ApplyAsync" disabled="@(_busy || (_analysis.Report.NodeCodes.Count == 0 && _analysis.Workbook.Feeder is null))">
-                Importar @(_analysis.Report.NodeCodes.Count - _analysis.Report.Counts.RowsSkipped) nodos
-            </button>
-            <span class="tk-muted">No se borra nada: lo ya registrado se conserva y solo se agrega lo que falta.</span>
-        </div>
-    </SectionCard>
+    @if (NeedsTarget)
+    {
+        <SectionCard Title="2. ¿Dónde se importa?" Class="mb-6">
+            @if (HasFtth)
+            {
+                <MudRadioGroup T="bool" @bind-Value="_useExisting">
+                    <MudRadio T="bool" Value="false">Crear un proyecto nuevo con este Excel</MudRadio>
+                    <MudRadio T="bool" Value="true" Disabled="_projects.Count == 0">Agregar a un proyecto existente</MudRadio>
+                </MudRadioGroup>
+            }
+            else
+            {
+                <p class="mb-2">Estos datos se cargan en el proyecto FTTH que elija.</p>
+            }
+
+            @if (_useExisting || !HasFtth)
+            {
+                <MudSelect T="int" @bind-Value="_projectId" Label="Proyecto" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:420px" Class="mt-3">
+                    @foreach (var p in _projects)
+                    {
+                        <MudSelectItem T="int" Value="p.Id">@p.Name (@p.Code)</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            else
+            {
+                <div class="tk-toolbar mt-3">
+                    <MudTextField @bind-Value="_newCode" Label="Código del proyecto" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:220px" />
+                    <MudTextField @bind-Value="_newName" Label="Nombre del proyecto" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:360px" />
+                </div>
+            }
+        </SectionCard>
+    }
+
+    <div class="tk-toolbar mt-4 mb-6">
+        <button type="button" class="tk-btn tk-btn--primary" @onclick="ApplyAsync" disabled="@(_busy || _packs.All(p => p.Report.Errors > 0 && p.Kind != PackKind.FtthControl && p.Report.Summary.Count == 0))">
+            Importar todo (@_packs.Count @(_packs.Count == 1 ? "bloque" : "bloques"))
+        </button>
+        <span class="tk-muted">No se borra nada de lo que ya registró: solo se agrega o se actualiza lo que viene del Excel.</span>
+    </div>
 }
 
 @code {
-    private ImportAnalysis? _analysis;
-    private ImportReport? _result;
+    private List<PackAnalysis> _packs = [];
+    private List<PackAnalysis>? _done;
     private string? _fileName;
     private bool _busy;
     private List<Project> _projects = [];
@@ -90,12 +125,15 @@ else if (_analysis is not null)
     private string? _newCode;
     private string? _newName;
 
+    private bool HasFtth => _packs.Any(p => p.Kind == PackKind.FtthControl);
+    private bool NeedsTarget => HasFtth || _packs.Any(p => p.NeedsProject);
+
     protected override async Task OnInitializedAsync() => _projects = await Projects.ListAsync();
 
     private async Task OnFileAsync(InputFileChangeEventArgs args)
     {
-        _result = null;
-        _analysis = null;
+        _done = null;
+        _packs = [];
         var file = args.File;
         if (!file.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
         {
@@ -107,16 +145,31 @@ else if (_analysis is not null)
         try
         {
             await using var stream = file.OpenReadStream(maxAllowedSize: 25 * 1024 * 1024);
-            _analysis = await Importer.AnalyzeAsync(stream, file.Name);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            _packs = await Importer.AnalyzeAsync(memory.ToArray(), file.Name);
             _fileName = file.Name;
-            _newCode = _analysis.Report.SuggestedProjectCode;
-            _newName = _analysis.Report.SuggestedProjectName;
-            _projectId = Selection.CurrentId ?? _projects.FirstOrDefault()?.Id ?? 0;
+            if (_packs.Count == 0)
+            {
+                Snackbar.Add("No reconocí este Excel. Use el control FTTH, el control de proyectos NextWave, sus materiales, los gastos o el preciario.", Severity.Warning);
+                return;
+            }
+
+            var ftth = _packs.FirstOrDefault(p => p.Kind == PackKind.FtthControl);
+            _newCode = ftth?.Report.SuggestedProjectCode;
+            _newName = ftth?.Report.SuggestedProjectName;
+            var ftthProjects = _projects.Where(p => p.ProjectType?.Code == "FTTH").ToList();
+            _projectId = ftthProjects.FirstOrDefault(p => p.Id == Selection.CurrentId)?.Id
+                ?? ftthProjects.FirstOrDefault()?.Id ?? Selection.CurrentId ?? _projects.FirstOrDefault()?.Id ?? 0;
             _useExisting = false;
         }
         catch (IOException)
         {
             Snackbar.Add("No se pudo leer el archivo. Verifique que no supere 25 MB.", Severity.Error);
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
         }
         finally
         {
@@ -126,7 +179,7 @@ else if (_analysis is not null)
 
     private async Task ApplyAsync()
     {
-        if (_analysis is null)
+        if (_packs.Count == 0)
         {
             return;
         }
@@ -134,8 +187,9 @@ else if (_analysis is not null)
         _busy = true;
         try
         {
-            var target = _useExisting ? new ImportTarget(_projectId, null, null) : new ImportTarget(null, _newCode, _newName);
-            _result = await Importer.ApplyAsync(_analysis, target);
+            var existing = _useExisting || !HasFtth;
+            var target = existing ? new ImportTarget(_projectId == 0 ? null : _projectId, null, null) : new ImportTarget(null, _newCode, _newName);
+            _done = await Importer.ApplyAsync(_packs, target);
             _projects = await Projects.ListAsync();
             Snackbar.Add("Importación terminada.", Severity.Success);
         }

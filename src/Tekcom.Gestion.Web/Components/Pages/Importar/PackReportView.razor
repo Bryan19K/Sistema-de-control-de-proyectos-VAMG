@@ -1,0 +1,79 @@
+@using Tekcom.Gestion.Application.Import
+@using Tekcom.Gestion.Web.Services
+
+<div class="tk-kpi-grid">
+    <KpiCard Label="Errores" Value="@Report.Errors.ToString()" Note="@(Report.Errors == 0 ? "todo se puede importar" : "esas filas no se importan")"
+             Tone="Report.Errors == 0 ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Danger" />
+    <KpiCard Label="Avisos" Value="@Report.Warnings.ToString()" Note="se importa, pero conviene revisar" Tone="Report.Warnings == 0 ? KpiCard.NoteTone.Neutral : KpiCard.NoteTone.Warning" />
+    @if (Report.TotalChecks.Count > 0)
+    {
+        <KpiCard Label="Totales que coinciden" Value="@($"{Report.TotalChecks.Count(c => c.Matches)} de {Report.TotalChecks.Count}")"
+                 Note="contra el Excel" Tone="Report.TotalsMatch ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Danger" />
+    }
+</div>
+
+@if (Report.Summary.Count > 0)
+{
+    <SectionCard Title="@(Report.Applied ? "Qué se cargó" : "Qué se leyó")" Class="mb-4">
+        <dl class="tk-kv">
+            @foreach (var item in Report.Summary)
+            {
+                <dt>@item.Key</dt><dd>@item.Value</dd>
+            }
+        </dl>
+    </SectionCard>
+}
+
+@if (Report.TotalChecks.Count > 0)
+{
+    <SectionCard Title="Validación de totales" Class="mb-4">
+        <div class="tk-table-wrap">
+            <table class="tk-table">
+                <thead><tr><th>Concepto</th><th>Excel</th><th>Sistema</th><th>Resultado</th></tr></thead>
+                <tbody>
+                    @foreach (var check in Report.TotalChecks)
+                    {
+                        <tr>
+                            <td>@check.Name</td>
+                            <td class="num">@UiText.Number(check.ExcelValue)</td>
+                            <td class="num">@UiText.Number(check.SystemValue)</td>
+                            <td>@if (check.Matches) { <StatusChip Status="StatusChip.Kind.Ok" Text="Coincide" /> } else { <StatusChip Status="StatusChip.Kind.Atrasado" Text="@($"Diferencia {UiText.Number(check.SystemValue - check.ExcelValue)}")" /> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </SectionCard>
+}
+
+@if (Report.Issues.Count > 0)
+{
+    <SectionCard Title="Avisos y pendientes" Class="mb-4">
+        <div class="tk-table-wrap">
+            <table class="tk-table">
+                <thead><tr><th>Nivel</th><th>Hoja</th><th>Detalle</th></tr></thead>
+                <tbody>
+                    @foreach (var issue in Report.Issues.OrderByDescending(i => i.Severity).Take(200))
+                    {
+                        <tr>
+                            <td>
+                                @switch (issue.Severity)
+                                {
+                                    case ImportSeverity.Error: <StatusChip Status="StatusChip.Kind.Atrasado" Text="Error" /> break;
+                                    case ImportSeverity.Warning: <StatusChip Status="StatusChip.Kind.Bajo" Text="Aviso" /> break;
+                                    default: <StatusChip Status="StatusChip.Kind.Dia" Text="Info" /> break;
+                                }
+                            </td>
+                            <td>@issue.Sheet@(issue.Row is { } r ? $" · fila {r}" : string.Empty)</td>
+                            <td>@issue.Message</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </SectionCard>
+}
+
+@code {
+    [Parameter, EditorRequired] public ImportReport Report { get; set; } = default!;
+}

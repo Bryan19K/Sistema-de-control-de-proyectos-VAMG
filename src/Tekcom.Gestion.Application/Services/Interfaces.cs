@@ -337,3 +337,18 @@ public interface IAttentionService
     /// <summary>Lo que necesita atención ya: nodos atrasados, tareas vencidas, stock bajo, pendientes y evidencias que faltan.</summary>
     Task<List<AttentionItem>> GetAsync(int projectId, CancellationToken ct = default);
 }
+
+public interface IFinanceService
+{
+    Task<ExpenseSummary> SummaryAsync(CancellationToken ct = default);
+    Task<List<ExpenseEntry>> ExpensesAsync(ExpenseKind? kind, int? fundId, CancellationToken ct = default);
+    Task<List<ContractOrder>> OrdersAsync(int projectId, CancellationToken ct = default);
+    Task<List<PriceItem>> PricesAsync(int projectId, CancellationToken ct = default);
+}
+
+public interface IBuildingService
+{
+    Task<List<BuildingOverview>> OverviewAsync(CancellationToken ct = default);
+    Task<List<BuildingRecord>> RecordsAsync(int projectId, BuildingRecordKind kind, CancellationToken ct = default);
+    Task<List<BuildingMaterialRow>> MaterialsAsync(int projectId, CancellationToken ct = default);
+}

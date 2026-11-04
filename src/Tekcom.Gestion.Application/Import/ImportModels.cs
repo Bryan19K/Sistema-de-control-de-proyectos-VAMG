@@ -45,6 +45,12 @@ public sealed class ImportReport
     public string? SuggestedProjectName { get; set; }
     public string? SuggestedClient { get; set; }
 
+    /// <summary>Proyecto donde se importó (si aplica).</summary>
+    public int? ProjectId { get; set; }
+
+    /// <summary>Resumen "concepto: valor" de lo leído o creado, para los importadores nuevos.</summary>
+    public List<KeyValuePair<string, string>> Summary { get; } = [];
+
     public int Errors => Issues.Count(i => i.Severity == ImportSeverity.Error);
     public int Warnings => Issues.Count(i => i.Severity == ImportSeverity.Warning);
     public bool TotalsMatch => TotalChecks.All(c => c.Matches);
@@ -151,4 +157,50 @@ public interface IProjectionImportService
 
     /// <summary>Plantilla de Excel lista para llenar.</summary>
     byte[] BuildTemplate();
+}
+
+
+/// <summary>Tipos de archivo que el sistema sabe cargar.</summary>
+public enum PackKind
+{
+    FtthControl = 0,
+    Warehouse = 1,
+    NextWaveControl = 2,
+    NextWaveMaterials = 3,
+    Expenses = 4,
+    PriceList = 5,
+}
+
+/// <summary>Un bloque de datos detectado dentro de un Excel, ya leído y validado, listo para confirmar.</summary>
+public sealed class PackAnalysis
+{
+    public required PackKind Kind { get; init; }
+    public required string Title { get; init; }
+    public required string Description { get; init; }
+    public required ImportReport Report { get; init; }
+
+    /// <summary>Necesita saber en qué proyecto cargarse (si el mismo archivo trae el control FTTH, usa ese).</summary>
+    public bool NeedsProject { get; init; }
+
+    public object? Payload { get; init; }
+}
+
+public interface IDataPackImporter
+{
+    PackKind Kind { get; }
+
+    /// <summary>Lee el archivo; devuelve null si no trae este tipo de datos.</summary>
+    Task<PackAnalysis?> AnalyzeAsync(byte[] file, string fileName, CancellationToken ct = default);
+
+    /// <summary>Guarda lo leído. <paramref name="projectId"/> es el proyecto elegido (si el bloque lo necesita).</summary>
+    Task<ImportReport> ApplyAsync(PackAnalysis analysis, int? projectId, CancellationToken ct = default);
+}
+
+/// <summary>Detecta qué trae el Excel y lo carga completo, en el orden correcto.</summary>
+public interface IDataImportCoordinator
+{
+    Task<List<PackAnalysis>> AnalyzeAsync(byte[] file, string fileName, CancellationToken ct = default);
+
+    /// <summary>Aplica todos los bloques. <paramref name="target"/> solo aplica al control FTTH.</summary>
+    Task<List<PackAnalysis>> ApplyAsync(List<PackAnalysis> packs, ImportTarget target, CancellationToken ct = default);
 }

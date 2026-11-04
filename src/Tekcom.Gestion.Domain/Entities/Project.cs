@@ -22,6 +22,12 @@ public class Project : AuditableEntity
     public DateOnly? ActualEnd { get; set; }
     public string? ResponsibleName { get; set; }
 
+    /// <summary>Avance reportado por el Excel de control (0 a 100) para proyectos que no se miden por nodos.</summary>
+    public decimal? ReportedProgress { get; set; }
+
+    /// <summary>Texto "trabajos por ejecutar" del Excel de control.</summary>
+    public string? PendingWork { get; set; }
+
     /// <summary>Margen del indicador de ritmo, en puntos porcentuales (10 por defecto).</summary>
     public int PaceMarginPercent { get; set; } = 10;
 
