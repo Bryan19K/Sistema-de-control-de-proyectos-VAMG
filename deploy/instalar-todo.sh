@@ -137,7 +137,7 @@ else
   aviso "elija 'Publicar en el VPS' y presione 'Run workflow' (rama main)."
 fi
 
-ADMIN_PASSWORD="$(grep 'Contraseña inicial:' "$WORK/setup.log" | sed 's/.*Contraseña inicial: *//' | head -1)"
+ADMIN_PASSWORD="$(grep 'Contraseña inicial:' "$WORK/setup.log" | sed 's/.*Contraseña inicial: *//' | head -1 || true)"
 echo
 echo "=============================================================="
 echo " Listo. Cuando la publicación termine en verde (unos 5 a 10 minutos),"
