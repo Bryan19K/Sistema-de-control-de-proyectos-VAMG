@@ -18,6 +18,7 @@ public sealed class ReportService(
     ISprintService sprints,
     ILiquidationService liquidation,
     IProjectionService projection,
+    IWorkPlanService workPlan,
     IDateTimeProvider clock) : IReportService
 {
     public IReadOnlyList<ReportDefinition> Definitions { get; } =
@@ -28,6 +29,7 @@ public sealed class ReportService(
         new("liquidacion", "Acta de liquidación", "Comparación proyectado, entregado, instalado y devuelto de un nodo, con firmas.", NeedsSite: true),
         new("sprints", "Estado de sprints", "Avance, tiempo transcurrido y ritmo de cada sprint."),
         new("avance", "Avance por nodo", "Avance, ritmo, ODN, feeder y etapas de cada nodo."),
+        new("plan", "Plan de trabajo", "Fases y actividades con fechas plan y real, avance, ritmo y dependencias."),
         new("movimientos", "Bitácora de movimientos", "Todos los movimientos de bodega, incluidos los anulados."),
     ];
 
@@ -59,6 +61,7 @@ public sealed class ReportService(
             case "liquidacion": await LiquidationAsync(document, request.SiteId!.Value, ct); break;
             case "sprints": await SprintsAsync(document, project.Id, ct); break;
             case "avance": await ProgressAsync(document, project.Id, ct); break;
+            case "plan": await PlanAsync(document, project.Id, ct); break;
             case "movimientos": await MovementsAsync(document, project.Id, ct); break;
         }
 
@@ -289,6 +292,45 @@ public sealed class ReportService(
         document.Notes.Add($"Nodos: {list.Count} · ODN finalizadas: {list.Count(s => s.Site.OdnFinalized)} · " +
                            $"Listos para entregar: {list.Count(s => s.Site.IsReadyToDeliver)}.");
         document.Notes.Add("El avance se pondera por los días planificados de cada etapa.");
+    }
+
+    private async Task PlanAsync(ReportDocument document, int projectId, CancellationToken ct)
+    {
+        var plan = await workPlan.GetAsync(projectId, ct);
+        document.Facts.Add(("Avance del plan", $"{plan.Progress:0.#}%"));
+        document.Facts.Add(("Tiempo transcurrido", $"{plan.Pace.ElapsedPercent:0.#}%"));
+        document.Facts.Add(("Ritmo", plan.Pace.Status == PaceStatus.Unknown ? "Sin fechas" :
+            $"{PaceName(plan.Pace.Status)}{(plan.Pace.DaysDelta != 0 ? $" ({Math.Abs(plan.Pace.DaysDelta)} días)" : string.Empty)}"));
+        document.Facts.Add(("Cierre planificado", plan.End is null ? "—" : plan.End.Value.ToString("dd/MM/yyyy")));
+        document.Facts.Add(("Cierre proyectado", plan.Pace.ProjectedEnd is null ? "—" : plan.Pace.ProjectedEnd.Value.ToString("dd/MM/yyyy")));
+
+        var section = new ReportSection
+        {
+            Columns =
+            [
+                new("Phase", "Fase", ReportColumnType.Text, 2.4),
+                new("Activity", "Actividad", ReportColumnType.Text, 3.2),
+                new("PlannedStart", "Inicio plan", ReportColumnType.Date, 1.7),
+                new("PlannedEnd", "Fin plan", ReportColumnType.Date, 1.7),
+                new("ActualStart", "Inicio real", ReportColumnType.Date, 1.7),
+                new("ActualEnd", "Fin real", ReportColumnType.Date, 1.7),
+                new("Progress", "Avance", ReportColumnType.Percent, 1),
+                new("Status", "Estado", ReportColumnType.Text, 1.5),
+                new("DependsOn", "Depende de", ReportColumnType.Text, 2.6),
+            ],
+        };
+        foreach (var phase in plan.Phases)
+        {
+            foreach (var a in phase.Activities)
+            {
+                section.Rows.Add([phase.Phase.Name, a.Activity.Name + (a.Activity.IsMilestone ? " (hito)" : string.Empty),
+                    a.Activity.PlannedStart, a.Activity.IsMilestone ? null : a.Activity.PlannedEnd, a.Activity.ActualStart, a.Activity.ActualEnd,
+                    a.Progress / 100m, PaceName(a.Pace.Status), string.Join(", ", a.Predecessors.Select(p => p.Name))]);
+            }
+        }
+
+        document.Sections.Add(section);
+        document.Notes.Add("El avance de la fase y del plan se pondera por la duración de sus actividades..");
     }
 
     private async Task MovementsAsync(ReportDocument document, int projectId, CancellationToken ct)

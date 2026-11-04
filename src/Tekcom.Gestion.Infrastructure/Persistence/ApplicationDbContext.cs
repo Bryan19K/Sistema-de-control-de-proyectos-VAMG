@@ -32,6 +32,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<FeederLine> FeederLines => Set<FeederLine>();
     public DbSet<FeederEntry> FeederEntries => Set<FeederEntry>();
 
+    // Plan de trabajo
+    public DbSet<WorkPlanPhase> WorkPlanPhases => Set<WorkPlanPhase>();
+    public DbSet<WorkPlanActivity> WorkPlanActivities => Set<WorkPlanActivity>();
+    public DbSet<ActivityDependency> ActivityDependencies => Set<ActivityDependency>();
+    public DbSet<PlanTemplate> PlanTemplates => Set<PlanTemplate>();
+
     // Exportes
     public DbSet<ExportTemplate> ExportTemplates => Set<ExportTemplate>();
 

@@ -1,0 +1,145 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IWorkPlanService Plan
+@inject ISiteService Sites
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_name" Label="Actividad" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudSelect T="int" @bind-Value="_phaseId" Label="Fase" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var phase in PhaseOptions)
+                {
+                    <MudSelectItem T="int" Value="phase.Id">@phase.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudCheckBox T="bool" @bind-Value="_milestone" Label="Es un hito (marca una fecha, sin duración)" Dense="true" />
+            <MudGrid Spacing="2">
+                <MudItem xs="6"><DatePick Label="@(_milestone ? "Fecha" : "Inicio plan")" Value="_start" ValueChanged="d => _start = d ?? _start" /></MudItem>
+                @if (!_milestone)
+                {
+                    <MudItem xs="6"><DatePick Label="Fin plan" Value="_end" ValueChanged="d => _end = d ?? _end" /></MudItem>
+                }
+            </MudGrid>
+            @if (!_milestone)
+            {
+                <MudGrid Spacing="2">
+                    <MudItem xs="6"><DatePick Label="Inicio real" Value="_actualStart" ValueChanged="d => _actualStart = d" /></MudItem>
+                    <MudItem xs="6"><DatePick Label="Fin real" Value="_actualEnd" ValueChanged="d => _actualEnd = d" /></MudItem>
+                </MudGrid>
+            }
+            <MudSelect T="int?" @bind-Value="_siteId" Label="Vincular a un nodo (usa el avance del nodo)" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var s in _sites)
+                {
+                    <MudSelectItem T="int?" Value="s.Id">Nodo @s.Code</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="int" MultiSelection="true" SelectedValues="_predecessors" SelectedValuesChanged="v => _predecessors = v.ToHashSet()"
+                       Label="Depende de" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       MultiSelectionTextFunc="@PredecessorsText">
+                @foreach (var a in Others)
+                {
+                    <MudSelectItem T="int" Value="a.Id">@a.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="_notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        @if (Model is not null)
+        {
+            <MudButton Color="Color.Error" OnClick="DeleteAsync">Eliminar</MudButton>
+            <MudSpacer />
+        }
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public WorkPlanActivity? Model { get; set; }
+    [Parameter] public int? PhaseId { get; set; }
+    [Parameter, EditorRequired] public WorkPlanView View { get; set; } = default!;
+
+    private string _name = string.Empty;
+    private int _phaseId;
+    private bool _milestone;
+    private DateOnly _start, _end;
+    private DateOnly? _actualStart, _actualEnd;
+    private int? _siteId;
+    private string? _notes;
+    private HashSet<int> _predecessors = [];
+    private List<Site> _sites = [];
+
+    private IEnumerable<WorkPlanPhase> PhaseOptions => View.Phases.Select(p => p.Phase);
+    private IEnumerable<WorkPlanActivity> Others => View.Activities.Select(a => a.Activity).Where(a => a.Id != Model?.Id);
+    private string PredecessorsText(IReadOnlyList<string> names) => string.Join(", ", names);
+    private string NameOf(int id) => View.Activities.FirstOrDefault(a => a.Activity.Id == id)?.Activity.Name ?? string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sites = (await Sites.ListAsync(ProjectId)).Select(s => s.Site).ToList();
+        if (Model is null)
+        {
+            _phaseId = PhaseId ?? View.Phases.FirstOrDefault()?.Phase.Id ?? 0;
+            _start = Clock.Today;
+            _end = Clock.Today.AddDays(6);
+        }
+        else
+        {
+            _name = Model.Name;
+            _phaseId = Model.PhaseId;
+            _milestone = Model.IsMilestone;
+            _start = Model.PlannedStart;
+            _end = Model.PlannedEnd;
+            _actualStart = Model.ActualStart;
+            _actualEnd = Model.ActualEnd;
+            _siteId = Model.SiteId;
+            _notes = Model.Notes;
+            _predecessors = View.Activities.First(a => a.Activity.Id == Model.Id).Predecessors.Select(p => p.Id).ToHashSet();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var activity = Model ?? new WorkPlanActivity { ProjectId = ProjectId };
+            activity.Name = _name;
+            activity.PhaseId = _phaseId;
+            activity.IsMilestone = _milestone;
+            activity.PlannedStart = _start;
+            activity.PlannedEnd = _milestone ? _start : _end;
+            activity.ActualStart = _actualStart;
+            activity.ActualEnd = _milestone ? _actualEnd : _actualEnd;
+            activity.SiteId = _siteId;
+            activity.Notes = _notes;
+            await Plan.SaveActivityAsync(activity, _predecessors);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        try
+        {
+            await Plan.DeleteActivityAsync(Model!.Id);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

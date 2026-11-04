@@ -1,0 +1,372 @@
+@page "/plan-de-trabajo"
+@attribute [Authorize]
+@using System.Globalization
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IWorkPlanService PlanService
+@inject IProjectService ProjectService
+@inject IDateTimeProvider Clock
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ProjectSelection Selection
+@inject UserAccess Access
+
+<PageTitle>Plan de trabajo · TEK-COM</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_projectId == 0)
+{
+    <PageHeader Title="Plan de trabajo" Subtitle="Fases, actividades, dependencias e hitos con vista Gantt" />
+    <SectionCard>
+        <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.FolderOpen"
+                    Description="Cree un proyecto para armar su plan de trabajo.">
+            <a href="proyectos" class="tk-btn tk-btn--outline mt-4">Ir a proyectos</a>
+        </EmptyState>
+    </SectionCard>
+}
+else
+{
+    <PageHeader Title="@($"{_projectName} · Plan de trabajo")" Subtitle="Fases, actividades, dependencias e hitos">
+        <Actions>
+            @if (_canEdit)
+            {
+                <button type="button" class="tk-btn tk-btn--outline" @onclick="() => PhaseDialogAsync(null)">+ Fase</button>
+                <button type="button" class="tk-btn tk-btn--primary" @onclick="() => ActivityDialogAsync(null, null)" disabled="@(_plan.Phases.Count == 0)">+ Actividad</button>
+            }
+        </Actions>
+    </PageHeader>
+
+    <div class="tk-toolbar">
+        <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
+        <div class="tk-segment" role="tablist">
+            <button type="button" class="@Seg(true)" @onclick="() => _gantt = true">Gantt</button>
+            <button type="button" class="@Seg(false)" @onclick="() => _gantt = false">Tabla</button>
+        </div>
+        <span class="grow"></span>
+        @if (_canEdit)
+        {
+            <button type="button" class="tk-btn tk-btn--outline" @onclick="TemplateDialogAsync">Aplicar plantilla</button>
+            @if (!_plan.IsEmpty)
+            {
+                <button type="button" class="tk-btn tk-btn--outline" @onclick="SaveTemplateDialogAsync">Guardar como plantilla</button>
+            }
+        }
+        @if (!_plan.IsEmpty)
+        {
+            <a class="tk-btn tk-btn--navy" href="@($"exportes/plan/xlsx?proyecto={_projectId}")" download>Excel</a>
+            <a class="tk-btn tk-btn--navy" href="@($"exportes/plan/pdf?proyecto={_projectId}")" download>PDF</a>
+        }
+    </div>
+
+    @if (_plan.IsEmpty)
+    {
+        <SectionCard>
+            <EmptyState Title="Este proyecto todavía no tiene plan de trabajo" Icon="@Icons.Material.Outlined.EventNote"
+                        Description="Parta de una plantilla (FTTH estándar de 8 semanas o plan general) y ajuste las fechas, o cree las fases y actividades a mano.">
+                @if (_canEdit)
+                {
+                    <button type="button" class="tk-btn tk-btn--primary mt-4" @onclick="TemplateDialogAsync">Aplicar una plantilla</button>
+                }
+            </EmptyState>
+        </SectionCard>
+    }
+    else
+    {
+        @if (_gantt)
+        {
+            <div class="tk-card tk-gantt" style="--tk-gantt-cols:@_weeks">
+                <div class="tk-gantt__head">
+                    <div>Actividad</div>
+                    @for (var w = 0; w < _weeks; w++)
+                    {
+                        <div title="@UiText.ShortDate(_axisStart.AddDays(w * 7))">S@(w + 1)</div>
+                    }
+                </div>
+                @foreach (var phase in _plan.Phases)
+                {
+                    <div class="tk-gantt__row tk-gantt__row--phase">
+                        <div class="tk-gantt__label">
+                            @if (_canEdit)
+                            {
+                                <a class="tk-row-link" role="button" tabindex="0" title="Editar fase" @onclick="() => PhaseDialogAsync(phase.Phase)">@phase.Phase.Name</a>
+                            }
+                            else
+                            {
+                                @phase.Phase.Name
+                            }
+                            <div class="tk-gantt__sub">@phase.Progress.ToString("0.#")%</div>
+                        </div>
+                        <div class="tk-gantt__bars">
+                            @for (var w = 0; w < _weeks; w++) { <div class="tk-gantt__cell"></div> }
+                            @if (phase.Start is not null && phase.End is not null)
+                            {
+                                <div class="tk-gantt__bar tk-gantt__bar--planned" style="left:@Left(phase.Start.Value)%; width:@Width(phase.Start.Value, phase.End.Value)%"></div>
+                                <div class="tk-gantt__bar tk-gantt__bar--@PhaseTone(phase)" style="left:@Left(phase.Start.Value)%; width:@(Fraction(Width(phase.Start.Value, phase.End.Value), phase.Progress))%"></div>
+                            }
+                            <div class="tk-gantt__today" style="left:@TodayLeft%"></div>
+                        </div>
+                    </div>
+                    @foreach (var item in phase.Activities)
+                    {
+                        var activity = item.Activity;
+                        <div class="tk-gantt__row">
+                            <div class="tk-gantt__label">
+                                @if (_canEdit)
+                                {
+                                    <a class="tk-row-link" role="button" tabindex="0" @onclick="() => ActivityDialogAsync(activity, null)">@activity.Name</a>
+                                }
+                                else
+                                {
+                                    @activity.Name
+                                }
+                                @if (item.StartsBeforePredecessor)
+                                {
+                                    <span class="tk-gantt__warn" title="Empieza antes de que termine una actividad de la que depende">⚠</span>
+                                }
+                                <div class="tk-gantt__sub">@UiText.ShortDate(activity.PlannedStart)@(activity.IsMilestone ? string.Empty : $" – {UiText.ShortDate(activity.PlannedEnd)}") · @item.Progress.ToString("0.#")%</div>
+                            </div>
+                            <div class="tk-gantt__bars">
+                                @for (var w = 0; w < _weeks; w++) { <div class="tk-gantt__cell"></div> }
+                                @if (activity.IsMilestone)
+                                {
+                                    <div class="tk-gantt__milestone @(item.IsDone ? "is-done" : string.Empty)" style="left:@Left(activity.PlannedStart)%" title="@activity.Name · @UiText.ShortDate(activity.PlannedStart)"></div>
+                                }
+                                else
+                                {
+                                    <div class="tk-gantt__bar tk-gantt__bar--planned" style="left:@Left(activity.PlannedStart)%; width:@Width(activity.PlannedStart, activity.PlannedEnd)%"></div>
+                                    @if (RealEnd(item) is { } realEnd && activity.ActualStart is { } realStart)
+                                    {
+                                        <div class="tk-gantt__bar tk-gantt__bar--@ActivityTone(item)" style="left:@Left(realStart)%; width:@Width(realStart, realEnd)%"></div>
+                                    }
+                                }
+                                <div class="tk-gantt__today" style="left:@TodayLeft%"></div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <div class="tk-card">
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead>
+                            <tr>
+                                <th>Actividad</th><th>Inicio plan</th><th>Fin plan</th><th>Inicio real</th><th>Fin real</th>
+                                <th style="width:150px">Avance</th><th>Estado</th><th>Depende de</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var phase in _plan.Phases)
+                            {
+                                <tr class="tk-table__group">
+                                    <td colspan="5" class="strong">@phase.Phase.Name</td>
+                                    <td class="num strong">@phase.Progress.ToString("0.#")%</td>
+                                    <td><PaceChip Pace="phase.Pace" /></td>
+                                    <td></td>
+                                </tr>
+                                @foreach (var item in phase.Activities)
+                                {
+                                    var activity = item.Activity;
+                                    <tr>
+                                        <td>
+                                            @if (_canEdit)
+                                            {
+                                                <a class="tk-row-link" role="button" tabindex="0" @onclick="() => ActivityDialogAsync(activity, null)">@activity.Name</a>
+                                            }
+                                            else
+                                            {
+                                                @activity.Name
+                                            }
+                                            @if (activity.IsMilestone) { <span class="tk-muted"> · hito</span> }
+                                        </td>
+                                        <td class="num">@UiText.ShortDate(activity.PlannedStart)</td>
+                                        <td class="num">@(activity.IsMilestone ? "—" : UiText.ShortDate(activity.PlannedEnd))</td>
+                                        <td class="num">@UiText.ShortDate(activity.ActualStart)</td>
+                                        <td class="num">@UiText.ShortDate(activity.ActualEnd)</td>
+                                        <td>
+                                            @if (_canEdit && activity.SiteId is null)
+                                            {
+                                                <MudNumericField T="int" Value="activity.ProgressPercent" ValueChanged="v => SetProgressAsync(activity.Id, v)"
+                                                                 Min="0" Max="100" Step="10" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="false" aria-label="Avance" />
+                                            }
+                                            else
+                                            {
+                                                <span class="num">@item.Progress.ToString("0.#")%</span>
+                                                @if (activity.SiteId is not null) { <span class="tk-muted"> · nodo</span> }
+                                            }
+                                        </td>
+                                        <td><PaceChip Pace="item.Pace" ShowDays="false" /></td>
+                                        <td class="muted">@(item.Predecessors.Count == 0 ? "—" : string.Join(", ", item.Predecessors.Select(p => p.Name)))</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        <div class="tk-two-col mt-6">
+            <SectionCard Title="Resumen del plan">
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:1.05rem">
+                    <span>Avance @_plan.Progress.ToString("0.#")% · Tiempo @_plan.Pace.ElapsedPercent.ToString("0.#")% ·</span>
+                    <PaceChip Pace="_plan.Pace" />
+                </div>
+                <div class="mt-2" style="color:var(--tk-text-2)">
+                    Cierre planificado: @UiText.LongDate(_plan.End)
+                    @if (_plan.Pace.ProjectedEnd is { } projected && _plan.Pace.Status != PaceStatus.Completed)
+                    {
+                        <text> · Cierre proyectado: @UiText.LongDate(projected)</text>
+                    }
+                </div>
+                <div class="mt-2 tk-muted">@_plan.Activities.Count(a => a.IsDone) de @_plan.Activities.Count() actividades terminadas</div>
+            </SectionCard>
+            <SectionCard Title="Leyenda">
+                <div class="tk-legend">
+                    <span class="tk-legend__item"><span class="tk-legend__swatch" style="background:var(--tk-planned)"></span> Planificado</span>
+                    <span class="tk-legend__item"><span class="tk-legend__swatch" style="background:#1e9e55"></span> Real a tiempo</span>
+                    <span class="tk-legend__item"><span class="tk-legend__swatch" style="background:#d13b3b"></span> Real atrasado</span>
+                    <span class="tk-legend__item"><span class="tk-legend__swatch" style="background:#2f6fe0"></span> En curso</span>
+                    <span class="tk-legend__item"><span style="display:inline-block;width:14px;height:14px;background:var(--tk-navy);transform:rotate(45deg);border-radius:3px"></span> Hito</span>
+                    <span class="tk-legend__item"><span style="display:inline-block;width:3px;height:16px;background:var(--tk-orange)"></span> Hoy</span>
+                </div>
+            </SectionCard>
+        </div>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private bool _canEdit;
+    private bool _gantt = true;
+    private int _projectId;
+    private string _projectName = string.Empty;
+    private WorkPlanView _plan = new() { Phases = [], Pace = default! };
+
+    private DateOnly _axisStart;
+    private int _weeks = 8;
+
+    private string Seg(bool gantt) => _gantt == gantt ? "tk-segment__item is-active" : "tk-segment__item";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        await LoadAsync();
+    }
+
+    private async Task OnProjectChanged(int id)
+    {
+        _projectId = id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = _plan.IsEmpty && _projectId != 0 && _projectName.Length == 0;
+        if (_projectId != 0)
+        {
+            _projectName = (await ProjectService.GetAsync(_projectId))?.Name ?? string.Empty;
+            _plan = await PlanService.GetAsync(_projectId);
+            ComputeAxis();
+        }
+
+        _loading = false;
+    }
+
+    private void ComputeAxis()
+    {
+        if (_plan.IsEmpty) { return; }
+        var dates = _plan.Activities.SelectMany(a => new[] { a.Activity.PlannedStart, a.Activity.PlannedEnd, a.Activity.ActualStart ?? a.Activity.PlannedStart, a.Activity.ActualEnd ?? a.Activity.PlannedEnd }).ToList();
+        dates.Add(Clock.Today);
+        var min = dates.Min();
+        var max = dates.Max();
+        _axisStart = min.AddDays(-(((int)min.DayOfWeek + 6) % 7));
+        _weeks = Math.Max(4, (int)Math.Ceiling((max.DayNumber - _axisStart.DayNumber + 1) / 7.0));
+    }
+
+    private double TotalDays => _weeks * 7.0;
+    private static string Pct(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+    private string Left(DateOnly date) => Pct((date.DayNumber - _axisStart.DayNumber) / TotalDays * 100);
+    private string Width(DateOnly start, DateOnly end) => Pct(Math.Max(1, end.DayNumber - start.DayNumber + 1) / TotalDays * 100);
+    private string TodayLeft => Pct((Clock.Today.DayNumber - _axisStart.DayNumber + 0.5) / TotalDays * 100);
+
+    private string Fraction(string widthPct, decimal progress) =>
+        Pct(double.Parse(widthPct, CultureInfo.InvariantCulture) * (double)Math.Clamp(progress, 0, 100) / 100);
+
+    private DateOnly? RealEnd(PlanActivityView item)
+    {
+        var a = item.Activity;
+        if (a.ActualStart is null) { return null; }
+        return a.ActualEnd ?? (Clock.Today >= a.ActualStart ? Clock.Today : a.ActualStart);
+    }
+
+    private static string ActivityTone(PlanActivityView item)
+    {
+        var a = item.Activity;
+        if (a.ActualEnd is not null) { return a.ActualEnd <= a.PlannedEnd ? "success" : "danger"; }
+        return item.Pace.Status == PaceStatus.Behind ? "danger" : "info";
+    }
+
+    private static string PhaseTone(PlanPhaseView phase) => phase.Pace.Status switch
+    {
+        PaceStatus.Behind => "danger",
+        PaceStatus.Completed => "success",
+        _ => "info",
+    };
+
+    private async Task SetProgressAsync(int activityId, int percent)
+    {
+        try
+        {
+            await PlanService.SetProgressAsync(activityId, Math.Clamp(percent, 0, 100));
+            await LoadAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task PhaseDialogAsync(WorkPlanPhase? phase)
+    {
+        var dialog = await Dialogs.ShowAsync<PhaseDialog>(phase is null ? "Nueva fase" : "Editar fase",
+            new DialogParameters { ["ProjectId"] = _projectId, ["Model"] = phase },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if ((await dialog.Result)?.Canceled == false) { await LoadAsync(); }
+    }
+
+    private async Task ActivityDialogAsync(WorkPlanActivity? activity, int? phaseId)
+    {
+        var dialog = await Dialogs.ShowAsync<ActivityDialog>(activity is null ? "Nueva actividad" : "Editar actividad",
+            new DialogParameters { ["ProjectId"] = _projectId, ["Model"] = activity, ["PhaseId"] = phaseId, ["View"] = _plan },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if ((await dialog.Result)?.Canceled == false) { await LoadAsync(); }
+    }
+
+    private async Task TemplateDialogAsync()
+    {
+        var project = await ProjectService.GetAsync(_projectId);
+        var dialog = await Dialogs.ShowAsync<ApplyTemplateDialog>("Aplicar plantilla",
+            new DialogParameters { ["ProjectId"] = _projectId, ["HasPlan"] = !_plan.IsEmpty, ["SuggestedStart"] = project?.PlannedStart },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if ((await dialog.Result)?.Canceled == false) { await LoadAsync(); }
+    }
+
+    private async Task SaveTemplateDialogAsync()
+    {
+        await Dialogs.ShowAsync<SaveTemplateDialog>("Guardar como plantilla",
+            new DialogParameters { ["ProjectId"] = _projectId },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+    }
+}

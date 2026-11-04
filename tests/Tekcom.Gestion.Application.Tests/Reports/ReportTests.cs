@@ -57,7 +57,7 @@ public class ReportTests
         await inventory.InstalledAsync(project.Id, site.Id, nap.Id, 120, db.Clock.Today, null, null);
         await sprints.SaveAsync(new Sprint { ProjectId = project.Id, Name = "Sprint 1", StartDate = db.Clock.Today.AddDays(-5), EndDate = db.Clock.Today.AddDays(9) });
 
-        var reports = new ReportService(projects, inventory, sites, sprints, liquidation, projection, db.Clock);
+        var reports = new ReportService(projects, inventory, sites, sprints, liquidation, projection, new WorkPlanService(db, sites, db.Clock), db.Clock);
         var exporter = new ReportExporter(new ConfigurationBuilder().Build(), new FakeEnvironment());
         return new Env { Db = db, Reports = reports, Exporter = exporter, Templates = new ExportTemplateService(db), Project = project, Site = site };
     }

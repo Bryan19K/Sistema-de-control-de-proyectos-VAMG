@@ -43,3 +43,41 @@ public sealed class ExportTemplateConfiguration : IEntityTypeConfiguration<Expor
         b.Ignore(x => x.HiddenSet);
     }
 }
+
+public sealed class WorkPlanPhaseConfiguration : IEntityTypeConfiguration<WorkPlanPhase>
+{
+    public void Configure(EntityTypeBuilder<WorkPlanPhase> b)
+    {
+        b.Property(x => x.Name).HasMaxLength(150).IsRequired();
+        b.HasIndex(x => x.ProjectId);
+    }
+}
+
+public sealed class WorkPlanActivityConfiguration : IEntityTypeConfiguration<WorkPlanActivity>
+{
+    public void Configure(EntityTypeBuilder<WorkPlanActivity> b)
+    {
+        b.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        b.Property(x => x.Notes).HasMaxLength(1000);
+        b.HasIndex(x => new { x.ProjectId, x.PhaseId });
+        b.HasMany(x => x.Predecessors).WithOne(d => d.Activity).HasForeignKey(d => d.ActivityId);
+    }
+}
+
+public sealed class ActivityDependencyConfiguration : IEntityTypeConfiguration<ActivityDependency>
+{
+    public void Configure(EntityTypeBuilder<ActivityDependency> b)
+    {
+        b.HasOne(x => x.Predecessor).WithMany().HasForeignKey(x => x.PredecessorId);
+        b.HasIndex(x => new { x.ActivityId, x.PredecessorId });
+    }
+}
+
+public sealed class PlanTemplateConfiguration : IEntityTypeConfiguration<PlanTemplate>
+{
+    public void Configure(EntityTypeBuilder<PlanTemplate> b)
+    {
+        b.Property(x => x.Name).HasMaxLength(120).IsRequired();
+        b.Property(x => x.Description).HasMaxLength(500);
+    }
+}

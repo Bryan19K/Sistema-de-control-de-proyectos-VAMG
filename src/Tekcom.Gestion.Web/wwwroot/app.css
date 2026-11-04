@@ -793,3 +793,39 @@ code {
 
 .tk-color { display: inline-flex; align-items: center; gap: 8px; color: var(--tk-text-2); font-size: 0.9rem; }
 .tk-color input[type=color] { width: 44px; height: 32px; border: 1px solid #c9d2dc; border-radius: 6px; padding: 2px; background: #fff; }
+
+/* ---------- Plan de trabajo ---------- */
+.tk-gantt__sub { font-size: 0.8rem; font-weight: 400; color: var(--tk-text-3); margin-top: 2px; }
+.tk-gantt__warn { color: var(--tk-warning); margin-left: 6px; cursor: help; }
+.tk-gantt__milestone.is-done { background: var(--tk-success); }
+.tk-gantt__bars { overflow: hidden; }
+.tk-table tr.tk-table__group td { background: #fafbfd; color: var(--tk-navy); }
+.tk-table .mud-input-control { min-width: 110px; }
+
+/* ---------- Gráficos del tablero (CSS puro) ---------- */
+.tk-three-col { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start; }
+@media (max-width: 1300px) { .tk-three-col { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 800px) { .tk-three-col { grid-template-columns: 1fr; } }
+
+.tk-donut-wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 12px; }
+.tk-donut { width: 150px; height: 150px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.tk-donut__hole {
+    width: 96px; height: 96px; border-radius: 50%; background: var(--tk-surface, #fff);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1;
+}
+.tk-donut__hole strong { font-size: 1.7rem; color: var(--tk-navy); }
+.tk-donut__hole span { font-size: 0.8rem; color: var(--tk-text-3); }
+.tk-legend-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 0.98rem; }
+.tk-legend-list strong { margin-left: 6px; color: var(--tk-navy); }
+.tk-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+
+.tk-hbars { display: flex; flex-direction: column; gap: 14px; }
+.tk-hbar { display: grid; grid-template-columns: minmax(90px, 140px) 1fr 44px; align-items: center; gap: 12px; font-size: 0.95rem; }
+.tk-hbar__label { color: var(--tk-text-2); }
+.tk-hbar__track { height: 12px; background: var(--tk-planned); border-radius: 999px; overflow: hidden; display: block; }
+.tk-hbar__fill { display: block; height: 100%; border-radius: 999px; }
+.tk-hbar__fill--success { background: var(--tk-success); }
+.tk-hbar__fill--info { background: var(--tk-info); }
+.tk-hbar__fill--warning { background: var(--tk-warning); }
+.tk-hbar__fill--muted { background: #9aa6b8; }
+.tk-hbar__value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--tk-navy); }

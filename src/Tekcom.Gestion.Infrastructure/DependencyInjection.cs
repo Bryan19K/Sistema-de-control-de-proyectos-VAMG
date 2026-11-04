@@ -60,6 +60,8 @@ public static class DependencyInjection
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IProjectionService, ProjectionService>();
         services.AddScoped<ILiquidationService, LiquidationService>();
+        services.AddScoped<IWorkPlanService, WorkPlanService>();
+        services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IMeasurementService, MeasurementService>();
         services.AddScoped<ISprintService, SprintService>();
         services.AddScoped<ITaskService, TaskService>();

@@ -1,0 +1,40 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@inject IWorkPlanService Plan
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_name" Label="Nombre de la plantilla" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_description" Label="Descripción" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudText Typo="Typo.caption" Class="tk-muted">Se guardan las fases, actividades y dependencias con fechas relativas al inicio, para reutilizarlas en otros proyectos.</MudText>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar plantilla</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+
+    private string _name = string.Empty;
+    private string? _description;
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var template = await Plan.SaveAsTemplateAsync(ProjectId, _name, _description);
+            Snackbar.Add($"Plantilla \"{template.Name}\" guardada.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

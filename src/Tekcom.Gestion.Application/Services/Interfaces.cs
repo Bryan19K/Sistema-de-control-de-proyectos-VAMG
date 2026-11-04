@@ -215,3 +215,33 @@ public interface IMeasurementService
     /// <summary>Cuenta cada FAT una sola vez, con su última medición.</summary>
     Task<MeasurementSummary> SummaryAsync(int siteId, CancellationToken ct = default);
 }
+
+public interface IWorkPlanService
+{
+    Task<WorkPlanView> GetAsync(int projectId, CancellationToken ct = default);
+
+    Task<WorkPlanPhase> SavePhaseAsync(WorkPlanPhase phase, CancellationToken ct = default);
+    Task DeletePhaseAsync(int phaseId, CancellationToken ct = default);
+
+    Task<WorkPlanActivity> SaveActivityAsync(WorkPlanActivity activity, IEnumerable<int> predecessorIds, CancellationToken ct = default);
+    Task DeleteActivityAsync(int activityId, CancellationToken ct = default);
+
+    /// <summary>Cambia el avance manual y completa las fechas reales (inicia al pasar de 0, termina al llegar a 100).</summary>
+    Task SetProgressAsync(int activityId, int percent, CancellationToken ct = default);
+
+    Task<List<PlanTemplate>> TemplatesAsync(CancellationToken ct = default);
+
+    /// <summary>Crea las fases y actividades de una plantilla. Con <paramref name="replace"/> reemplaza el plan existente.</summary>
+    Task<int> ApplyTemplateAsync(int projectId, int templateId, DateOnly start, bool replace, CancellationToken ct = default);
+
+    Task<PlanTemplate> SaveAsTemplateAsync(int projectId, string name, string? description, CancellationToken ct = default);
+}
+
+public interface IDashboardService
+{
+    /// <summary>Indicadores del tablero de inicio, de todos los proyectos.</summary>
+    Task<DashboardData> GetAsync(CancellationToken ct = default);
+
+    /// <summary>Datos para los gráficos de un proyecto: instalación, nodos, tareas y feeder.</summary>
+    Task<ProjectCharts> GetChartsAsync(int projectId, CancellationToken ct = default);
+}

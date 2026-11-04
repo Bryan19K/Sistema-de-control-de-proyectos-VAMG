@@ -128,6 +128,11 @@ public static class UiText
 
     public static string Date(DateOnly? date) => date is null ? "—" : date.Value.ToString("dd/MM/yyyy");
 
+    private static readonly System.Globalization.CultureInfo Spanish = System.Globalization.CultureInfo.GetCultureInfo("es-SV");
+
+    /// <summary>Fecha con el mes escrito, por ejemplo "21 dic 2026".</summary>
+    public static string LongDate(DateOnly? date) => date is null ? "—" : date.Value.ToString("d MMM yyyy", Spanish);
+
     public static string ShortDate(DateOnly? date) => date is null ? "—" : date.Value.ToString("dd/MM/yy");
 
     public static string TaskStatusName(TaskItemStatus status) => status switch

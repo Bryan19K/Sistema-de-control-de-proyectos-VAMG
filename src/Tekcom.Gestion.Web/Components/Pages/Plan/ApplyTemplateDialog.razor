@@ -1,0 +1,68 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IWorkPlanService Plan
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudSelect T="int" @bind-Value="_templateId" Label="Plantilla" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var t in _templates)
+                {
+                    <MudSelectItem T="int" Value="t.Id">@t.Name@(t.IsSystem ? string.Empty : " (propia)")</MudSelectItem>
+                }
+            </MudSelect>
+            @{ var selected = _templates.FirstOrDefault(t => t.Id == _templateId); }
+            @if (selected?.Description is { Length: > 0 } description)
+            {
+                <MudText Typo="Typo.body2" Class="tk-muted">@description</MudText>
+            }
+            <DatePick Label="Fecha de inicio del proyecto" Value="_start" ValueChanged="d => _start = d ?? _start" />
+            @if (HasPlan)
+            {
+                <MudCheckBox T="bool" @bind-Value="_replace" Label="Reemplazar el plan actual (se pierden sus fases y actividades)" Dense="true" Color="Color.Error" />
+            }
+            <MudText Typo="Typo.caption" Class="tk-muted">Las fechas de las actividades se calculan a partir de la fecha de inicio. Después puede ajustarlas una por una.</MudText>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ApplyAsync" Disabled="@(_templateId == 0 || (HasPlan && !_replace))">Aplicar plantilla</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public bool HasPlan { get; set; }
+    [Parameter] public DateOnly? SuggestedStart { get; set; }
+
+    private List<PlanTemplate> _templates = [];
+    private int _templateId;
+    private DateOnly _start;
+    private bool _replace;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _templates = await Plan.TemplatesAsync();
+        _templateId = _templates.FirstOrDefault()?.Id ?? 0;
+        _start = SuggestedStart ?? Clock.Today;
+    }
+
+    private async Task ApplyAsync()
+    {
+        try
+        {
+            var count = await Plan.ApplyTemplateAsync(ProjectId, _templateId, _start, _replace);
+            Snackbar.Add($"Plan creado con {count} actividades.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

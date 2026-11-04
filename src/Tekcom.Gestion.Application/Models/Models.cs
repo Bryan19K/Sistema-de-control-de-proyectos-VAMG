@@ -1,3 +1,4 @@
+using Tekcom.Gestion.Application.Services;
 using Tekcom.Gestion.Domain.Entities;
 using Tekcom.Gestion.Domain.Enums;
 using Tekcom.Gestion.Domain.Logic;
@@ -163,3 +164,69 @@ public sealed class LiquidationView
 }
 
 public sealed record MeasurementSummary(int Measured, int Acceptable, int NotAcceptable);
+
+public sealed class PlanActivityView
+{
+    public required WorkPlanActivity Activity { get; init; }
+    public required string PhaseName { get; init; }
+
+    /// <summary>Avance efectivo: el del nodo si está vinculada a uno; si no, el manual.</summary>
+    public decimal Progress { get; init; }
+    public required PaceResult Pace { get; init; }
+    public required List<WorkPlanActivity> Predecessors { get; init; }
+
+    /// <summary>Hay una predecesora que termina después de que esta actividad empieza.</summary>
+    public bool StartsBeforePredecessor { get; init; }
+
+    public bool IsDone => Activity.IsMilestone ? Activity.ActualEnd is not null || Progress >= 100 : Progress >= 100;
+}
+
+public sealed class PlanPhaseView
+{
+    public required WorkPlanPhase Phase { get; init; }
+    public required List<PlanActivityView> Activities { get; init; }
+    public DateOnly? Start => Activities.Count == 0 ? null : Activities.Min(a => a.Activity.PlannedStart);
+    public DateOnly? End => Activities.Count == 0 ? null : Activities.Max(a => a.Activity.PlannedEnd);
+    public decimal Progress { get; init; }
+    public required PaceResult Pace { get; init; }
+}
+
+public sealed class WorkPlanView
+{
+    public required List<PlanPhaseView> Phases { get; init; }
+    public IEnumerable<PlanActivityView> Activities => Phases.SelectMany(p => p.Activities);
+    public DateOnly? Start => Activities.Any() ? Activities.Min(a => a.Activity.PlannedStart) : null;
+    public DateOnly? End => Activities.Any() ? Activities.Max(a => a.Activity.PlannedEnd) : null;
+    public decimal Progress { get; init; }
+    public required PaceResult Pace { get; init; }
+    public bool IsEmpty => Phases.Count == 0;
+}
+
+public sealed record DashboardProjectRow(Project Project, decimal Progress, PaceResult Pace, int Sites, int ReadySites);
+
+public sealed record DashboardSprint(string ProjectName, SprintSummary Summary);
+
+public sealed class DashboardData
+{
+    public int ActiveProjects { get; init; }
+    public int OnTimeProjects { get; init; }
+    public int OverdueTasks { get; init; }
+    public int OverdueSinceYesterday { get; init; }
+    public int TasksThisWeek { get; init; }
+    public int TasksThisWeekDone { get; init; }
+    public int LowStockMaterials { get; init; }
+    public required List<DashboardProjectRow> Projects { get; init; }
+    public required List<TaskItem> DueSoon { get; init; }
+    public DashboardSprint? CurrentSprint { get; init; }
+}
+
+public sealed class ProjectCharts
+{
+    public required Dictionary<QuantityGroup, QuantityPair> Installation { get; init; }
+    public int SitesFinished { get; init; }
+    public int SitesInProgress { get; init; }
+    public int SitesNotStarted { get; init; }
+    public int SitesReady { get; init; }
+    public required Dictionary<TaskItemStatus, int> TasksByStatus { get; init; }
+    public required List<FeederProgress> Feeder { get; init; }
+}

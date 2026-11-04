@@ -4,9 +4,15 @@
 @using Microsoft.AspNetCore.Identity
 @using Tekcom.Gestion.Infrastructure.Identity
 @using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
 @inject AuthenticationStateProvider AuthState
 @inject UserManager<ApplicationUser> UserManager
 @inject IDateTimeProvider Clock
+@inject IDashboardService Dashboard
+@inject ProjectSelection Selection
 
 <PageTitle>Inicio · TEK-COM</PageTitle>
 
@@ -17,38 +23,223 @@
     </Actions>
 </PageHeader>
 
-<div class="tk-kpi-grid">
-    <KpiCard Label="Proyectos activos" Value="0" Note="Sin proyectos todavía" />
-    <KpiCard Label="Tareas vencidas" Value="0" Note="Sin tareas registradas" />
-    <KpiCard Label="Tareas esta semana" Value="0" Note="0 completadas" Tone="KpiCard.NoteTone.Info" />
-    <KpiCard Label="Materiales con stock bajo" Value="0" Note="Sin catálogo todavía" />
-</div>
-
-<div class="tk-dash-grid">
-    <SectionCard Title="Proyectos">
-        <EmptyState Title="Todavía no hay proyectos"
-                    Description="Los proyectos se crean en el Sprint 1. Aquí verás cada uno con su tipo, avance vs. tiempo y estado (Atrasado, En tiempo, Adelantado)."
-                    Icon="@Icons.Material.Outlined.FolderOpen" />
-    </SectionCard>
-
-    <div class="tk-stack">
-        <SectionCard Title="Vence pronto">
-            <EmptyState Title="Sin tareas por vencer"
-                        Description="Las tareas con fecha límite aparecerán aquí a partir del Sprint 2."
-                        Icon="@Icons.Material.Outlined.EventAvailable" />
-        </SectionCard>
-
-        <SectionCard Title="Sprint actual">
-            <EmptyState Title="Ningún sprint en curso"
-                        Description="Cuando haya un sprint activo verás aquí su avance, el tiempo transcurrido y los días de adelanto o atraso."
-                        Icon="@Icons.Material.Outlined.Loop" />
-        </SectionCard>
+@if (_data is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <div class="tk-kpi-grid">
+        <KpiCard Label="Proyectos activos" Value="@_data.ActiveProjects.ToString()"
+                 Note="@(_data.ActiveProjects == 0 ? "Sin proyectos activos" : $"{_data.OnTimeProjects} en tiempo")"
+                 Tone="@(_data.ActiveProjects == 0 ? KpiCard.NoteTone.Neutral : KpiCard.NoteTone.Success)" />
+        <KpiCard Label="Tareas vencidas" Value="@_data.OverdueTasks.ToString()"
+                 Note="@(_data.OverdueTasks == 0 ? "Todo al día" : $"{_data.OverdueSinceYesterday} desde ayer")"
+                 Tone="@(_data.OverdueTasks == 0 ? KpiCard.NoteTone.Neutral : KpiCard.NoteTone.Danger)" />
+        <KpiCard Label="Tareas esta semana" Value="@_data.TasksThisWeek.ToString()"
+                 Note="@($"{_data.TasksThisWeekDone} completadas")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Materiales con stock bajo" Value="@_data.LowStockMaterials.ToString()"
+                 Note="@(_data.LowStockMaterials == 0 ? "Bodega sin alertas" : "Revisar bodega")"
+                 Tone="@(_data.LowStockMaterials == 0 ? KpiCard.NoteTone.Neutral : KpiCard.NoteTone.Warning)" />
     </div>
-</div>
+
+    <div class="tk-dash-grid">
+        <SectionCard Title="Proyectos" Badge="_data.Projects.Count">
+            @if (_data.Projects.Count == 0)
+            {
+                <EmptyState Title="Todavía no hay proyectos activos"
+                            Description="Cree un proyecto o cambie su estado a Activo para verlo aquí con su avance, tiempo y estado."
+                            Icon="@Icons.Material.Outlined.FolderOpen">
+                    <a href="proyectos" class="tk-btn tk-btn--outline mt-4">Ir a proyectos</a>
+                </EmptyState>
+            }
+            else
+            {
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead><tr><th>Proyecto</th><th>Avance vs. tiempo</th><th>Listos</th><th>Estado</th></tr></thead>
+                        <tbody>
+                            @foreach (var row in _data.Projects)
+                            {
+                                <tr>
+                                    <td><a class="tk-row-link" href="@($"proyectos/{row.Project.Id}")">@row.Project.Name</a><div class="tk-muted" style="font-size:0.85rem">@row.Project.ProjectType?.Name</div></td>
+                                    <td class="tk-bar-cell"><PaceBar Progress="(int)Math.Round(row.Progress)" Elapsed="(int)Math.Round(row.Pace.ElapsedPercent)" Margin="row.Project.PaceMarginPercent" /></td>
+                                    <td class="num">@(row.Sites == 0 ? "—" : $"{row.ReadySites}/{row.Sites}")</td>
+                                    <td><PaceChip Pace="row.Pace" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </SectionCard>
+
+        <div class="tk-stack">
+            <SectionCard Title="Vence pronto" Badge="_data.DueSoon.Count">
+                @if (_data.DueSoon.Count == 0)
+                {
+                    <EmptyState Title="Sin tareas por vencer" Description="Las tareas con fecha límite en los próximos 7 días aparecen aquí." Icon="@Icons.Material.Outlined.EventAvailable" />
+                }
+                else
+                {
+                    <ul class="tk-list">
+                        @foreach (var task in _data.DueSoon)
+                        {
+                            var due = UiText.Due(task.DueDate, Clock.Today, false);
+                            <li class="tk-list__item">
+                                @if (due is { } d) { <StatusChip Status="d.Kind" Text="@d.Text" /> }
+                                <a class="tk-row-link" href="sprints">@task.Title</a>
+                            </li>
+                        }
+                    </ul>
+                }
+            </SectionCard>
+
+            <SectionCard Title="@(_data.CurrentSprint is null ? "Sprint actual" : $"Sprint actual · {_data.CurrentSprint.ProjectName}")">
+                @if (_data.CurrentSprint is not { } current)
+                {
+                    <EmptyState Title="Ningún sprint en curso" Description="Cuando haya un sprint activo verá aquí su avance, el tiempo transcurrido y los días de adelanto o atraso." Icon="@Icons.Material.Outlined.Loop" />
+                }
+                else
+                {
+                    var sprint = current.Summary;
+                    <div class="tk-sprint-meta">@sprint.Sprint.Name · @UiText.ShortDate(sprint.Sprint.StartDate) – @UiText.ShortDate(sprint.Sprint.EndDate)</div>
+                    <PaceBar Progress="(int)Math.Round(sprint.ProgressPercent)" Elapsed="(int)Math.Round(sprint.Pace.ElapsedPercent)" ShowLabel="false" />
+                    <div class="tk-sprint-summary">
+                        @sprint.ProgressPercent.ToString("0.#")% hecho · @sprint.Pace.ElapsedPercent.ToString("0.#")% del tiempo
+                        @if (sprint.Pace.Status == PaceStatus.Behind) { <text> · <strong>@Math.Abs(sprint.Pace.DaysDelta) días de atraso</strong></text> }
+                        else if (sprint.Pace.Status == PaceStatus.Ahead) { <text> · <strong>@Math.Abs(sprint.Pace.DaysDelta) días de adelanto</strong></text> }
+                    </div>
+                }
+            </SectionCard>
+        </div>
+    </div>
+
+    @if (_data.Projects.Count > 0)
+    {
+        <div class="tk-toolbar mt-6">
+            <h2 class="tk-section__title" style="margin:0">Gráficos del proyecto</h2>
+            <ProjectPicker Value="_chartProjectId" Changed="OnChartProjectChanged" />
+        </div>
+
+        @if (_charts is not null)
+        {
+            var totalSites = _charts.SitesFinished + _charts.SitesInProgress + _charts.SitesNotStarted;
+            var totalTasks = _charts.TasksByStatus.Values.Sum();
+            <div class="tk-three-col">
+                <SectionCard Title="Nodos por estado">
+                    @if (totalSites == 0)
+                    {
+                        <EmptyState Title="Sin nodos" Description="Importe el Excel del proyecto para ver aquí sus nodos." Icon="@Icons.Material.Outlined.Hub" />
+                    }
+                    else
+                    {
+                        <div class="tk-donut-wrap">
+                            <div class="tk-donut" style="@DonutStyle(totalSites)" role="img" aria-label="@($"{_charts.SitesFinished} finalizados, {_charts.SitesInProgress} en proceso, {_charts.SitesNotStarted} sin iniciar")">
+                                <div class="tk-donut__hole"><strong>@totalSites</strong><span>nodos</span></div>
+                            </div>
+                            <ul class="tk-legend-list">
+                                <li><span class="tk-dot" style="background:var(--tk-success)"></span> Finalizados <strong>@_charts.SitesFinished</strong></li>
+                                <li><span class="tk-dot" style="background:var(--tk-info)"></span> En proceso <strong>@_charts.SitesInProgress</strong></li>
+                                <li><span class="tk-dot" style="background:var(--tk-planned)"></span> Sin iniciar <strong>@_charts.SitesNotStarted</strong></li>
+                            </ul>
+                        </div>
+                        <div class="tk-sprint-summary">Listos para entregar (ODN y feeder finalizados): <strong>@_charts.SitesReady</strong></div>
+                    }
+                </SectionCard>
+
+                <SectionCard Title="Tareas por estado">
+                    @if (totalTasks == 0)
+                    {
+                        <EmptyState Title="Sin tareas" Description="Cree tareas en Sprints y tareas." Icon="@Icons.Material.Outlined.Checklist" />
+                    }
+                    else
+                    {
+                        <div class="tk-hbars">
+                            @foreach (var (status, count) in _charts.TasksByStatus)
+                            {
+                                <div class="tk-hbar">
+                                    <span class="tk-hbar__label">@UiText.TaskStatusName(status)</span>
+                                    <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@(status == TaskItemStatus.Done ? "success" : status == TaskItemStatus.InProgress ? "info" : status == TaskItemStatus.InReview ? "warning" : "muted")" style="width:@(Pct(count, totalTasks))%"></span></span>
+                                    <span class="tk-hbar__value">@count</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </SectionCard>
+
+                <SectionCard Title="Avance de instalación">
+                    <div class="tk-hbars">
+                        @foreach (var row in InstallationRows)
+                        {
+                            <div class="tk-hbar">
+                                <span class="tk-hbar__label">@row.Label</span>
+                                <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@Tone(row.Percent)" style="width:@(Math.Min(100, row.Percent).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
+                                <span class="tk-hbar__value" title="@UiText.Number(row.Installed) de @UiText.Number(row.Projected)">@row.Percent.ToString("0")%</span>
+                            </div>
+                        }
+                        @if (InstallationRows.Count == 0)
+                        {
+                            <EmptyState Title="Sin cantidades" Description="Aparecerán al importar el Excel del proyecto." Icon="@Icons.Material.Outlined.BarChart" />
+                        }
+                    </div>
+                </SectionCard>
+            </div>
+        }
+    }
+}
 
 @code {
     private static readonly CultureInfo Culture = new("es-SV");
     private string firstName = string.Empty;
+    private DashboardData? _data;
+    private ProjectCharts? _charts;
+    private int _chartProjectId;
+
+    private sealed record BarRow(string Label, decimal Projected, decimal Installed)
+    {
+        public decimal Percent => Projected <= 0 ? 0 : Math.Round(Installed / Projected * 100m, 1);
+    }
+
+    private List<BarRow> InstallationRows
+    {
+        get
+        {
+            var rows = new List<BarRow>();
+            if (_charts is null) { return rows; }
+            void Add(string label, params QuantityGroup[] groups)
+            {
+                var projected = groups.Sum(g => _charts.Installation.GetValueOrDefault(g).Projected);
+                var installed = groups.Sum(g => _charts.Installation.GetValueOrDefault(g).Installed);
+                if (projected > 0) { rows.Add(new BarRow(label, projected, installed)); }
+            }
+
+            Add("Cable FC", QuantityGroup.FcCable);
+            Add("Cable MPO", QuantityGroup.MpoCable);
+            Add("FAT (cajas)", QuantityGroup.SubBox, QuantityGroup.EndBox, QuantityGroup.HubBox, QuantityGroup.XBox);
+            Add("Fusiones", QuantityGroup.Fusion);
+            Add("Cruces americanos", QuantityGroup.Crossing);
+            foreach (var f in _charts.Feeder.Where(f => f.Planned > 0))
+            {
+                rows.Add(new BarRow(FeederLabels.Name(f.Line.Kind), f.Planned, f.Installed));
+            }
+
+            return rows;
+        }
+    }
+
+    private static string Tone(decimal percent) => percent >= 90 ? "success" : percent >= 40 ? "info" : "warning";
+
+    private static string Pct(int value, int total) =>
+        (total == 0 ? 0 : value * 100.0 / total).ToString("0.#", CultureInfo.InvariantCulture);
+
+    private string DonutStyle(int total)
+    {
+        var a = _charts!.SitesFinished * 100.0 / total;
+        var b = a + _charts.SitesInProgress * 100.0 / total;
+        string P(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+        return $"background: conic-gradient(var(--tk-success) 0 {P(a)}%, var(--tk-info) {P(a)}% {P(b)}%, var(--tk-planned) {P(b)}% 100%)";
+    }
 
     private string Greeting
     {
@@ -78,8 +269,21 @@
         }
     }
 
+    private async Task OnChartProjectChanged(int id)
+    {
+        _chartProjectId = id;
+        _charts = await Dashboard.GetChartsAsync(id);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _data = await Dashboard.GetAsync();
+        _chartProjectId = await Selection.EnsureAsync() ?? 0;
+        if (_chartProjectId != 0)
+        {
+            _charts = await Dashboard.GetChartsAsync(_chartProjectId);
+        }
+
         var state = await AuthState.GetAuthenticationStateAsync();
         var userId = UserManager.GetUserId(state.User);
         if (userId is null)

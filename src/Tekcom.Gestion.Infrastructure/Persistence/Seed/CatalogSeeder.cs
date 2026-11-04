@@ -23,6 +23,27 @@ public static class CatalogSeeder
         await EnsureStageDefinitionsAsync(db, ct);
         await EnsureBaseCatalogAsync(db, ct);
         await EnsureExportTemplatesAsync(db, ct);
+        await EnsurePlanTemplatesAsync(db, ct);
+    }
+
+    public static async Task EnsurePlanTemplatesAsync(ApplicationDbContext db, CancellationToken ct = default)
+    {
+        if (!await db.PlanTemplates.AnyAsync(t => t.IsSystem, ct))
+        {
+            db.PlanTemplates.Add(new PlanTemplate
+            {
+                Name = "Plan FTTH estándar", IsSystem = true,
+                Description = "8 semanas: preparación, construcción de ODN por nodo y cierre.",
+                DefinitionJson = PlanTemplateDefinition.StandardFtth().ToJson(),
+            });
+            db.PlanTemplates.Add(new PlanTemplate
+            {
+                Name = "Plan general", IsSystem = true,
+                Description = "4 semanas para proyectos sin parte técnica.",
+                DefinitionJson = PlanTemplateDefinition.StandardGeneral().ToJson(),
+            });
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     public static async Task EnsureExportTemplatesAsync(ApplicationDbContext db, CancellationToken ct = default)
