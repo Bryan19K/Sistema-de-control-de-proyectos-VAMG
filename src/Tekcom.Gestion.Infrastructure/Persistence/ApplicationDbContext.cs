@@ -32,6 +32,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<FeederLine> FeederLines => Set<FeederLine>();
     public DbSet<FeederEntry> FeederEntries => Set<FeederEntry>();
 
+    // Sprints y tareas
+    public DbSet<Sprint> Sprints => Set<Sprint>();
+    public DbSet<TaskItem> Tasks => Set<TaskItem>();
+    public DbSet<TaskChecklistItem> TaskChecklistItems => Set<TaskChecklistItem>();
+    public DbSet<TaskComment> TaskComments => Set<TaskComment>();
+    public DbSet<TaskAttachment> TaskAttachments => Set<TaskAttachment>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

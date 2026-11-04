@@ -1,0 +1,264 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject ITaskService Tasks
+@inject ISiteService Sites
+@inject IMaterialService Materials
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12"><MudTextField @bind-Value="_model.Title" Label="Título" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_model.Description" Label="Descripción" Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int?" @bind-Value="_model.SprintId" Label="Sprint" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="int?" Value="@((int?)null)">Backlog (sin sprint)</MudSelectItem>
+                    @foreach (var s in Sprints.Where(s => s.Status != SprintStatus.Closed || s.Id == _model.SprintId))
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)s.Id)">@s.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="TaskItemStatus" @bind-Value="_model.Status" Label="Estado" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var s in Enum.GetValues<TaskItemStatus>())
+                    {
+                        <MudSelectItem T="TaskItemStatus" Value="s">@UiText.TaskStatusName(s)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="string" @bind-Value="_model.AssigneeUserId" Label="Responsable" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var u in Users)
+                    {
+                        <MudSelectItem T="string" Value="u.Id">@(string.IsNullOrWhiteSpace(u.FullName) ? u.Email : u.FullName)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudSelect T="TaskPriority" @bind-Value="_model.Priority" Label="Prioridad" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var p in Enum.GetValues<TaskPriority>())
+                    {
+                        <MudSelectItem T="TaskPriority" Value="p">@UiText.PriorityName(p)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="3"><DatePick Label="Fecha límite" @bind-Value="_model.DueDate" /></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int?" @bind-Value="_model.SiteId" Label="Nodo vinculado" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var s in _sites)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)s.Id)">@s.Code</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int?" @bind-Value="_model.MaterialId" Label="Material vinculado" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var m in _materials)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)m.Id)">@m.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+
+        @if (_model.Id == 0)
+        {
+            <MudText Typo="Typo.caption" Class="tk-muted mt-4 d-block">Guarde la tarea para agregar checklist, comentarios y adjuntos.</MudText>
+        }
+        else
+        {
+            <MudTabs Elevation="0" Rounded="true" Class="mt-4" TabPanelsClass="pt-3">
+                <MudTabPanel Text="@($"Checklist ({_checklist.Count(i => i.IsDone)}/{_checklist.Count})")">
+                    @foreach (var item in _checklist)
+                    {
+                        var local = item;
+                        <div style="display:flex; align-items:center; gap:4px">
+                            <MudCheckBox T="bool" Value="local.IsDone" ValueChanged="v => ToggleAsync(local, v)" Label="@local.Text" Size="Size.Small" />
+                            <MudIconButton Icon="@Icons.Material.Outlined.Close" Size="Size.Small" OnClick="() => RemoveItemAsync(local)" aria-label="Quitar" />
+                        </div>
+                    }
+                    <div style="display:flex; gap:8px; align-items:center" class="mt-2">
+                        <MudTextField @bind-Value="_newItem" Placeholder="Nuevo punto del checklist" Variant="Variant.Outlined" Margin="Margin.Dense" OnKeyDown="OnItemKey" />
+                        <MudButton Variant="Variant.Outlined" OnClick="AddItemAsync">Agregar</MudButton>
+                    </div>
+                </MudTabPanel>
+                <MudTabPanel Text="@($"Comentarios ({_comments.Count})")">
+                    @foreach (var c in _comments.OrderBy(c => c.CreatedAt))
+                    {
+                        <div class="mb-3">
+                            <div class="tk-code-sm tk-muted">@c.CreatedBy · @c.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div>
+                            <div>@c.Text</div>
+                        </div>
+                    }
+                    <div style="display:flex; gap:8px; align-items:flex-start" class="mt-2">
+                        <MudTextField @bind-Value="_newComment" Placeholder="Escriba un comentario" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudButton Variant="Variant.Outlined" OnClick="AddCommentAsync">Comentar</MudButton>
+                    </div>
+                </MudTabPanel>
+                <MudTabPanel Text="@($"Adjuntos ({_attachments.Count})")">
+                    @foreach (var a in _attachments)
+                    {
+                        var local = a;
+                        <div style="display:flex; align-items:center; gap:8px">
+                            <MudIcon Icon="@Icons.Material.Outlined.AttachFile" Size="Size.Small" />
+                            <a href="adjuntos/tareas/@local.Id" target="_blank" rel="noopener">@local.FileName</a>
+                            <span class="tk-muted tk-code-sm">@(local.Size / 1024) KB</span>
+                            <MudIconButton Icon="@Icons.Material.Outlined.Close" Size="Size.Small" OnClick="() => RemoveAttachmentAsync(local)" aria-label="Quitar adjunto" />
+                        </div>
+                    }
+                    <div class="mt-2"><InputFile OnChange="OnFileAsync" /></div>
+                    <MudText Typo="Typo.caption" Class="tk-muted">Máximo 20 MB por archivo.</MudText>
+                </MudTabPanel>
+            </MudTabs>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (_model.Id != 0)
+        {
+            <MudButton Color="Color.Error" OnClick="DeleteAsync">Eliminar</MudButton>
+            <MudSpacer />
+        }
+        <MudButton OnClick="() => MudDialog.Close(DialogResult.Ok(_changed))">Cerrar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public int? TaskId { get; set; }
+    [Parameter] public int? DefaultSprintId { get; set; }
+    [Parameter] public string? DefaultAssigneeId { get; set; }
+    [Parameter] public List<Sprint> Sprints { get; set; } = [];
+    [Parameter] public List<UserListItem> Users { get; set; } = [];
+
+    private TaskItem _model = new();
+    private List<Site> _sites = [];
+    private List<Material> _materials = [];
+    private List<TaskChecklistItem> _checklist = [];
+    private List<TaskComment> _comments = [];
+    private List<TaskAttachment> _attachments = [];
+    private string? _newItem;
+    private string? _newComment;
+    private bool _changed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sites = (await Sites.ListAsync(ProjectId)).Select(s => s.Site).ToList();
+        _materials = await Materials.ListAsync();
+
+        if (TaskId is { } id)
+        {
+            var task = await Tasks.GetAsync(id);
+            if (task is not null)
+            {
+                _model = new TaskItem
+                {
+                    Id = task.Id, ProjectId = task.ProjectId, SprintId = task.SprintId, Title = task.Title, Description = task.Description,
+                    AssigneeUserId = task.AssigneeUserId, Priority = task.Priority, Status = task.Status, DueDate = task.DueDate,
+                    SiteId = task.SiteId, MaterialId = task.MaterialId,
+                };
+                _checklist = task.Checklist.OrderBy(i => i.SortOrder).ToList();
+                _comments = task.Comments.ToList();
+                _attachments = task.Attachments.ToList();
+            }
+        }
+        else
+        {
+            _model = new TaskItem { ProjectId = ProjectId, SprintId = DefaultSprintId, AssigneeUserId = DefaultAssigneeId };
+        }
+    }
+
+    private async Task ReloadDetailsAsync()
+    {
+        var task = await Tasks.GetAsync(_model.Id);
+        if (task is null)
+        {
+            return;
+        }
+
+        _checklist = task.Checklist.OrderBy(i => i.SortOrder).ToList();
+        _comments = task.Comments.ToList();
+        _attachments = task.Attachments.ToList();
+        _changed = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var saved = await Tasks.SaveAsync(_model);
+            _changed = true;
+            if (_model.Id == 0)
+            {
+                _model.Id = saved.Id;
+                Snackbar.Add("Tarea guardada. Ahora puede agregar checklist, comentarios y adjuntos.", Severity.Success);
+            }
+            else
+            {
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        await Tasks.DeleteAsync(_model.Id);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private async Task Run(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            await ReloadDetailsAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private Task AddItemAsync() => Run(async () =>
+    {
+        await Tasks.AddChecklistItemAsync(_model.Id, _newItem ?? string.Empty);
+        _newItem = null;
+    });
+
+    private async Task OnItemKey(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await AddItemAsync();
+        }
+    }
+
+    private Task ToggleAsync(TaskChecklistItem item, bool done) => Run(() => Tasks.SetChecklistItemAsync(item.Id, done));
+    private Task RemoveItemAsync(TaskChecklistItem item) => Run(() => Tasks.RemoveChecklistItemAsync(item.Id));
+
+    private Task AddCommentAsync() => Run(async () =>
+    {
+        await Tasks.AddCommentAsync(_model.Id, _newComment ?? string.Empty);
+        _newComment = null;
+    });
+
+    private Task OnFileAsync(InputFileChangeEventArgs args) => Run(async () =>
+    {
+        await using var stream = args.File.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+        await Tasks.AddAttachmentAsync(_model.Id, args.File.Name, args.File.ContentType, stream);
+    });
+
+    private Task RemoveAttachmentAsync(TaskAttachment attachment) => Run(() => Tasks.RemoveAttachmentAsync(attachment.Id));
+}

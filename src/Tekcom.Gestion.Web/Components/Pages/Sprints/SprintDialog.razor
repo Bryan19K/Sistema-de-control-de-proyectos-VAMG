@@ -1,0 +1,67 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject ISprintService Sprints
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_model.Name" Label="Nombre" Required="true" Placeholder="Sprint 4" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_model.Goal" Label="Objetivo" Lines="2" Placeholder="Ej.: cerrar SON19 y avanzar SON22" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudGrid Spacing="2">
+                <MudItem xs="6"><DatePick Label="Inicio" Value="_start" ValueChanged="d => _start = d ?? _start" /></MudItem>
+                <MudItem xs="6"><DatePick Label="Fin" Value="_end" ValueChanged="d => _end = d ?? _end" /></MudItem>
+            </MudGrid>
+            <MudText Typo="Typo.caption" Class="tk-muted">La duración es libre: puede ser de una semana, de 18 días o la que necesite.</MudText>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public Sprint? Model { get; set; }
+    [Parameter] public int SuggestedNumber { get; set; } = 1;
+
+    private Sprint _model = new();
+    private DateOnly _start;
+    private DateOnly _end;
+
+    protected override void OnInitialized()
+    {
+        if (Model is null)
+        {
+            _model = new Sprint { ProjectId = ProjectId, Name = $"Sprint {SuggestedNumber}" };
+            _start = Clock.Today;
+            _end = Clock.Today.AddDays(13);
+        }
+        else
+        {
+            _model = new Sprint { Id = Model.Id, ProjectId = Model.ProjectId, Name = Model.Name, Goal = Model.Goal };
+            _start = Model.StartDate;
+            _end = Model.EndDate;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _model.StartDate = _start;
+            _model.EndDate = _end;
+            var saved = await Sprints.SaveAsync(_model);
+            MudDialog.Close(DialogResult.Ok(saved.Id));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

@@ -1,0 +1,451 @@
+@page "/sprints"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject ISprintService SprintService
+@inject ITaskService TaskService
+@inject IUserAdminService UserService
+@inject IDateTimeProvider Clock
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ProjectSelection Selection
+@inject UserAccess Access
+
+<PageTitle>Sprints y tareas · TEK-COM</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_projectId == 0)
+{
+    <PageHeader Title="Sprints y tareas" Subtitle="Backlog, tablero Kanban e indicador de ritmo por sprint" />
+    <SectionCard>
+        <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.FolderOpen"
+                    Description="Cree un proyecto para organizar sus sprints y tareas.">
+            <a href="proyectos" class="tk-btn tk-btn--outline mt-4">Ir a proyectos</a>
+        </EmptyState>
+    </SectionCard>
+}
+else
+{
+    <PageHeader Title="@HeaderTitle" Subtitle="@HeaderSubtitle">
+        <Actions>
+            @if (_view == View.Board && _current is not null && _canEdit)
+            {
+                @if (_current.Sprint.Status == SprintStatus.Planned)
+                {
+                    <button type="button" class="tk-btn tk-btn--outline" @onclick="StartAsync">Iniciar sprint</button>
+                }
+                else if (_current.Sprint.Status == SprintStatus.Active)
+                {
+                    <button type="button" class="tk-btn tk-btn--outline" @onclick="CloseAsync">Cerrar sprint</button>
+                }
+            }
+            @if (_canEdit)
+            {
+                <button type="button" class="tk-btn tk-btn--outline" @onclick="() => SprintDialogAsync(null)">+ Sprint</button>
+                <button type="button" class="tk-btn tk-btn--primary" @onclick="() => TaskDialogAsync(null)">+ Tarea</button>
+            }
+        </Actions>
+    </PageHeader>
+
+    <div class="tk-toolbar">
+        <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
+        <div class="tk-segment" role="tablist">
+            <button type="button" class="@Seg(View.Board)" @onclick="() => SetView(View.Board)">Tablero</button>
+            <button type="button" class="@Seg(View.Backlog)" @onclick="() => SetView(View.Backlog)">Backlog (@_backlogCount)</button>
+            <button type="button" class="@Seg(View.Mine)" @onclick="() => SetView(View.Mine)">Mis tareas</button>
+            <button type="button" class="@Seg(View.Sprints)" @onclick="() => SetView(View.Sprints)">Sprints</button>
+        </div>
+        @if (_view == View.Board && _sprints.Count > 0)
+        {
+            <MudSelect T="int" Value="_sprintId" ValueChanged="OnSprintChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Style="min-width:240px" aria-label="Sprint">
+                @foreach (var s in _sprints)
+                {
+                    <MudSelectItem T="int" Value="s.Sprint.Id">@s.Sprint.Name · @UiText.SprintStatusName(s.Sprint.Status)</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    </div>
+
+    @switch (_view)
+    {
+        case View.Board:
+            @if (_current is null)
+            {
+                <SectionCard>
+                    <EmptyState Title="Este proyecto todavía no tiene sprints" Icon="@Icons.Material.Outlined.Loop"
+                                Description="Cree un sprint para organizar las tareas en el tablero. Las tareas sin sprint viven en el backlog." />
+                </SectionCard>
+            }
+            else
+            {
+                var pace = _current.Pace;
+                <div class="tk-card tk-sprint-bar">
+                    <PaceBar Progress="(int)Math.Round(_current.ProgressPercent)" Elapsed="(int)Math.Round(pace.ElapsedPercent)" ShowLabel="false" Margin="_margin" />
+                    <span class="tk-sprint-bar__stat">Completado <strong>@_current.ProgressPercent.ToString("0.#")%</strong></span>
+                    <span class="tk-sprint-bar__stat">Tiempo <strong>@pace.ElapsedPercent.ToString("0.#")%</strong></span>
+                    <PaceChip Pace="pace" />
+                </div>
+
+                <MudDropContainer @key="_boardVersion" T="TaskItem" Items="_boardTasks" ItemsSelector="@((item, zone) => item.Status.ToString() == zone)"
+                                  ItemDropped="OnDroppedAsync" CanDrop="@((item, zone) => _canEdit && _current.Sprint.Status != SprintStatus.Closed)"
+                                  Class="tk-kanban" CanDropClass="tk-drop-ok" NoDropClass="tk-drop-no">
+                    <ChildContent>
+                        @foreach (var status in Columns)
+                        {
+                            <div class="tk-kanban__col">
+                                <div class="tk-kanban__head"><span>@UiText.TaskStatusName(status)</span><span class="tk-kanban__count">@_boardTasks.Count(t => t.Status == status)</span></div>
+                                <MudDropZone T="TaskItem" Identifier="@status.ToString()" Class="tk-kanban__zone" AllowReorder="true" />
+                            </div>
+                        }
+                    </ChildContent>
+                    <ItemRenderer>
+                        @{ var task = context; }
+                        <div class="tk-task @(task.Status == TaskItemStatus.Done ? "tk-task--done" : "")" @onclick="() => TaskDialogAsync(task.Id)">
+                            <div class="tk-task__title">@task.Title</div>
+                            <div class="tk-task__meta">
+                                <span class="tk-task__link">
+                                    @{ var due = UiText.Due(task.DueDate, Clock.Today, task.Status == TaskItemStatus.Done); }
+                                    @if (task.Priority == TaskPriority.High && task.Status != TaskItemStatus.Done)
+                                    {
+                                        <StatusChip Status="StatusChip.Kind.Atrasado" Text="Alta" />
+                                    }
+                                    @if (due is { } d)
+                                    {
+                                        <StatusChip Status="d.Kind" Text="@d.Text" />
+                                    }
+                                    @if (task.Site is not null)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Outlined.Link" /> <span>Nodo @task.Site.Code</span>
+                                    }
+                                    else if (task.Material is not null)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Outlined.Link" /> <span>@task.Material.Name</span>
+                                    }
+                                    @if (task.Checklist.Count > 0)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Outlined.CheckBox" /> <span>@task.Checklist.Count(i => i.IsDone)/@task.Checklist.Count</span>
+                                    }
+                                    @if (task.Attachments.Count > 0)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Outlined.AttachFile" /> <span>@task.Attachments.Count</span>
+                                    }
+                                </span>
+                                @if (task.AssigneeUserId is not null)
+                                {
+                                    <UserAvatar Name="@AssigneeName(task.AssigneeUserId)" Variant="@(task.AssigneeUserId == _userId ? UserAvatar.Style.Navy : UserAvatar.Style.Purple)" />
+                                }
+                            </div>
+                        </div>
+                    </ItemRenderer>
+                </MudDropContainer>
+            }
+            break;
+
+        case View.Backlog:
+            <SectionCard Title="Backlog" Class="mb-6">
+                <HeaderActions><span class="tk-muted">Tareas que todavía no están en ningún sprint</span></HeaderActions>
+                <ChildContent>
+                    @if (_backlog.Count == 0)
+                    {
+                        <EmptyState Title="El backlog está vacío" Icon="@Icons.Material.Outlined.Inbox" Description="Las tareas sin sprint aparecerán aquí." />
+                    }
+                    else
+                    {
+                        <div class="tk-table-wrap">
+                            <table class="tk-table">
+                                <thead><tr><th>Tarea</th><th>Prioridad</th><th>Responsable</th><th>Fecha límite</th><th>Pasar a un sprint</th></tr></thead>
+                                <tbody>
+                                    @foreach (var t in _backlog)
+                                    {
+                                        var local = t;
+                                        <tr>
+                                            <td><a class="tk-row-link" href="javascript:void(0)" @onclick="() => TaskDialogAsync(local.Id)" @onclick:preventDefault>@local.Title</a></td>
+                                            <td>@UiText.PriorityName(local.Priority)</td>
+                                            <td>@(local.AssigneeUserId is null ? "—" : AssigneeName(local.AssigneeUserId))</td>
+                                            <td>@UiText.Date(local.DueDate)</td>
+                                            <td>
+                                                @if (_canEdit && _sprints.Any(s => s.Sprint.Status != SprintStatus.Closed))
+                                                {
+                                                    <MudSelect T="int?" Value="null" ValueChanged="id => AssignAsync(local.Id, id)" Placeholder="Elegir sprint"
+                                                               Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="tk-inline-select">
+                                                        @foreach (var s in _sprints.Where(s => s.Sprint.Status != SprintStatus.Closed))
+                                                        {
+                                                            <MudSelectItem T="int?" Value="@((int?)s.Sprint.Id)">@s.Sprint.Name</MudSelectItem>
+                                                        }
+                                                    </MudSelect>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </ChildContent>
+            </SectionCard>
+            break;
+
+        case View.Mine:
+            <SectionCard Title="Mis tareas">
+                <HeaderActions><MudSwitch T="bool" Value="_onlyOpen" ValueChanged="OnOnlyOpenChanged" Label="Solo abiertas" Color="Color.Primary" /></HeaderActions>
+                <ChildContent>
+                    @if (_mine.Count == 0)
+                    {
+                        <EmptyState Title="No tiene tareas asignadas" Icon="@Icons.Material.Outlined.TaskAlt" Description="Cuando alguien le asigne una tarea aparecerá aquí." />
+                    }
+                    else
+                    {
+                        @foreach (var group in MineGroups)
+                        {
+                            <div class="tk-group-title">@group.Title (@group.Items.Count)</div>
+                            <div class="tk-table-wrap mb-4">
+                                <table class="tk-table">
+                                    <tbody>
+                                        @foreach (var t in group.Items)
+                                        {
+                                            var local = t;
+                                            var due = UiText.Due(local.DueDate, Clock.Today, local.Status == TaskItemStatus.Done);
+                                            <tr>
+                                                <td style="width:130px">@if (due is { } d) { <StatusChip Status="d.Kind" Text="@d.Text" /> }</td>
+                                                <td><a class="tk-row-link" href="javascript:void(0)" @onclick="() => OpenMineAsync(local)" @onclick:preventDefault>@local.Title</a></td>
+                                                <td class="tk-muted">@local.Project?.Name@(local.Sprint is null ? " · Backlog" : $" · {local.Sprint.Name}")</td>
+                                                <td><StatusChip Status="@(local.Status == TaskItemStatus.Done ? StatusChip.Kind.Ok : StatusChip.Kind.Neutral)" Text="@UiText.TaskStatusName(local.Status)" /></td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    }
+                </ChildContent>
+            </SectionCard>
+            break;
+
+        case View.Sprints:
+            <SectionCard Title="Sprints del proyecto">
+                @if (_sprints.Count == 0)
+                {
+                    <EmptyState Title="No hay sprints" Icon="@Icons.Material.Outlined.Loop" Description="Cree el primer sprint del proyecto." />
+                }
+                else
+                {
+                    <div class="tk-table-wrap">
+                        <table class="tk-table">
+                            <thead><tr><th>Sprint</th><th>Fechas</th><th>Objetivo</th><th>Estado</th><th>Avance vs. tiempo</th><th>Ritmo</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var s in _sprints)
+                                {
+                                    var local = s;
+                                    <tr class="tk-row-click" @onclick="() => OpenSprint(local.Sprint.Id)">
+                                        <td><span class="tk-row-link">@local.Sprint.Name</span></td>
+                                        <td class="nowrap">@UiText.ShortDate(local.Sprint.StartDate) – @UiText.ShortDate(local.Sprint.EndDate)</td>
+                                        <td>@(local.Sprint.Goal ?? "—")</td>
+                                        <td><StatusChip Status="UiText.SprintStatusKind(local.Sprint.Status)" Text="@UiText.SprintStatusName(local.Sprint.Status)" /></td>
+                                        <td class="tk-bar-cell"><PaceBar Progress="(int)Math.Round(local.ProgressPercent)" Elapsed="(int)Math.Round(local.Pace.ElapsedPercent)" /></td>
+                                        <td>@if (local.Sprint.Status != SprintStatus.Closed) { <PaceChip Pace="local.Pace" /> }</td>
+                                        <td class="tk-actions-cell">
+                                            @if (_canEdit && local.Sprint.Status != SprintStatus.Closed)
+                                            {
+                                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => SprintDialogAsync(local.Sprint)" aria-label="Editar sprint" />
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </SectionCard>
+            break;
+    }
+}
+
+@code {
+    private enum View { Board, Backlog, Mine, Sprints }
+
+    private static readonly TaskItemStatus[] Columns = [TaskItemStatus.ToDo, TaskItemStatus.InProgress, TaskItemStatus.InReview, TaskItemStatus.Done];
+
+    private View _view = View.Board;
+    private bool _loading = true;
+    private bool _canEdit;
+    private int _projectId;
+    private int _sprintId;
+    private int _margin = 10;
+    private int _boardVersion;
+    private string _userId = string.Empty;
+    private bool _onlyOpen = true;
+
+    private List<SprintSummary> _sprints = [];
+    private SprintSummary? _current;
+    private List<TaskItem> _boardTasks = [];
+    private List<TaskItem> _backlog = [];
+    private int _backlogCount;
+    private List<TaskItem> _mine = [];
+    private List<UserListItem> _users = [];
+
+    private string HeaderTitle => _view == View.Board && _current is not null ? $"{_current.Sprint.Name}" : "Sprints y tareas";
+
+    private string HeaderSubtitle => _view == View.Board && _current is not null
+        ? $"{UiText.ShortDate(_current.Sprint.StartDate)} – {UiText.ShortDate(_current.Sprint.EndDate)} ({_current.Pace.TotalDays} días)" +
+          (string.IsNullOrWhiteSpace(_current.Sprint.Goal) ? string.Empty : $" · Objetivo: {_current.Sprint.Goal}")
+        : "Backlog, tablero Kanban e indicador de ritmo por sprint";
+
+    private string Seg(View view) => _view == view ? "tk-segment__item is-active" : "tk-segment__item";
+
+    private sealed record Group(string Title, List<TaskItem> Items);
+
+    private IEnumerable<Group> MineGroups
+    {
+        get
+        {
+            var today = Clock.Today;
+            var open = _mine.Where(t => t.Status != TaskItemStatus.Done).ToList();
+            var groups = new List<Group>
+            {
+                new("Vencidas", open.Where(t => t.DueDate < today).ToList()),
+                new("Hoy", open.Where(t => t.DueDate == today).ToList()),
+                new("Esta semana", open.Where(t => t.DueDate > today && t.DueDate <= today.AddDays(7)).ToList()),
+                new("Después", open.Where(t => t.DueDate > today.AddDays(7)).ToList()),
+                new("Sin fecha", open.Where(t => t.DueDate is null).ToList()),
+                new("Hechas", _mine.Where(t => t.Status == TaskItemStatus.Done).ToList()),
+            };
+            return groups.Where(g => g.Items.Count > 0);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        _userId = await Access.UserIdAsync();
+        _users = await UserService.ListAsync();
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        await LoadAsync();
+    }
+
+    private string AssigneeName(string userId)
+    {
+        var user = _users.FirstOrDefault(u => u.Id == userId);
+        return user is null ? "?" : string.IsNullOrWhiteSpace(user.FullName) ? user.Email : user.FullName;
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        if (_projectId > 0)
+        {
+            _sprints = await SprintService.ListAsync(_projectId);
+            if (_sprintId == 0 || _sprints.All(s => s.Sprint.Id != _sprintId))
+            {
+                // Por defecto: el sprint activo; si no hay, el más reciente.
+                _sprintId = (_sprints.FirstOrDefault(s => s.Sprint.Status == SprintStatus.Active) ?? _sprints.FirstOrDefault())?.Sprint.Id ?? 0;
+            }
+
+            _current = _sprints.FirstOrDefault(s => s.Sprint.Id == _sprintId);
+            _boardTasks = _current is null ? [] : await TaskService.ListAsync(new TaskFilter { ProjectId = _projectId, SprintId = _sprintId });
+            _boardVersion++; // MudDropContainer no repinta solo cuando cambian sus items: se recrea
+            _backlog = await TaskService.ListAsync(new TaskFilter { ProjectId = _projectId, BacklogOnly = true });
+            _backlogCount = _backlog.Count(t => t.Status != TaskItemStatus.Done);
+            _mine = await TaskService.MyTasksAsync(_userId, _onlyOpen);
+        }
+
+        _loading = false;
+    }
+
+    private async Task OnProjectChanged(int id)
+    {
+        _projectId = id;
+        _sprintId = 0;
+        await LoadAsync();
+    }
+
+    private async Task OnSprintChanged(int id)
+    {
+        _sprintId = id;
+        await LoadAsync();
+    }
+
+    private async Task OnOnlyOpenChanged(bool value)
+    {
+        _onlyOpen = value;
+        await LoadAsync();
+    }
+
+    private void SetView(View view) => _view = view;
+
+    private void OpenSprint(int id)
+    {
+        _sprintId = id;
+        _view = View.Board;
+        _ = LoadAsync();
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            await LoadAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private Task OnDroppedAsync(MudItemDropInfo<TaskItem> info) =>
+        RunAsync(() => TaskService.MoveAsync(info.Item!.Id, Enum.Parse<TaskItemStatus>(info.DropzoneIdentifier), info.IndexInZone));
+
+    private Task AssignAsync(int taskId, int? sprintId) => RunAsync(() => TaskService.AssignToSprintAsync(taskId, sprintId));
+
+    private Task StartAsync() => RunAsync(() => SprintService.StartAsync(_sprintId));
+
+    private async Task CloseAsync()
+    {
+        var pending = _boardTasks.Count(t => t.Status != TaskItemStatus.Done);
+        var targets = _sprints.Where(s => s.Sprint.Id != _sprintId && s.Sprint.Status != SprintStatus.Closed).ToList();
+        var dialog = await Dialogs.ShowAsync<CloseSprintDialog>("Cerrar sprint",
+            new DialogParameters { ["SprintId"] = _sprintId, ["SprintName"] = _current!.Sprint.Name, ["Pending"] = pending, ["Targets"] = targets },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task SprintDialogAsync(Sprint? sprint)
+    {
+        var dialog = await Dialogs.ShowAsync<SprintDialog>(sprint is null ? "Nuevo sprint" : "Editar sprint",
+            new DialogParameters { ["ProjectId"] = _projectId, ["Model"] = sprint, ["SuggestedNumber"] = _sprints.Count + 1 },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: int id })
+        {
+            _sprintId = id;
+            _view = View.Board;
+            await LoadAsync();
+        }
+    }
+
+    private async Task TaskDialogAsync(int? taskId, int? projectId = null)
+    {
+        var dialog = await Dialogs.ShowAsync<TaskDialog>(taskId is null ? "Nueva tarea" : "Tarea",
+            new DialogParameters
+            {
+                ["ProjectId"] = projectId ?? _projectId, ["TaskId"] = taskId, ["DefaultSprintId"] = _view == View.Board && _sprintId > 0 ? _sprintId : null,
+                ["DefaultAssigneeId"] = _userId, ["Sprints"] = _sprints.Select(s => s.Sprint).ToList(), ["Users"] = _users,
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        await dialog.Result;
+        await LoadAsync();
+    }
+
+    private Task OpenMineAsync(TaskItem task) => TaskDialogAsync(task.Id, task.ProjectId);
+}

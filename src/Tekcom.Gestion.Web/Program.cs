@@ -76,6 +76,15 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+// Descarga de adjuntos de tareas (solo usuarios con sesión iniciada).
+app.MapGet("/adjuntos/tareas/{id:int}", async (int id, Tekcom.Gestion.Application.Services.ITaskService tasks) =>
+{
+    var found = await tasks.OpenAttachmentAsync(id);
+    return found is null
+        ? Results.NotFound()
+        : Results.File(found.Value.Content, found.Value.Attachment.ContentType, found.Value.Attachment.FileName);
+}).RequireAuthorization();
+
 // Endpoints adicionales que necesitan las páginas de /Account.
 app.MapAdditionalIdentityEndpoints();
 

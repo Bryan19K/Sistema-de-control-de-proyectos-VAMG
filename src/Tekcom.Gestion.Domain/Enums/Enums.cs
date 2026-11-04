@@ -128,3 +128,26 @@ public enum PaceStatus
     Behind = 3,
     Completed = 4,
 }
+
+public enum SprintStatus
+{
+    Planned = 0,
+    Active = 1,
+    Closed = 2,
+}
+
+public enum TaskPriority
+{
+    Low = 0,
+    Medium = 1,
+    High = 2,
+}
+
+/// <summary>Columnas del tablero Kanban.</summary>
+public enum TaskItemStatus
+{
+    ToDo = 0,
+    InProgress = 1,
+    InReview = 2,
+    Done = 3,
+}

@@ -129,4 +129,62 @@ public static class UiText
     public static string Date(DateOnly? date) => date is null ? "—" : date.Value.ToString("dd/MM/yyyy");
 
     public static string ShortDate(DateOnly? date) => date is null ? "—" : date.Value.ToString("dd/MM/yy");
+
+    public static string TaskStatusName(TaskItemStatus status) => status switch
+    {
+        TaskItemStatus.ToDo => "Por hacer",
+        TaskItemStatus.InProgress => "En proceso",
+        TaskItemStatus.InReview => "En revisión",
+        TaskItemStatus.Done => "Hecho",
+        _ => status.ToString(),
+    };
+
+    public static string PriorityName(TaskPriority priority) => priority switch
+    {
+        TaskPriority.Low => "Baja",
+        TaskPriority.Medium => "Media",
+        TaskPriority.High => "Alta",
+        _ => priority.ToString(),
+    };
+
+    public static string SprintStatusName(SprintStatus status) => status switch
+    {
+        SprintStatus.Planned => "Planificado",
+        SprintStatus.Active => "Activo",
+        SprintStatus.Closed => "Cerrado",
+        _ => status.ToString(),
+    };
+
+    public static StatusChip.Kind SprintStatusKind(SprintStatus status) => status switch
+    {
+        SprintStatus.Active => StatusChip.Kind.EnTiempo,
+        SprintStatus.Closed => StatusChip.Kind.Ok,
+        _ => StatusChip.Kind.Neutral,
+    };
+
+    private static readonly string[] Days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+    /// <summary>Etiqueta de la fecha límite: Hoy, Mañana, Vencida, día de la semana o fecha.</summary>
+    public static (StatusChip.Kind Kind, string Text)? Due(DateOnly? due, DateOnly today, bool done)
+    {
+        if (due is null)
+        {
+            return null;
+        }
+
+        if (done)
+        {
+            return (StatusChip.Kind.Neutral, ShortDate(due));
+        }
+
+        var diff = due.Value.DayNumber - today.DayNumber;
+        return diff switch
+        {
+            < 0 => (StatusChip.Kind.Vencida, "Vencida"),
+            0 => (StatusChip.Kind.Hoy, "Hoy"),
+            1 => (StatusChip.Kind.Manana, "Mañana"),
+            <= 6 => (StatusChip.Kind.Dia, Days[(int)due.Value.DayOfWeek]),
+            _ => (StatusChip.Kind.Neutral, due.Value.ToString("dd/MM")),
+        };
+    }
 }

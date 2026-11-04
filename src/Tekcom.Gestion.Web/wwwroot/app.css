@@ -779,3 +779,14 @@ code {
 
 .tk-table--compact th, .tk-table--compact td { padding: 10px 8px; font-size: 0.92rem; }
 .tk-table .nowrap, .nowrap { white-space: nowrap; }
+
+/* ---------- Segmentado y arrastrar y soltar ---------- */
+.tk-segment { display: inline-flex; background: #e9edf2; border-radius: 10px; padding: 3px; gap: 2px; }
+.tk-segment__item { font: inherit; font-weight: 600; font-size: 0.9rem; border: none; background: transparent; padding: 8px 14px; border-radius: 8px; color: var(--tk-text-2); cursor: pointer; }
+.tk-segment__item.is-active { background: #fff; color: var(--tk-navy); box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1); }
+.tk-group-title { font-weight: 700; color: var(--tk-navy); margin: 12px 0 6px; }
+.tk-kanban__zone { min-height: 60px; }
+.tk-kanban .mud-drop-zone { min-height: 60px; }
+.tk-drop-ok { outline: 2px dashed rgba(30, 158, 85, 0.4); outline-offset: -4px; border-radius: 12px; }
+.tk-drop-no { opacity: 0.85; }
+.tk-task { cursor: pointer; }

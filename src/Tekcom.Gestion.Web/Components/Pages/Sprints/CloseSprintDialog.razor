@@ -1,0 +1,63 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject ISprintService Sprints
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudText>
+                @if (Pending == 0)
+                {
+                    <span>Todas las tareas de <strong>@SprintName</strong> están hechas. Se cerrará el sprint.</span>
+                }
+                else
+                {
+                    <span>Quedan <strong>@Pending tarea(s)</strong> sin terminar en <strong>@SprintName</strong>. ¿A dónde pasan?</span>
+                }
+            </MudText>
+            @if (Pending > 0)
+            {
+                <MudSelect T="int?" @bind-Value="_target" Label="Pasar las pendientes a" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="int?" Value="@((int?)null)">Backlog (sin sprint)</MudSelectItem>
+                    @foreach (var s in Targets)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)s.Sprint.Id)">@s.Sprint.Name (@UiText.SprintStatusName(s.Sprint.Status))</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            <MudText Typo="Typo.caption" Class="tk-muted">Las tareas hechas se quedan en este sprint. Un sprint cerrado ya no se puede modificar.</MudText>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CloseAsync">Cerrar sprint</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int SprintId { get; set; }
+    [Parameter] public string SprintName { get; set; } = string.Empty;
+    [Parameter] public int Pending { get; set; }
+    [Parameter] public List<SprintSummary> Targets { get; set; } = [];
+
+    private int? _target;
+
+    protected override void OnInitialized() => _target = Targets.FirstOrDefault()?.Sprint.Id;
+
+    private async Task CloseAsync()
+    {
+        try
+        {
+            await Sprints.CloseAsync(SprintId, Pending == 0 ? null : _target);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

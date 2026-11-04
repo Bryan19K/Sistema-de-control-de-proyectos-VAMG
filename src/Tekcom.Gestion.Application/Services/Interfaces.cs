@@ -1,6 +1,7 @@
 using Tekcom.Gestion.Application.Models;
 using Tekcom.Gestion.Domain.Entities;
 using Tekcom.Gestion.Domain.Enums;
+using Tekcom.Gestion.Domain.Logic;
 
 namespace Tekcom.Gestion.Application.Services;
 
@@ -88,4 +89,61 @@ public interface IFeederService
     Task SavePlannedAsync(int projectId, FeederItemKind kind, decimal planned, CancellationToken ct = default);
 
     Task AddEntryAsync(int projectId, FeederItemKind kind, DateOnly date, decimal quantity, string? notes, CancellationToken ct = default);
+}
+
+public sealed record SprintSummary(Sprint Sprint, int Total, int Done, PaceResult Pace)
+{
+    public decimal ProgressPercent => Total == 0 ? 0 : Math.Round(Done * 100m / Total, 1);
+}
+
+public sealed record SprintCloseResult(int Moved, int Completed);
+
+public interface ISprintService
+{
+    Task<List<SprintSummary>> ListAsync(int projectId, CancellationToken ct = default);
+    Task<SprintSummary?> GetAsync(int sprintId, CancellationToken ct = default);
+    Task<Sprint> SaveAsync(Sprint sprint, CancellationToken ct = default);
+    Task StartAsync(int sprintId, CancellationToken ct = default);
+
+    /// <summary>Cierra el sprint: las tareas sin terminar pasan al siguiente sprint o al backlog.</summary>
+    Task<SprintCloseResult> CloseAsync(int sprintId, int? moveToSprintId, CancellationToken ct = default);
+}
+
+public sealed class TaskFilter
+{
+    public int ProjectId { get; set; }
+
+    /// <summary>Null = todas; <see cref="Backlog"/> = solo las que no tienen sprint.</summary>
+    public int? SprintId { get; set; }
+    public bool BacklogOnly { get; set; }
+    public string? AssigneeUserId { get; set; }
+    public bool OnlyOpen { get; set; }
+    public string? Search { get; set; }
+}
+
+public interface ITaskService
+{
+    Task<List<TaskItem>> ListAsync(TaskFilter filter, CancellationToken ct = default);
+
+    /// <summary>Tareas asignadas a un usuario en todos los proyectos (vista "Mis tareas").</summary>
+    Task<List<TaskItem>> MyTasksAsync(string userId, bool onlyOpen, CancellationToken ct = default);
+
+    Task<TaskItem?> GetAsync(int taskId, CancellationToken ct = default);
+    Task<TaskItem> SaveAsync(TaskItem task, CancellationToken ct = default);
+    Task DeleteAsync(int taskId, CancellationToken ct = default);
+
+    /// <summary>Mueve la tarea a otra columna (o dentro de la misma) en la posición indicada.</summary>
+    Task MoveAsync(int taskId, TaskItemStatus status, int index, CancellationToken ct = default);
+
+    Task AssignToSprintAsync(int taskId, int? sprintId, CancellationToken ct = default);
+
+    Task AddChecklistItemAsync(int taskId, string text, CancellationToken ct = default);
+    Task SetChecklistItemAsync(int itemId, bool done, CancellationToken ct = default);
+    Task RemoveChecklistItemAsync(int itemId, CancellationToken ct = default);
+
+    Task AddCommentAsync(int taskId, string text, CancellationToken ct = default);
+
+    Task<TaskAttachment> AddAttachmentAsync(int taskId, string fileName, string contentType, Stream content, CancellationToken ct = default);
+    Task<(TaskAttachment Attachment, Stream Content)?> OpenAttachmentAsync(int attachmentId, CancellationToken ct = default);
+    Task RemoveAttachmentAsync(int attachmentId, CancellationToken ct = default);
 }

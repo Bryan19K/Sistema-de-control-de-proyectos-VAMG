@@ -56,6 +56,9 @@ public static class DependencyInjection
         services.AddScoped<IMaterialService, MaterialService>();
         services.AddScoped<IUserAdminService, UserAdminService>();
         services.AddScoped<IFeederService, FeederService>();
+        services.AddScoped<ISprintService, SprintService>();
+        services.AddScoped<ITaskService, TaskService>();
+        services.AddSingleton<IFileStorage, LocalFileStorage>();
         services.AddScoped<IExcelImportService, Import.ExcelImportService>();
 
         services.Configure<SeedAdminOptions>(configuration.GetSection(SeedAdminOptions.SectionName));
