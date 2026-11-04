@@ -6,6 +6,20 @@ certificado HTTPS). GitHub Actions publica cada cambio que llegue a `main`.
 - Dirección: `https://vps3795068.trouble-free.net`
 - Todo se puede hacer desde el celular usando la terminal del Codespace.
 
+## Camino rápido: todo con un solo comando
+
+Desde la terminal del Codespace (pestaña Terminal), pegue esto y siga las preguntas:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Bryan19K/Sistema-de-control-de-proyectos-VAMG/claude/desarrollo-inicial-5m8ya1/deploy/instalar-todo.sh)
+```
+
+Pide el correo del administrador y la contraseña de `root` del VPS (una vez). Prepara el servidor, crea y autoriza la llave,
+carga los secretos en GitHub (si hace falta, le pide autorizar una vez desde el navegador) y lanza la primera publicación.
+Al final muestra el usuario y la contraseña de la aplicación.
+
+Los pasos de abajo son lo mismo hecho a mano; solo sirven si el comando rápido falla.
+
 ## Paso 1 · Aprobar el pull request
 
 Los archivos de despliegue (Dockerfile, `deploy/`, flujo de Actions) ya están en `main`. El pull request solo trae el ajuste

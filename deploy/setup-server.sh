@@ -28,7 +28,11 @@ apt-get install -y ca-certificates curl ufw openssl cron unattended-upgrades
 
 echo "==> 2/6 Docker"
 if ! command -v docker >/dev/null; then
-  curl -fsSL https://get.docker.com | sh
+  # Instalador oficial; si aún no soporta esta versión de Ubuntu, se usan los paquetes de la distribución.
+  if ! curl -fsSL https://get.docker.com | sh; then
+    echo "El instalador oficial falló; se usan los paquetes de Ubuntu (docker.io + compose)."
+    apt-get install -y docker.io docker-compose-v2 || apt-get install -y docker.io docker-compose-plugin
+  fi
 fi
 systemctl enable --now docker
 docker compose version >/dev/null
