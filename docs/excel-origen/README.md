@@ -1,8 +1,7 @@
 # Excel de origen
 
-Carpeta para los archivos Excel actuales de control (avance, entregas, inventario, catálogo,
-seriales, proyecciones de diseño). Se revisan en el Sprint 1 para ajustar el modelo de datos
-y construir el importador.
+Esta carpeta ya **no guarda** los Excel del negocio: el repositorio es público y esos archivos traen datos de
+clientes, precios y gastos. Los Excel se suben desde la pantalla **Importar Excel** de la aplicación.
 
-Este repositorio es privado; aun así, no subir aquí archivos con datos de clientes que no sean
-necesarios para la migración.
+Para correr las pruebas con los archivos reales, déjelos en una carpeta fuera del repositorio y defina
+`TEKCOM_REAL_XLS=/ruta/a/la/carpeta`. Sin esa variable, esas pruebas se omiten.
