@@ -6,6 +6,7 @@ liquidación, equipos y documentación. Los Excel no desaparecen: se generan des
 
 El plan completo está en [`docs/INICIO_PROYECTO.md`](docs/INICIO_PROYECTO.md).
 Las decisiones técnicas se registran en [`docs/decisiones/`](docs/decisiones/).
+El flujo operativo por nodo (etapas de la ODN y feeder) está en [`docs/FLUJO_OPERATIVO.md`](docs/FLUJO_OPERATIVO.md).
 El diseño de referencia de la interfaz (mockups y guía de estilos) está en [`docs/diseno/`](docs/diseno/);
 la página **Diseño** de la aplicación (solo Admin) muestra esas pantallas con datos de ejemplo.
 
