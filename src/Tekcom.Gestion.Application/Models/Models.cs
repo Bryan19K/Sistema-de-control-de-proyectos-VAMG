@@ -244,6 +244,10 @@ public sealed record SprintBar(string Name, decimal Progress, decimal Elapsed, P
 
 public sealed record NamedCount(string Name, int Count);
 
+public sealed record StageColumn(StageCode Code, string Name);
+
+public sealed record StageRow(string Site, IReadOnlyDictionary<StageCode, StageStatus> Stages);
+
 public sealed class PresentationData
 {
     public required string ProjectName { get; init; }
@@ -254,6 +258,8 @@ public sealed class PresentationData
     public DateOnly? PlanEnd { get; init; }
     public required List<CurvePoint> Curve { get; init; }
     public required List<NodeBar> Nodes { get; init; }
+    public required List<StageColumn> StageColumns { get; init; }
+    public required List<StageRow> StageRows { get; init; }
     public required ProjectCharts Charts { get; init; }
     public required List<MaterialBar> Materials { get; init; }
     public required List<NamedCount> TasksByPerson { get; init; }

@@ -50,6 +50,46 @@
         })();
     </script>
     <script>
+        // Detalle al pasar el cursor o el dedo, o al enfocar con teclado: elementos con data-tip="valor|etiqueta".
+        (function () {
+            var tip = null;
+            function ensure() {
+                if (tip) { return tip; }
+                tip = document.createElement('div');
+                tip.id = 'tk-tip'; tip.setAttribute('role', 'tooltip');
+                document.body.appendChild(tip);
+                return tip;
+            }
+            function show(el, x, y) {
+                var raw = el.getAttribute('data-tip') || '';
+                var parts = raw.split('|');
+                var t = ensure();
+                t.textContent = '';
+                var v = document.createElement('strong'); v.textContent = parts[0];
+                t.appendChild(v);
+                if (parts[1]) { var l = document.createElement('span'); l.textContent = parts[1]; t.appendChild(l); }
+                t.style.display = 'block';
+                var r = t.getBoundingClientRect();
+                var left = Math.min(Math.max(8, x - r.width / 2), window.innerWidth - r.width - 8);
+                var top = y - r.height - 14; if (top < 8) { top = y + 18; }
+                t.style.left = left + 'px'; t.style.top = top + 'px';
+            }
+            function hide() { if (tip) { tip.style.display = 'none'; } }
+            document.addEventListener('pointermove', function (e) {
+                var el = e.target.closest && e.target.closest('[data-tip]');
+                if (el) { show(el, e.clientX, e.clientY); } else { hide(); }
+            });
+            document.addEventListener('pointerdown', function (e) {
+                var el = e.target.closest && e.target.closest('[data-tip]');
+                if (el) { show(el, e.clientX, e.clientY); } else { hide(); }
+            });
+            document.addEventListener('focusin', function (e) {
+                var el = e.target.closest && e.target.closest('[data-tip]');
+                if (el) { var r = el.getBoundingClientRect(); show(el, r.left + r.width / 2, r.top); }
+            });
+            document.addEventListener('focusout', hide);
+            document.addEventListener('scroll', hide, true);
+        })();
         window.tkFullscreen = function () {
             var el = document.documentElement;
             if (document.fullscreenElement) { document.exitFullscreen(); }

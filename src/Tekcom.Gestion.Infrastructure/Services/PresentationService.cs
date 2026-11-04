@@ -10,6 +10,7 @@ namespace Tekcom.Gestion.Infrastructure.Services;
 /// <summary>Reúne en un solo lugar los datos de la sección Presentación a partir de los mismos servicios de las pantallas.</summary>
 public sealed class PresentationService(
     IProjectService projects,
+    IReferenceDataService reference,
     IWorkPlanService workPlan,
     ISiteService sites,
     IDashboardService dashboard,
@@ -44,6 +45,11 @@ public sealed class PresentationService(
             var end = project.PlannedEnd ?? siteList.Max(s => s.Site.PlannedEnd);
             pace = PaceCalculator.Calculate(progress, start, end, today, project.PaceMarginPercent);
         }
+
+        var stageDefs = (await reference.StageDefinitionsAsync(project.ProjectTypeId, ct)).OrderBy(x => x.SortOrder).ToList();
+        var stageColumns = stageDefs.Select(x => new StageColumn(x.Code, x.Name)).ToList();
+        var stageRows = siteList.OrderBy(s => s.Site.Code)
+            .Select(s => new StageRow(s.Site.Code, s.Stages)).ToList();
 
         var stock = (await inventory.StockAsync(projectId, null, ct))
             .Where(r => r.ProjectedTotal > 0 || r.Received > 0 || r.Delivered > 0 || r.Installed > 0)
@@ -86,6 +92,8 @@ public sealed class PresentationService(
             Curve = BuildCurve(plan, today),
             Nodes = siteList.OrderByDescending(s => s.Site.OdnFinalized ? 100 : s.ProgressPercent).ThenBy(s => s.Site.Code)
                 .Select(s => new NodeBar(s.Site.Code, s.Site.OdnFinalized ? 100 : s.ProgressPercent, s.Pace.Status, s.Site.IsReadyToDeliver)).ToList(),
+            StageColumns = stageColumns,
+            StageRows = stageRows,
             Charts = charts,
             Materials = stock,
             TasksByPerson = byPerson,
