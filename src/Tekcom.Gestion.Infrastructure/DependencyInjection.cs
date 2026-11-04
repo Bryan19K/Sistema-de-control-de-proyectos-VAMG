@@ -16,7 +16,7 @@ namespace Tekcom.Gestion.Infrastructure;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registra EF Core (SQL Server), el interceptor de auditoría e Identity.
+    /// Registra EF Core (PostgreSQL), el interceptor de auditoría e Identity.
     /// La aplicación web debe registrar además su propio <see cref="ICurrentUserService"/>.
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
@@ -39,8 +39,8 @@ public static class DependencyInjection
             }
             else
             {
-                options.UseSqlServer(connectionString, sql =>
-                    sql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName));
+                options.UseNpgsql(connectionString, npgsql =>
+                    npgsql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName));
             }
 
             options.AddInterceptors(provider.GetRequiredService<AuditableEntityInterceptor>());

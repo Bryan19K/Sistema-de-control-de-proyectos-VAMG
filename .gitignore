@@ -6,6 +6,10 @@
 # dotenv files
 .env
 
+# Llaves de despliegue generadas a mano (nunca se suben)
+deploy_key
+deploy_key.pub
+
 # User-specific files
 *.rsuser
 *.suo

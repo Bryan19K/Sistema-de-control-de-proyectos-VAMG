@@ -63,7 +63,7 @@ liquidación, equipos/seriales y documentación. **Los Excel no desaparecen: se 
 |---|---|
 | Framework | **.NET 10 (LTS)** |
 | UI | **Blazor Web App** (render interactivo en servidor) + **MudBlazor** |
-| Datos | **EF Core 10** + **SQL Server** (local: Express o Docker; producción: Azure SQL) |
+| Datos | **EF Core 10** + **PostgreSQL** (local: Docker; producción: contenedor en el VPS) |
 | Autenticación | **ASP.NET Core Identity** con roles |
 | Excel | **ClosedXML** (exportar e importar) |
 | PDF | **QuestPDF** (verificar licencia Community vigente) |
@@ -71,7 +71,7 @@ liquidación, equipos/seriales y documentación. **Los Excel no desaparecen: se 
 | Notificaciones | **WhatsApp Business Cloud API** (o Twilio) + correo (Brevo/SendGrid) como respaldo |
 | Gantt | Componente compatible con Blazor (evaluar en Sprint 5) |
 | Pruebas | **xUnit** + **FluentAssertions**; base en memoria o SQLite para pruebas de servicios |
-| Publicación | **Azure App Service F1** + **Azure SQL (oferta gratuita)**, CI/CD con **GitHub Actions** |
+| Publicación | **VPS InterServer** con Docker + Caddy, CI/CD con **GitHub Actions** (ver ADR-003) |
 
 ### 3.1 Estructura de la solución
 
@@ -99,7 +99,7 @@ tekcom-gestion/
 
 ### 3.2 Configuración y secretos
 - Nunca subir cadenas de conexión, contraseñas ni tokens al repo.
-- Local: `dotnet user-secrets`. Producción: configuración de Azure App Service.
+- Local: `dotnet user-secrets`. Producción: archivo `.env` del servidor.
 - Incluir `appsettings.Example.json` con las claves vacías para documentar qué se necesita.
 
 ---
@@ -222,8 +222,8 @@ Cada sprint: rama `feature/sprint-N-nombre` → commits pequeños → pull reque
 - [x] Minutas y pendientes por sitio
 
 ### Publicación
-- Desde el Sprint 0 o 1: despliegue automático a Azure App Service desde `main` con GitHub Actions.
-- Configurar alerta de presupuesto en Azure desde el primer día.
+- Desde el Sprint 0 o 1: despliegue automático al VPS desde `main` con GitHub Actions.
+- Respaldos diarios de la base y los archivos (ver `docs/DESPLIEGUE.md`).
 
 ---
 

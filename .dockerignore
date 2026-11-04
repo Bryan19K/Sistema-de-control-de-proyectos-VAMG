@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+**/.vs/
+**/App_Data/
+.git/
+.github/
+.devcontainer/
+docs/
+deploy/
+TestResults/
+*.md
+.env

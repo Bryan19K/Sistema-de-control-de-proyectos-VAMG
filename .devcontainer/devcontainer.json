@@ -1,20 +1,20 @@
 {
-  "name": "TEK-COM Gestión (.NET 10 + SQL Server)",
+  "name": "TEK-COM Gestión (.NET 10 + PostgreSQL)",
   "dockerComposeFile": "docker-compose.yml",
   "service": "app",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "features": {
     "ghcr.io/devcontainers/features/dotnet:2": { "version": "10.0" }
   },
-  "forwardPorts": [5276, 1433],
+  "forwardPorts": [5276, 5432],
   "portsAttributes": {
     "5276": { "label": "Aplicación web", "onAutoForward": "openBrowser" },
-    "1433": { "label": "SQL Server", "onAutoForward": "silent" }
+    "5432": { "label": "PostgreSQL", "onAutoForward": "silent" }
   },
   "containerEnv": {
     "ASPNETCORE_ENVIRONMENT": "Development",
     "ASPNETCORE_URLS": "http://0.0.0.0:5276",
-    "ConnectionStrings__DefaultConnection": "Server=db,1433;Database=TekcomGestion;User Id=sa;Password=Codespace.Dev1!;TrustServerCertificate=True",
+    "ConnectionStrings__DefaultConnection": "Host=db;Database=tekcom;Username=postgres;Password=Codespace.Dev1",
     "SeedAdmin__Email": "admin@tekcom.local",
     "SeedAdmin__FullName": "Administrador",
     "SeedAdmin__Password": "Admin.Codespace1!"

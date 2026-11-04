@@ -12,7 +12,7 @@ la página **Diseño** de la aplicación (solo Admin) muestra esas pantallas con
 
 ## Tecnología
 
-.NET 10 · Blazor Web App (render interactivo en servidor) · MudBlazor · EF Core 10 · SQL Server ·
+.NET 10 · Blazor Web App (render interactivo en servidor) · MudBlazor · EF Core 10 · PostgreSQL ·
 ASP.NET Core Identity · xUnit + FluentAssertions.
 
 ## Estructura
@@ -27,23 +27,23 @@ tests/
   Tekcom.Gestion.Domain.Tests/
   Tekcom.Gestion.Application.Tests/
 docs/                              Plan, ADR, diseño de referencia, logo y Excel de origen
-.github/workflows/                 CI (build + pruebas en cada PR) y publicación a Azure desde main
+.github/workflows/                 CI (build + pruebas + imagen Docker en cada PR) y publicación al VPS desde main
 ```
 
 ## Requisitos
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- SQL Server: **SQL Server Express**, LocalDB (viene con Visual Studio) o un contenedor Docker:
+- PostgreSQL 15 o superior, por ejemplo con Docker:
 
   ```bash
-  docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=TuPassw0rd!" -p 1433:1433 --name tekcom-sql -d mcr.microsoft.com/mssql/server:2022-latest
+  docker run -e POSTGRES_PASSWORD=TuPassw0rd -e POSTGRES_DB=tekcom -p 5432:5432 --name tekcom-db -d postgres:17-alpine
   ```
 
 - Visual Studio 2022/2026 o VS Code con la extensión C# Dev Kit (opcional)
 
 ## Verlo sin instalar nada (GitHub Codespaces)
 
-El repositorio trae un Dev Container con .NET 10 y SQL Server listos. Pasos en
+El repositorio trae un Dev Container con .NET 10 y PostgreSQL listos. Pasos en
 [`.devcontainer/README.md`](.devcontainer/README.md).
 
 ## Correr en local
@@ -62,10 +62,8 @@ El repositorio trae un Dev Container con .NET 10 y SQL Server listos. Pasos en
    cd src/Tekcom.Gestion.Web
 
    # Cadena de conexión. Ejemplos:
-   #   SQL Server Express:  "Server=localhost\\SQLEXPRESS;Database=TekcomGestion;Trusted_Connection=True;TrustServerCertificate=True"
-   #   LocalDB:             "Server=(localdb)\\mssqllocaldb;Database=TekcomGestion;Trusted_Connection=True"
-   #   Docker:              "Server=localhost,1433;Database=TekcomGestion;User Id=sa;Password=TuPassw0rd!;TrustServerCertificate=True"
-   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost\\SQLEXPRESS;Database=TekcomGestion;Trusted_Connection=True;TrustServerCertificate=True"
+   #   Docker (arriba):  "Host=localhost;Database=tekcom;Username=postgres;Password=TuPassw0rd"
+   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=tekcom;Username=postgres;Password=TuPassw0rd"
 
    # Usuario administrador inicial (se crea al arrancar si no existe)
    dotnet user-secrets set "SeedAdmin:Email" "bryan@tekcom.com"
@@ -87,10 +85,10 @@ El repositorio trae un Dev Container con .NET 10 y SQL Server listos. Pasos en
    administrador. Abrir la URL que muestra la consola (por defecto `https://localhost:7246`)
    e iniciar sesión con el correo y contraseña configurados.
 
-   **Sin SQL Server (solo para probar):** se puede usar SQLite con
+   **Sin PostgreSQL (solo para probar):** se puede usar SQLite con
    `dotnet user-secrets set "Database:Provider" "Sqlite"` y
    `dotnet user-secrets set "ConnectionStrings:DefaultConnection" "DataSource=tekcom.db"`.
-   En producción siempre se usa SQL Server con migraciones.
+   En producción siempre se usa PostgreSQL con migraciones.
 
 4. **Compilar y probar**
 
@@ -101,19 +99,19 @@ El repositorio trae un Dev Container con .NET 10 y SQL Server listos. Pasos en
 
 ## Publicación
 
-El despliegue a Azure App Service es automático desde `main`. Los pasos para crear los recursos, cargar la
-configuración y la alerta de presupuesto están en [`docs/PUBLICACION_AZURE.md`](docs/PUBLICACION_AZURE.md).
+El despliegue al VPS (Docker, PostgreSQL y Caddy con HTTPS) es automático con cada merge a `main`.
+Los pasos para preparar el servidor y conectar GitHub están en [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md).
 
 ## Notificaciones (correo y WhatsApp)
 
 Los avisos salen por dos canales que se activan solos cuando se configuran; mientras no lo estén, no envían nada:
 
-| Canal | Variables (user-secrets en local, Configuración del App Service en Azure) |
+| Canal | Variables (user-secrets en local, archivo `/opt/tekcom/.env` en el servidor) |
 |---|---|
 | Correo (SMTP) | `Email__Host`, `Email__Port`, `Email__User`, `Email__Password`, `Email__FromAddress`, `Email__UseSsl` |
 | WhatsApp Business Cloud API | `WhatsApp__PhoneNumberId`, `WhatsApp__AccessToken`, `WhatsApp__TemplateName` (plantilla aprobada por Meta con un parámetro de cuerpo; sin plantilla solo se puede escribir dentro de las 24 h de una conversación abierta por el usuario) |
 
-- Los trabajos corren con Hangfire: revisión cada hora de 7:00 a 18:00 y resumen diario a las 7:00 (hora de El Salvador, ajustable con `Hangfire__ChecksCron`, `Hangfire__SummaryCron` y `Hangfire__TimeZone`). En SQL Server la cola vive en el esquema `HangFire`; con SQLite (solo desarrollo) vive en memoria.
+- Los trabajos corren con Hangfire: revisión cada hora de 7:00 a 18:00 y resumen diario a las 7:00 (hora de El Salvador, ajustable con `Hangfire__ChecksCron`, `Hangfire__SummaryCron` y `Hangfire__TimeZone`). En PostgreSQL la cola vive en el esquema `hangfire`; con SQLite (solo desarrollo) vive en memoria.
 - Panel de trabajos en `/hangfire`, solo para administradores. `Hangfire__Enabled=false` desactiva los trabajos.
 - Qué se avisa y por qué canal se cambia en **Configuración → Notificaciones**, donde también está la bitácora y el botón de prueba. Los teléfonos para WhatsApp se registran por usuario en **Configuración → Usuarios**.
 - Un mismo aviso no se repite el mismo día al mismo destinatario.

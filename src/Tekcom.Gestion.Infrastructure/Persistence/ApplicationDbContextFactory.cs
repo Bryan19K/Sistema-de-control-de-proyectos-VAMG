@@ -13,7 +13,7 @@ public sealed class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Ap
     public ApplicationDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlServer("Server=localhost;Database=TekcomGestion;Trusted_Connection=True;TrustServerCertificate=True")
+            .UseNpgsql("Host=localhost;Database=tekcom_gestion;Username=postgres")
             .UseApplicationServiceProvider(IdentitySchema.CreateMinimalServiceProvider())
             .Options;
 

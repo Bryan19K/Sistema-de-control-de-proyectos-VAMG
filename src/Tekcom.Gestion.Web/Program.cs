@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Hangfire;
 using System.Globalization;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -52,6 +53,15 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
+// En el servidor las claves de protección de datos (cookies de sesión, antiforgery) deben sobrevivir
+// a los reinicios del contenedor: se guardan en una carpeta persistente (DataProtection:Path).
+if (builder.Configuration["DataProtection:Path"] is { Length: > 0 } keysPath)
+{
+    builder.Services.AddDataProtection()
+        .SetApplicationName("Tekcom.Gestion")
+        .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+}
+
 var app = builder.Build();
 
 // Pipeline HTTP.
@@ -76,6 +86,13 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Chequeo de salud para el despliegue (sin sesión): responde 200 si la aplicación y la base están arriba.
+app.MapGet("/healthz", async (Microsoft.EntityFrameworkCore.IDbContextFactory<Tekcom.Gestion.Infrastructure.Persistence.ApplicationDbContext> factory) =>
+{
+    await using var db = factory.CreateDbContext();
+    return await db.Database.CanConnectAsync() ? Results.Ok("ok") : Results.StatusCode(503);
+}).AllowAnonymous();
 
 // Descarga de adjuntos de tareas (solo usuarios con sesión iniciada).
 app.MapGet("/adjuntos/tareas/{id:int}", async (int id, Tekcom.Gestion.Application.Services.ITaskService tasks) =>

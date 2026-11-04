@@ -11,7 +11,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
   </ItemGroup>
 
@@ -23,8 +23,8 @@
 
   <ItemGroup Label="Notificaciones y trabajos programados">
     <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.25" />
-    <PackageVersion Include="Hangfire.SqlServer" Version="1.8.25" />
-    <!-- InMemory solo se usa en desarrollo/pruebas con SQLite; en producción los trabajos viven en SQL Server. -->
+    <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
+    <!-- InMemory solo se usa en desarrollo/pruebas con SQLite; en producción los trabajos viven en PostgreSQL. -->
     <PackageVersion Include="Hangfire.InMemory" Version="1.0.0" />
     <PackageVersion Include="MailKit" Version="4.18.2" />
   </ItemGroup>

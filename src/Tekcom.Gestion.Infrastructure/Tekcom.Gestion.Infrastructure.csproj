@@ -13,12 +13,12 @@
     <PackageReference Include="ClosedXML" />
     <PackageReference Include="MailKit" />
     <PackageReference Include="Hangfire.AspNetCore" />
-    <PackageReference Include="Hangfire.SqlServer" />
+    <PackageReference Include="Hangfire.PostgreSql" />
     <PackageReference Include="Hangfire.InMemory" />
     <PackageReference Include="QuestPDF" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
   </ItemGroup>
 

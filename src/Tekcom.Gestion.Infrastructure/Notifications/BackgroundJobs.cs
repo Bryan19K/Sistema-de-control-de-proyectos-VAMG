@@ -1,4 +1,5 @@
 using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Tekcom.Gestion.Application.Common.Interfaces;
@@ -43,18 +44,18 @@ public static class BackgroundJobs
 
             if (useSqlite)
             {
-                // Desarrollo y pruebas sin SQL Server: la cola vive en memoria y se pierde al reiniciar.
+                // Desarrollo y pruebas sin PostgreSQL: la cola vive en memoria y se pierde al reiniciar.
                 cfg.UseInMemoryStorage();
             }
             else
             {
-                cfg.UseSqlServerStorage(connectionString, new Hangfire.SqlServer.SqlServerStorageOptions
-                {
-                    SchemaName = "HangFire",
-                    PrepareSchemaIfNecessary = true,
-                    QueuePollInterval = TimeSpan.FromSeconds(15),
-                    DisableGlobalLocks = true,
-                });
+                cfg.UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString),
+                    new Hangfire.PostgreSql.PostgreSqlStorageOptions
+                    {
+                        SchemaName = "hangfire",
+                        PrepareSchemaIfNecessary = true,
+                        QueuePollInterval = TimeSpan.FromSeconds(15),
+                    });
             }
         });
         services.AddHangfireServer(options => options.WorkerCount = 2);

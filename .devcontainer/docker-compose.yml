@@ -10,10 +10,10 @@ services:
       - db
 
   db:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: postgres:17-alpine
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Codespace.Dev1!"
-      MSSQL_PID: "Express"
+      POSTGRES_DB: tekcom
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "Codespace.Dev1"
     ports:
-      - "1433:1433"
+      - "5432:5432"

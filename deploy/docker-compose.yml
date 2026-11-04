@@ -1,0 +1,72 @@
+# Despliegue de producción: PostgreSQL + aplicación + Caddy (HTTPS automático).
+# Vive en /opt/tekcom del servidor junto con el archivo .env (ver docs/DESPLIEGUE.md).
+name: tekcom
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tekcom
+      POSTGRES_USER: tekcom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tekcom -d tekcom"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  web:
+    image: ${WEB_IMAGE:?falta WEB_IMAGE en .env}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      # Detrás de Caddy: respeta X-Forwarded-Proto/For para que las cookies y redirecciones usen HTTPS.
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      ConnectionStrings__DefaultConnection: Host=db;Database=tekcom;Username=tekcom;Password=${POSTGRES_PASSWORD}
+      SeedAdmin__Email: ${SEED_ADMIN_EMAIL:?falta SEED_ADMIN_EMAIL en .env}
+      SeedAdmin__FullName: ${SEED_ADMIN_FULLNAME:-Administrador}
+      SeedAdmin__Password: ${SEED_ADMIN_PASSWORD:?falta SEED_ADMIN_PASSWORD en .env}
+      Storage__Path: /data/uploads
+      DataProtection__Path: /data/keys
+      Hangfire__TimeZone: ${TIMEZONE:-America/El_Salvador}
+      # Opcionales: se activan cuando se completan en .env (ver docs/DESPLIEGUE.md).
+      Email__Host: ${EMAIL_HOST:-}
+      Email__Port: ${EMAIL_PORT:-587}
+      Email__User: ${EMAIL_USER:-}
+      Email__Password: ${EMAIL_PASSWORD:-}
+      Email__FromAddress: ${EMAIL_FROM:-}
+      Email__UseSsl: ${EMAIL_USE_SSL:-false}
+      WhatsApp__PhoneNumberId: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WhatsApp__AccessToken: ${WHATSAPP_ACCESS_TOKEN:-}
+      WhatsApp__TemplateName: ${WHATSAPP_TEMPLATE_NAME:-}
+    volumes:
+      - appdata:/data
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?falta DOMAIN en .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  appdata:
+  caddy_data:
+  caddy_config:
