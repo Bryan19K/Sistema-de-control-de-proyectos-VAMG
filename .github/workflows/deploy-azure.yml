@@ -1,0 +1,60 @@
+name: Publicar en Azure
+
+# Publica en Azure App Service cada vez que se integra algo a main (o a mano desde la pestaña Actions).
+# No hace nada hasta que se configure en GitHub: Settings > Secrets and variables > Actions
+#   Variable  AZURE_WEBAPP_NAME             nombre del App Service
+#   Secret    AZURE_WEBAPP_PUBLISH_PROFILE  perfil de publicación descargado del App Service
+# La guía completa está en docs/PUBLICACION_AZURE.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publicar-azure
+  cancel-in-progress: false
+
+jobs:
+  build-test-deploy:
+    name: Compilar, probar y publicar
+    runs-on: ubuntu-latest
+    env:
+      AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restaurar paquetes
+        run: dotnet restore Tekcom.Gestion.sln
+
+      - name: Compilar
+        run: dotnet build Tekcom.Gestion.sln --configuration Release --no-restore
+
+      - name: Pruebas
+        run: dotnet test Tekcom.Gestion.sln --configuration Release --no-build
+
+      - name: Publicar la aplicación
+        if: env.AZURE_WEBAPP_NAME != ''
+        run: dotnet publish src/Tekcom.Gestion.Web/Tekcom.Gestion.Web.csproj --configuration Release --no-build --output ./publicacion
+
+      - name: Desplegar en Azure App Service
+        if: env.AZURE_WEBAPP_NAME != ''
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ./publicacion
+
+      - name: Aviso si falta la configuración de Azure
+        if: env.AZURE_WEBAPP_NAME == ''
+        run: echo "::notice::No se desplegó: falta la variable AZURE_WEBAPP_NAME. Ver docs/PUBLICACION_AZURE.md."

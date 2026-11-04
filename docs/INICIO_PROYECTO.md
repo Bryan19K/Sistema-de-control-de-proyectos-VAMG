@@ -148,78 +148,78 @@ tekcom-gestion/
 Cada sprint: rama `feature/sprint-N-nombre` → commits pequeños → pull request → revisión de Bryan → merge a `main`.
 
 ### Sprint 0 · Estructura (≈ 2–3 días)
-- [ ] Crear solución y los 4 proyectos + 2 de pruebas con .NET 10
-- [ ] Agregar MudBlazor con tema de colores TEK-COM (azul marino `#12304f`, acento naranja `#e8742c`)
-- [ ] Layout base: menú lateral con las secciones del pre-plan, barra superior, página de inicio vacía
-- [ ] DbContext, conexión SQL Server, primera migración
-- [ ] ASP.NET Core Identity con roles y usuario administrador semilla (contraseña por user-secrets)
-- [ ] Interceptor de auditoría (CreatedAt/By, UpdatedAt/By) y filtro global de soft delete
-- [ ] `.gitignore`, `.editorconfig`, `appsettings.Example.json`
-- [ ] GitHub Actions: build + tests en cada PR
-- [ ] README con cómo correr el proyecto en local
-- [ ] ADR-001: convención de idioma en el código
+- [x] Crear solución y los 4 proyectos + 2 de pruebas con .NET 10
+- [x] Agregar MudBlazor con tema de colores TEK-COM (azul marino `#12304f`, acento naranja `#e8742c`)
+- [x] Layout base: menú lateral con las secciones del pre-plan, barra superior, página de inicio vacía
+- [x] DbContext, conexión SQL Server, primera migración
+- [x] ASP.NET Core Identity con roles y usuario administrador semilla (contraseña por user-secrets)
+- [x] Interceptor de auditoría (CreatedAt/By, UpdatedAt/By) y filtro global de soft delete
+- [x] `.gitignore`, `.editorconfig`, `appsettings.Example.json`
+- [x] GitHub Actions: build + tests en cada PR
+- [x] README con cómo correr el proyecto en local
+- [x] ADR-001: convención de idioma en el código
 
 **Aceptación:** `dotnet build` y `dotnet test` pasan; la app corre, pide login y muestra el menú; la base se crea con la migración.
 
 ### Sprint 1 · Base y migración (1–2 semanas)
-- [ ] Revisar los Excel de `docs/excel-origen/` y ajustar el modelo de datos
-- [ ] CRUD de proyectos con tipo y módulos activos
-- [ ] CRUD de contratistas y sitios/nodos
-- [ ] Catálogo de materiales con alias
-- [ ] Importador de Excel: limpieza, mapeo, importación y **reporte de pendientes** (filas con error no se importan a la fuerza)
-- [ ] Validación de totales importados contra el Excel origen
+- [x] Revisar los Excel de `docs/excel-origen/` y ajustar el modelo de datos
+- [x] CRUD de proyectos con tipo y módulos activos
+- [x] CRUD de contratistas y sitios/nodos
+- [x] Catálogo de materiales con alias
+- [x] Importador de Excel: limpieza, mapeo, importación y **reporte de pendientes** (filas con error no se importan a la fuerza)
+- [x] Validación de totales importados contra el Excel origen
 
 **Aceptación:** importar "SUB-BOX" lo asocia a "NAP DE PASO" sin duplicar; los totales del sistema coinciden con los del Excel; las filas con error quedan listadas.
 
 ### Sprint 2 · Gestión: sprints y tareas (2 semanas)
-- [ ] Sprints de duración libre por proyecto
-- [ ] Backlog y tablero Kanban (arrastrar entre columnas)
-- [ ] Tareas con responsable, prioridad, fecha, checklist, comentarios y adjuntos
-- [ ] Vínculo de tarea a sitio / material / documento
-- [ ] Indicador de ritmo del sprint y cierre de sprint (pendientes pasan al siguiente)
-- [ ] Vista "Mis tareas"
+- [x] Sprints de duración libre por proyecto
+- [x] Backlog y tablero Kanban (arrastrar entre columnas)
+- [x] Tareas con responsable, prioridad, fecha, checklist, comentarios y adjuntos
+- [x] Vínculo de tarea a sitio / material / documento
+- [x] Indicador de ritmo del sprint y cierre de sprint (pendientes pasan al siguiente)
+- [x] Vista "Mis tareas"
 
 **Aceptación:** un sprint con 15% hecho y 60% del tiempo aparece **Atrasado** en rojo; al cerrar un sprint, las tareas no terminadas se mueven al siguiente o al backlog.
 
 ### Sprint 3 · Bodega, proyección y liquidación (2–3 semanas)
-- [ ] Registro de ingresos (por lote/entrega)
-- [ ] Entregas a contratista con **bloqueo si no hay stock**
-- [ ] Devoluciones, ajustes con motivo y anulación de movimientos
-- [ ] Stock en tiempo real con alerta de stock bajo
-- [ ] Importar proyección de diseño por sitio, con versiones
-- [ ] Comparación proyectado vs. entregado vs. instalado durante la obra, con alertas
-- [ ] Liquidación por sitio; **no permite cerrar** con pendientes sin justificar
-- [ ] Bitácora de movimientos
+- [x] Registro de ingresos (por lote/entrega)
+- [x] Entregas a contratista con **bloqueo si no hay stock**
+- [x] Devoluciones, ajustes con motivo y anulación de movimientos
+- [x] Stock en tiempo real con alerta de stock bajo
+- [x] Importar proyección de diseño por sitio, con versiones
+- [x] Comparación proyectado vs. entregado vs. instalado durante la obra, con alertas
+- [x] Liquidación por sitio; **no permite cerrar** con pendientes sin justificar
+- [x] Bitácora de movimientos
 
 **Aceptación:** entrega mayor al stock se rechaza mostrando el disponible; con 120 entregados, 102 instalados y 10 devueltos, la liquidación muestra 18 sobrante y 8 pendientes y bloquea el cierre.
 
 ### Sprint 4 · Exportes (1–2 semanas)
-- [ ] Servicio de exportación con encabezado TEK-COM fijo (logo, proyecto, fecha de corte, "Elaborado por")
-- [ ] Reportes: consolidado de materiales, entregas por sitio, inventario, liquidación (acta), estado de sprints
-- [ ] Excel con filtros, formato y área de impresión configurada (carta)
-- [ ] PDF con QuestPDF
-- [ ] Plantillas de diseño de exporte guardables
+- [x] Servicio de exportación con encabezado TEK-COM fijo (logo, proyecto, fecha de corte, "Elaborado por")
+- [x] Reportes: consolidado de materiales, entregas por sitio, inventario, liquidación (acta), estado de sprints
+- [x] Excel con filtros, formato y área de impresión configurada (carta)
+- [x] PDF con QuestPDF
+- [x] Plantillas de diseño de exporte guardables
 
 **Aceptación:** todo Excel generado abre sin errores, trae logo, fecha de corte y "Elaborado por", y está listo para imprimir.
 
 ### Sprint 5 · Plan de trabajo, avance y dashboard (2–3 semanas)
-- [ ] Fases y actividades con dependencias e hitos
-- [ ] Vista Gantt (planificado vs. real, línea de hoy) y vista tabla
-- [ ] Personalización del plan y plantillas de proyecto
-- [ ] Avance por partida y por sitio
-- [ ] Dashboard: indicadores, proyectos con ritmo, tareas por vencer, sprint actual, stock bajo
-- [ ] Exporte del plan de trabajo con logo TEK-COM
+- [x] Fases y actividades con dependencias e hitos
+- [x] Vista Gantt (planificado vs. real, línea de hoy) y vista tabla
+- [x] Personalización del plan y plantillas de proyecto
+- [x] Avance por partida y por sitio
+- [x] Dashboard: indicadores, proyectos con ritmo, tareas por vencer, sprint actual, stock bajo
+- [x] Exporte del plan de trabajo con logo TEK-COM
 
 ### Sprint 6 · Notificaciones (1 semana)
-- [ ] Hangfire con trabajos programados
-- [ ] Correo (respaldo) y WhatsApp Business API
-- [ ] Avisos: tarea asignada, por vencer (1 día), vencida, sprint/proyecto atrasado, stock bajo, resumen diario
-- [ ] Bitácora de notificaciones enviadas
+- [x] Hangfire con trabajos programados
+- [x] Correo (respaldo) y WhatsApp Business API
+- [x] Avisos: tarea asignada, por vencer (1 día), vencida, sprint/proyecto atrasado, stock bajo, resumen diario
+- [x] Bitácora de notificaciones enviadas
 
 ### Sprint 7 · Técnico: equipos, seriales y documentos (2 semanas)
-- [ ] OLT, tarjetas, puertos y SFP con serial y estado
-- [ ] ATP con registro fotográfico y exporte
-- [ ] Minutas y pendientes por sitio
+- [x] OLT, tarjetas, puertos y SFP con serial y estado
+- [x] ATP con registro fotográfico y exporte
+- [x] Minutas y pendientes por sitio
 
 ### Publicación
 - Desde el Sprint 0 o 1: despliegue automático a Azure App Service desde `main` con GitHub Actions.

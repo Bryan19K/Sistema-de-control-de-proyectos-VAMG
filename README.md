@@ -21,13 +21,13 @@ ASP.NET Core Identity · xUnit + FluentAssertions.
 src/
   Tekcom.Gestion.Domain/          Entidades, enums y reglas de negocio puras
   Tekcom.Gestion.Application/     Servicios, DTOs, validaciones e interfaces
-  Tekcom.Gestion.Infrastructure/  EF Core, migraciones, Identity, auditoría (luego Excel, PDF, WhatsApp, correo)
+  Tekcom.Gestion.Infrastructure/  EF Core, migraciones, Identity, auditoría, importador y exportes Excel/PDF, avisos (correo, WhatsApp) y Hangfire
   Tekcom.Gestion.Web/             Blazor + MudBlazor, páginas y componentes
 tests/
   Tekcom.Gestion.Domain.Tests/
   Tekcom.Gestion.Application.Tests/
 docs/                              Plan, ADR, diseño de referencia, logo y Excel de origen
-.github/workflows/                 CI: build + pruebas en cada PR
+.github/workflows/                 CI (build + pruebas en cada PR) y publicación a Azure desde main
 ```
 
 ## Requisitos
@@ -98,6 +98,11 @@ El repositorio trae un Dev Container con .NET 10 y SQL Server listos. Pasos en
    dotnet build
    dotnet test
    ```
+
+## Publicación
+
+El despliegue a Azure App Service es automático desde `main`. Los pasos para crear los recursos, cargar la
+configuración y la alerta de presupuesto están en [`docs/PUBLICACION_AZURE.md`](docs/PUBLICACION_AZURE.md).
 
 ## Notificaciones (correo y WhatsApp)
 
