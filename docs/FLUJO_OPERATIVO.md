@@ -49,6 +49,8 @@ cuánto está listo para entregar al cliente.
 9. **Documentos firmados.** Cada nodo tiene una sección para adjuntar documentos firmados
    (por ejemplo, el de supervisión de CAES), con fecha y usuario que los subió.
 10. **Los estados de las etapas** usan las mismas tres opciones: Pendiente, En proceso y Finalizado.
+11. **Nodo listo para entregar al cliente** = **ODN finalizada** y **feeder FINALIZADO**. El tablero
+    muestra cuántos nodos están listos del total del proyecto.
 
 ## Cómo lo modela el sistema
 
@@ -81,6 +83,4 @@ cuánto está listo para entregar al cliente.
 
 ## Pendiente por confirmar
 
-1. **"Listo para entregar al cliente":** propongo que un nodo cuente como listo cuando tiene
-   **ODN finalizada y feeder FINALIZADO**. El tablero mostraría cuántos nodos están listos del
-   total. ¿Es esa la regla, o falta alguna condición?
+Nada por ahora. El flujo quedó cerrado el 2026-11-04.
