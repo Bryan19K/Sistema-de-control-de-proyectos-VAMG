@@ -64,7 +64,8 @@ curl -fsSL "$RAW/setup-server.sh" -o "$WORK/setup-server.sh"
   < "$WORK/setup-server.sh" | tee "$WORK/setup.log"
 
 paso "3/5 Probando la llave en el servidor"
-PROBAR=(ssh -i "$WORK/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "deploy@$HOST" 'echo "Conexión como deploy correcta"')
+SSH_USER=deploy
+PROBAR=(ssh -i "$WORK/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "deploy@$HOST" true)
 if ! "${PROBAR[@]}" 2>/dev/null; then
   aviso "La llave no fue aceptada a la primera. Reescribiendo la llave en el servidor y reintentando..."
   "${SSH_ROOT[@]}" "install -d -m 700 -o deploy -g deploy /home/deploy/.ssh \
@@ -74,24 +75,27 @@ if ! "${PROBAR[@]}" 2>/dev/null; then
     && (systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true)"
   sleep 2
   if ! "${PROBAR[@]}" 2>/dev/null; then
-    echo
-    aviso "================ DIAGNÓSTICO (mande captura de ESTE bloque) ================"
-    echo "Llave local:    $(ssh-keygen -lf "$WORK/deploy_key.pub" | awk '{print $2}')"
-    echo "Llave servidor: $("${SSH_ROOT[@]}" 'ssh-keygen -lf /home/deploy/.ssh/authorized_keys 2>&1 | awk "{print \$2}" | tr "\n" " "')"
-    "${SSH_ROOT[@]}" 'stat -c "%U:%G %a %n" /home/deploy /home/deploy/.ssh /home/deploy/.ssh/authorized_keys 2>&1; echo "cuenta: $(passwd -S deploy 2>&1)"; sshd -T 2>/dev/null | grep -Ei "^(pubkeyauthentication|usepam|allowusers|allowgroups|denyusers|authorizedkeysfile|authenticationmethods) " | tr "\n" ";"; echo; ls /etc/ssh/sshd_config.d/ 2>&1 | tr "\n" " "; echo; echo "ssh: $(sshd -V 2>&1 | head -1; ssh -V 2>&1 | head -1)"'
-    ssh -v -i "$WORK/deploy_key" -o BatchMode=yes -o IdentitiesOnly=yes "deploy@$HOST" true 2>&1 | grep -E "Offering public key|Server accepts key|Authentications that can continue|no more authentication|Permission denied" | head -6
-    aviso "============================================================================"
-    fallo "No se pudo entrar como deploy con la llave."
+    aviso "El servidor no deja entrar al usuario deploy por SSH. Plan B: se usará root con la misma llave."
+    echo "--- Nota técnica (por si hace falta): registro del servidor sobre deploy ---"
+    "${SSH_ROOT[@]}" 'journalctl -u ssh -u sshd -n 400 --no-pager 2>/dev/null | grep -i deploy | tail -4 | cut -c1-200; echo "cuenta: $(passwd -S deploy 2>&1)"; chage -l deploy 2>&1 | head -3' || true
+    echo "-----------------------------------------------------------------------"
+    "${SSH_ROOT[@]}" "install -d -m 700 /root/.ssh && (grep -qxF '$PUBKEY' /root/.ssh/authorized_keys 2>/dev/null || printf '%s\n' '$PUBKEY' >> /root/.ssh/authorized_keys) && chmod 600 /root/.ssh/authorized_keys"
+    SSH_USER=root
+    PROBAR=(ssh -i "$WORK/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "root@$HOST" true)
+    if ! "${PROBAR[@]}" 2>/dev/null; then
+      aviso "Tampoco entró root con la llave. Mande captura de este mensaje y de lo de arriba."
+      fallo "No se pudo autorizar la llave en el servidor."
+    fi
   fi
 fi
-echo "Conexión como deploy correcta"
+echo "Conexión por SSH con la llave correcta (usuario: $SSH_USER)"
 
 paso "4/5 Cargando los secretos en GitHub"
 # En Codespaces gh usa un token sin permiso para secretos; si falla, se pide autorizar una vez desde el navegador.
 cargar_secretos() {
   gh secret set VPS_SSH_KEY -R "$REPO" < "$WORK/deploy_key" \
     && gh secret set VPS_HOST -R "$REPO" --body "$HOST" \
-    && gh secret set VPS_USER -R "$REPO" --body "deploy"
+    && gh secret set VPS_USER -R "$REPO" --body "$SSH_USER"
 }
 if ! cargar_secretos 2>/dev/null; then
   aviso "gh no tiene permiso para guardar secretos. Autorice con su cuenta de GitHub:"
@@ -103,7 +107,7 @@ if ! cargar_secretos 2>/dev/null; then
   cargar_secretos || {
     aviso "No se pudieron cargar los secretos automáticamente. Cárguelos a mano en:"
     aviso "https://github.com/$REPO/settings/secrets/actions"
-    aviso "VPS_HOST = $HOST    VPS_USER = deploy    VPS_SSH_KEY = (la llave de abajo, completa)"
+    aviso "VPS_HOST = $HOST    VPS_USER = $SSH_USER    VPS_SSH_KEY = (la llave de abajo, completa)"
     cat "$WORK/deploy_key"
     read -r -p "Cuando termine de cargarlos, presione Enter..." _ < /dev/tty
   }

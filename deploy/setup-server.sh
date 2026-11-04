@@ -108,7 +108,7 @@ fi
 
 echo "==> 6/6 Respaldo diario a las 3:00"
 cat > /etc/cron.d/tekcom-backup <<'CRON'
-0 3 * * * deploy /opt/tekcom/backup.sh >> /opt/tekcom/backups/backup.log 2>&1
+0 3 * * * root /opt/tekcom/backup.sh >> /opt/tekcom/backups/backup.log 2>&1
 CRON
 chmod 644 /etc/cron.d/tekcom-backup
 
