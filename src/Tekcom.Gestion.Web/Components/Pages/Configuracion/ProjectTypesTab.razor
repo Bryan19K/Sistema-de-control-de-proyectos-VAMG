@@ -1,0 +1,88 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@inject IReferenceDataService Reference
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.body2" Class="mb-3 tk-muted">
+    Cada tipo de proyecto activa solo los módulos que usa. FTTH usa todo; General usa plan, sprints, tareas y documentos.
+</MudText>
+
+<div class="tk-table-wrap">
+    <table class="tk-table">
+        <thead><tr><th>Tipo</th><th>Código</th>@foreach (var m in Modules) { <th>@m.Label</th> }<th></th></tr></thead>
+        <tbody>
+            @foreach (var t in _types)
+            {
+                var type = t;
+                <tr>
+                    <td>@type.Name</td>
+                    <td>@type.Code</td>
+                    @foreach (var m in Modules)
+                    {
+                        <td><MudCheckBox T="bool" Value="type.Has(m.Module)" ValueChanged="v => Toggle(type, m.Module, v)" Disabled="type.IsSystem" Size="Size.Small" /></td>
+                    }
+                    <td class="tk-actions-cell">
+                        @if (!type.IsSystem) { <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => SaveAsync(type)">Guardar</MudButton> }
+                        else { <span class="tk-muted">Del sistema</span> }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<MudDivider Class="my-4" />
+<MudText Typo="Typo.subtitle2" Class="mb-2">Nuevo tipo de proyecto</MudText>
+<div class="tk-toolbar">
+    <MudTextField @bind-Value="_newCode" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:160px" />
+    <MudTextField @bind-Value="_newName" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:260px" />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync">Crear</MudButton>
+</div>
+
+@code {
+    private static readonly (ProjectModules Module, string Label)[] Modules =
+    [
+        (ProjectModules.WorkPlan, "Plan"), (ProjectModules.Sprints, "Sprints"), (ProjectModules.Tasks, "Tareas"),
+        (ProjectModules.Documents, "Documentos"), (ProjectModules.Sites, "Nodos"), (ProjectModules.Warehouse, "Bodega"),
+        (ProjectModules.Projection, "Proyección"), (ProjectModules.Liquidation, "Liquidación"),
+        (ProjectModules.Equipment, "Equipos"), (ProjectModules.Feeder, "Feeder"),
+    ];
+
+    private List<ProjectType> _types = [];
+    private string? _newCode;
+    private string? _newName;
+
+    protected override async Task OnInitializedAsync() => _types = await Reference.ProjectTypesAsync();
+
+    private static void Toggle(ProjectType type, ProjectModules module, bool value) =>
+        type.Modules = value ? type.Modules | module : type.Modules & ~module;
+
+    private async Task SaveAsync(ProjectType type)
+    {
+        try
+        {
+            await Reference.SaveProjectTypeAsync(type);
+            Snackbar.Add($"Tipo '{type.Name}' guardado.", Severity.Success);
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        try
+        {
+            await Reference.SaveProjectTypeAsync(new ProjectType { Code = _newCode ?? string.Empty, Name = _newName ?? string.Empty, Modules = ProjectModules.General });
+            _newCode = _newName = null;
+            _types = await Reference.ProjectTypesAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

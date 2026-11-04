@@ -1,0 +1,69 @@
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Web.Services
+@inject IReferenceDataService Reference
+@inject IDialogService Dialogs
+
+<div class="tk-toolbar">
+    <span class="grow tk-muted">@(Kind == NameDialog.PersonKind.Contractor
+        ? "Brigadas y contratistas que instalan en los nodos. Cada uno se registra una sola vez."
+        : "Supervisores responsables de los nodos.")</span>
+    <button type="button" class="tk-btn tk-btn--primary" @onclick="() => EditAsync(0, null, null, null, true)">+ Agregar</button>
+</div>
+
+@if (_rows.Count == 0)
+{
+    <EmptyState Title="Todavía no hay registros" Icon="@Icons.Material.Outlined.Groups" />
+}
+else
+{
+    <div class="tk-table-wrap">
+        <table class="tk-table">
+            <thead>
+                <tr><th>Nombre</th>@if (Kind == NameDialog.PersonKind.Contractor) { <th>Responsable</th> }<th>Teléfono</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in _rows)
+                {
+                    var row = r;
+                    <tr>
+                        <td>@row.Name</td>
+                        @if (Kind == NameDialog.PersonKind.Contractor) { <td>@(row.Responsible ?? "—")</td> }
+                        <td>@(row.Phone ?? "—")</td>
+                        <td>@if (!row.Active) { <StatusChip Status="StatusChip.Kind.Neutral" Text="Inactivo" /> } else { <StatusChip Status="StatusChip.Kind.Ok" Text="Activo" /> }</td>
+                        <td class="tk-actions-cell">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditAsync(row.Id, row.Name, row.Responsible, row.Phone, row.Active)" aria-label="Editar" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Parameter] public NameDialog.PersonKind Kind { get; set; }
+
+    private sealed record Row(int Id, string Name, string? Responsible, string? Phone, bool Active);
+    private List<Row> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _rows = Kind == NameDialog.PersonKind.Contractor
+            ? (await Reference.ContractorsAsync(includeInactive: true)).Select(c => new Row(c.Id, c.Name, c.ResponsibleName, c.Phone, c.IsActive)).ToList()
+            : (await Reference.SupervisorsAsync(includeInactive: true)).Select(s => new Row(s.Id, s.Name, null, s.Phone, s.IsActive)).ToList();
+    }
+
+    private async Task EditAsync(int id, string? name, string? responsible, string? phone, bool active)
+    {
+        var title = Kind == NameDialog.PersonKind.Contractor ? "Contratista" : "Supervisor";
+        var dialog = await Dialogs.ShowAsync<NameDialog>(id == 0 ? $"Nuevo {title.ToLowerInvariant()}" : $"Editar {title.ToLowerInvariant()}",
+            new DialogParameters { ["Kind"] = Kind, ["Id"] = id, ["Name"] = name, ["Responsible"] = responsible, ["Phone"] = phone, ["Active"] = active },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+}

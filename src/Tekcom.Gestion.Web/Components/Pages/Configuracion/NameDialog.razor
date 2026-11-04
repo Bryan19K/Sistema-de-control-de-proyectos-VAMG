@@ -1,0 +1,69 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IReferenceDataService Reference
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_name" Label="Nombre" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            @if (Kind == PersonKind.Contractor)
+            {
+                <MudTextField @bind-Value="_responsible" Label="Responsable de la brigada" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            }
+            <MudTextField @bind-Value="_phone" Label="Teléfono" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudCheckBox T="bool" @bind-Value="_active" Label="Activo" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    public enum PersonKind { Contractor, Supervisor }
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public PersonKind Kind { get; set; }
+    [Parameter] public int Id { get; set; }
+    [Parameter] public string? Name { get; set; }
+    [Parameter] public string? Responsible { get; set; }
+    [Parameter] public string? Phone { get; set; }
+    [Parameter] public bool Active { get; set; } = true;
+
+    private string? _name;
+    private string? _responsible;
+    private string? _phone;
+    private bool _active = true;
+
+    protected override void OnInitialized()
+    {
+        _name = Name;
+        _responsible = Responsible;
+        _phone = Phone;
+        _active = Active;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            if (Kind == PersonKind.Contractor)
+            {
+                await Reference.SaveContractorAsync(new Contractor { Id = Id, Name = _name ?? string.Empty, ResponsibleName = _responsible, Phone = _phone, IsActive = _active });
+            }
+            else
+            {
+                await Reference.SaveSupervisorAsync(new Supervisor { Id = Id, Name = _name ?? string.Empty, Phone = _phone, IsActive = _active });
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

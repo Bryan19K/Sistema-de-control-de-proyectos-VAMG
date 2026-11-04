@@ -1,0 +1,88 @@
+@page "/proyectos"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Services
+@inject IProjectService Projects
+@inject IDialogService Dialogs
+@inject NavigationManager Navigation
+@inject UserAccess Access
+
+<PageTitle>Proyectos · TEK-COM</PageTitle>
+
+<PageHeader Title="Proyectos" Subtitle="Proyectos de TEK-COM con su tipo, estado y responsable">
+    <Actions>
+        <a href="importar" class="tk-btn tk-btn--outline">Importar Excel</a>
+        @if (_canEdit)
+        {
+            <button type="button" class="tk-btn tk-btn--primary" @onclick="NewAsync">+ Nuevo proyecto</button>
+        }
+    </Actions>
+</PageHeader>
+
+<SectionCard>
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_projects.Count == 0)
+    {
+        <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.FolderOpen"
+                    Description="Cree un proyecto nuevo o impórtelo desde el Excel de control." />
+    }
+    else
+    {
+        <div class="tk-table-wrap">
+            <table class="tk-table">
+                <thead>
+                    <tr><th>Proyecto</th><th>Código</th><th>Cliente</th><th>Tipo</th><th>Estado</th><th>Plan</th><th>Responsable</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in _projects)
+                    {
+                        <tr class="tk-row-click" @onclick="() => Open(p.Id)">
+                            <td><a class="tk-row-link" href="proyectos/@p.Id">@p.Name</a></td>
+                            <td>@p.Code</td>
+                            <td>@(p.Client?.Name ?? "—")</td>
+                            <td>@p.ProjectType?.Name</td>
+                            <td><StatusChip Status="UiText.ProjectStatusKind(p.Status)" Text="@UiText.ProjectStatusName(p.Status)" /></td>
+                            <td>@UiText.Date(p.PlannedStart) – @UiText.Date(p.PlannedEnd)</td>
+                            <td>@(p.ResponsibleName ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</SectionCard>
+
+@code {
+    private List<Project> _projects = [];
+    private bool _loading = true;
+    private bool _canEdit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _projects = await Projects.ListAsync();
+        _loading = false;
+    }
+
+    private void Open(int id) => Navigation.NavigateTo($"proyectos/{id}");
+
+    private async Task NewAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<ProjectDialog>("Nuevo proyecto",
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: int id })
+        {
+            Navigation.NavigateTo($"proyectos/{id}");
+        }
+    }
+}

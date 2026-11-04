@@ -1,0 +1,17 @@
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Domain.Logic
+@using Tekcom.Gestion.Web.Services
+
+@{
+    var (kind, text) = UiText.Pace(Pace.Status);
+    if (Pace.Status is PaceStatus.Ahead or PaceStatus.Behind && Pace.DaysDelta != 0 && ShowDays)
+    {
+        text += $" · {Math.Abs(Pace.DaysDelta)} d";
+    }
+}
+<StatusChip Status="kind" Text="@text" />
+
+@code {
+    [Parameter, EditorRequired] public PaceResult Pace { get; set; } = default!;
+    [Parameter] public bool ShowDays { get; set; } = true;
+}

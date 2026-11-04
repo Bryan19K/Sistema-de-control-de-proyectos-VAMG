@@ -364,7 +364,6 @@ public sealed class ExcelImportService(
             if (stage is not null && stage.Status == StageStatus.Pending && status != StageStatus.Pending)
             {
                 stage.Status = status;
-                stage.Notes ??= "Estado tomado del Excel de control.";
             }
         }
     }

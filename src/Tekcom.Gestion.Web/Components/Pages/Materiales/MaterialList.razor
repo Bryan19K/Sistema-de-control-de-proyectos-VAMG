@@ -1,0 +1,123 @@
+@page "/materiales"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IMaterialService Materials
+@inject IDialogService Dialogs
+@inject UserAccess Access
+
+<PageTitle>Materiales · TEK-COM</PageTitle>
+
+<PageHeader Title="Materiales" Subtitle="Catálogo de materiales con sus alias, largos y rol en el flujo del nodo">
+    <Actions>
+        @if (_canEdit)
+        {
+            <button type="button" class="tk-btn tk-btn--primary" @onclick="() => EditAsync(null)">+ Nuevo material</button>
+        }
+    </Actions>
+</PageHeader>
+
+<div class="tk-toolbar">
+    <MudTextField @bind-Value="_search" Immediate="true" Placeholder="Buscar por nombre, alias o código"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:320px" OnDebounceIntervalElapsed="LoadAsync" DebounceInterval="250" />
+    <MudSelect T="MaterialCategory?" Value="_category" Clearable="true" Placeholder="Todas las categorías" ValueChanged="OnCategoryChanged"
+               Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:240px">
+        @foreach (var category in Enum.GetValues<MaterialCategory>())
+        {
+            <MudSelectItem T="MaterialCategory?" Value="category">@UiText.CategoryName(category)</MudSelectItem>
+        }
+    </MudSelect>
+    <MudSwitch T="bool" Value="_inactive" ValueChanged="OnInactiveChanged" Label="Incluir inactivos" Color="Color.Primary" />
+</div>
+
+<SectionCard>
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_items.Count == 0)
+    {
+        <EmptyState Title="No hay materiales para mostrar" Icon="@Icons.Material.Outlined.Inventory2"
+                    Description="Cambie el filtro o cree un material nuevo." />
+    }
+    else
+    {
+        <div class="tk-table-wrap">
+            <table class="tk-table">
+                <thead><tr><th>Material</th><th>Código ERP</th><th>UM</th><th>Categoría</th><th>Alias</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var m in _items)
+                    {
+                        <tr>
+                            <td>@m.Name @if (m.LengthMeters is not null) { <span class="tk-muted">· @m.LengthMeters m</span> }</td>
+                            <td>@(m.Code ?? "—")</td>
+                            <td>@m.Unit</td>
+                            <td>@UiText.CategoryName(m.Category)</td>
+                            <td>
+                                @foreach (var alias in m.Aliases)
+                                {
+                                    <span class="tk-chip tk-chip--neutral" style="margin-right:4px">@alias.Alias</span>
+                                }
+                            </td>
+                            <td>
+                                @if (!m.IsActive) { <StatusChip Status="StatusChip.Kind.Neutral" Text="Inactivo" /> }
+                                else if (!m.TracksStock) { <StatusChip Status="StatusChip.Kind.Dia" Text="Sin bodega" /> }
+                            </td>
+                            <td class="tk-actions-cell">
+                                @if (_canEdit)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditAsync(m)" aria-label="Editar" />
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</SectionCard>
+
+@code {
+    private List<Material> _items = [];
+    private string? _search;
+    private MaterialCategory? _category;
+    private bool _inactive;
+    private bool _loading = true;
+    private bool _canEdit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _items = await Materials.ListAsync(_search, _category, _inactive);
+        _loading = false;
+    }
+
+    private async Task OnCategoryChanged(MaterialCategory? category)
+    {
+        _category = category;
+        await LoadAsync();
+    }
+
+    private async Task OnInactiveChanged(bool value)
+    {
+        _inactive = value;
+        await LoadAsync();
+    }
+
+    private async Task EditAsync(Material? material)
+    {
+        var dialog = await Dialogs.ShowAsync<MaterialDialog>(material is null ? "Nuevo material" : "Editar material",
+            new DialogParameters { ["Model"] = material },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        await dialog.Result;
+        await LoadAsync();
+    }
+}

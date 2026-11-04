@@ -301,8 +301,9 @@ internal sealed partial class ExcelWorkbookParser
 
         if (pendingDates.Count > 0)
         {
+            var distinct = pendingDates.Distinct().ToList();
             _report.Issues.Add(new ImportIssue(ImportSeverity.Info, name, null, "FECHA DE INICIO / FECHA DE FINAL",
-                $"Fechas por definir en {pendingDates.Count} nodo(s): {string.Join(", ", pendingDates.Distinct())}. Quedan sin fecha."));
+                $"Fechas por definir en {distinct.Count} nodo(s): {string.Join(", ", distinct)}. Quedan sin fecha."));
         }
 
         if (totalRow is null)

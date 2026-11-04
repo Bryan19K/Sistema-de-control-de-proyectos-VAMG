@@ -1,0 +1,92 @@
+@using Tekcom.Gestion.Application.Import
+@using Tekcom.Gestion.Web.Services
+
+<div class="tk-kpi-grid">
+    <KpiCard Label="Nodos leídos" Value="@Report.NodeCodes.Count.ToString()" Note="@(Report.Counts.RowsSkipped > 0 ? $"{Report.Counts.RowsSkipped} fila(s) con error" : "sin filas con error")"
+             Tone="Report.Counts.RowsSkipped > 0 ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Success" />
+    <KpiCard Label="Errores" Value="@Report.Errors.ToString()" Note="@(Report.Errors == 0 ? "todo se puede importar" : "esas filas no se importan")"
+             Tone="Report.Errors == 0 ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Danger" />
+    <KpiCard Label="Advertencias" Value="@Report.Warnings.ToString()" Note="se importa, pero conviene revisar" Tone="Report.Warnings == 0 ? KpiCard.NoteTone.Neutral : KpiCard.NoteTone.Warning" />
+    <KpiCard Label="Totales que coinciden" Value="@($"{Report.TotalChecks.Count(c => c.Matches)} de {Report.TotalChecks.Count}")"
+             Note="contra la fila TOTAL del Excel" Tone="Report.TotalsMatch ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Danger" />
+</div>
+
+@if (Report.Applied)
+{
+    <SectionCard Title="Resultado de la importación" Class="mb-6">
+        <dl class="tk-kv">
+            <dt>Nodos creados</dt><dd>@Report.Counts.SitesCreated</dd>
+            <dt>Nodos ya existentes</dt><dd>@Report.Counts.SitesUpdated (solo se completó lo vacío)</dd>
+            <dt>Contratistas nuevos</dt><dd>@Report.Counts.ContractorsCreated</dd>
+            <dt>Supervisores nuevos</dt><dd>@Report.Counts.SupervisorsCreated</dd>
+            <dt>Materiales nuevos</dt><dd>@Report.Counts.MaterialsCreated</dd>
+            <dt>Versiones de proyección</dt><dd>@Report.Counts.ProjectionVersionsCreated</dd>
+            <dt>Movimientos de instalado</dt><dd>@Report.Counts.InstalledMovementsCreated</dd>
+            <dt>Líneas de feeder</dt><dd>@Report.Counts.FeederLinesSaved</dd>
+        </dl>
+    </SectionCard>
+}
+
+@if (Report.TotalChecks.Count > 0)
+{
+    <SectionCard Title="@(Report.Applied ? "Validación de totales (base de datos vs. Excel)" : "Validación de totales (lectura vs. Excel)")" Class="mb-6">
+        <div class="tk-table-wrap">
+            <table class="tk-table">
+                <thead><tr><th>Concepto</th><th>Excel</th><th>Sistema</th><th>Resultado</th></tr></thead>
+                <tbody>
+                    @foreach (var check in Report.TotalChecks)
+                    {
+                        <tr>
+                            <td>@check.Name</td>
+                            <td class="num">@UiText.Number(check.ExcelValue)</td>
+                            <td class="num">@UiText.Number(check.SystemValue)</td>
+                            <td>@if (check.Matches) { <StatusChip Status="StatusChip.Kind.Ok" Text="Coincide" /> } else { <StatusChip Status="StatusChip.Kind.Atrasado" Text="@($"Diferencia {UiText.Number(check.SystemValue - check.ExcelValue)}")" /> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </SectionCard>
+}
+
+<SectionCard Title="Pendientes y avisos" Class="mb-6">
+    @if (Report.Issues.Count == 0)
+    {
+        <EmptyState Title="Sin pendientes" Icon="@Icons.Material.Outlined.CheckCircle" Description="No se detectó ningún problema en el archivo." />
+    }
+    else
+    {
+        <div class="tk-table-wrap">
+            <table class="tk-table">
+                <thead><tr><th>Nivel</th><th>Hoja</th><th>Fila</th><th>Columna</th><th>Detalle</th></tr></thead>
+                <tbody>
+                    @foreach (var issue in Report.Issues.OrderByDescending(i => i.Severity).ThenBy(i => i.Row).Take(300))
+                    {
+                        <tr>
+                            <td>
+                                @switch (issue.Severity)
+                                {
+                                    case ImportSeverity.Error: <StatusChip Status="StatusChip.Kind.Atrasado" Text="Error" /> break;
+                                    case ImportSeverity.Warning: <StatusChip Status="StatusChip.Kind.Bajo" Text="Aviso" /> break;
+                                    default: <StatusChip Status="StatusChip.Kind.Dia" Text="Info" /> break;
+                                }
+                            </td>
+                            <td>@issue.Sheet</td>
+                            <td>@(issue.Row?.ToString() ?? "—")</td>
+                            <td>@(issue.Column ?? "—")</td>
+                            <td>@issue.Message</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Report.Issues.Count > 300)
+        {
+            <p class="tk-muted mt-2">Se muestran los primeros 300 de @Report.Issues.Count.</p>
+        }
+    }
+</SectionCard>
+
+@code {
+    [Parameter, EditorRequired] public ImportReport Report { get; set; } = default!;
+}

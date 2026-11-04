@@ -1,0 +1,151 @@
+@page "/importar"
+@attribute [Authorize(Roles = AppRoles.Admin)]
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Import
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Services
+@inject IExcelImportService Importer
+@inject IProjectService Projects
+@inject ProjectSelection Selection
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Importar Excel · TEK-COM</PageTitle>
+
+<PageHeader Title="Importar Excel" Subtitle="Carga el Excel de control (hojas AVANCE ODN y AVANCE FEEDER) sin duplicar lo que ya existe" />
+
+<SectionCard Title="1. Elija el archivo" Class="mb-6">
+    <p class="mb-3">
+        El sistema lee el archivo y le muestra un reporte <strong>antes de guardar nada</strong>. Las filas con error no se importan a la fuerza:
+        quedan listadas para que las corrija. Puede importar el mismo archivo otra vez sin duplicar datos.
+    </p>
+    <InputFile OnChange="OnFileAsync" accept=".xlsx" disabled="@_busy" />
+    @if (_busy)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mt-3" />
+    }
+    @if (_fileName is not null && !_busy)
+    {
+        <p class="mt-2 tk-muted">Archivo leído: @_fileName</p>
+    }
+</SectionCard>
+
+@if (_result is not null)
+{
+    <div class="tk-alert tk-alert--info mb-6">
+        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" />
+        <span><strong>Importación terminada.</strong> Revise el resultado y la validación de totales.</span>
+    </div>
+    <ImportReportView Report="_result" />
+    <div class="tk-toolbar">
+        <a href="nodos" class="tk-btn tk-btn--primary">Ver nodos y avance</a>
+        <a href="proyectos" class="tk-btn tk-btn--outline">Ver proyectos</a>
+    </div>
+}
+else if (_analysis is not null)
+{
+    <ImportReportView Report="_analysis.Report" />
+
+    <SectionCard Title="2. ¿Dónde se importa?" Class="mb-6">
+        <MudRadioGroup T="bool" @bind-Value="_useExisting">
+            <MudRadio T="bool" Value="false">Crear un proyecto nuevo con este Excel</MudRadio>
+            <MudRadio T="bool" Value="true" Disabled="_projects.Count == 0">Agregar a un proyecto existente</MudRadio>
+        </MudRadioGroup>
+
+        @if (_useExisting)
+        {
+            <MudSelect T="int" @bind-Value="_projectId" Label="Proyecto" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:420px" Class="mt-3">
+                @foreach (var p in _projects)
+                {
+                    <MudSelectItem T="int" Value="p.Id">@p.Name (@p.Code)</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        else
+        {
+            <div class="tk-toolbar mt-3">
+                <MudTextField @bind-Value="_newCode" Label="Código del proyecto" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:220px" />
+                <MudTextField @bind-Value="_newName" Label="Nombre del proyecto" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:360px" />
+            </div>
+        }
+
+        <div class="tk-toolbar mt-4">
+            <button type="button" class="tk-btn tk-btn--primary" @onclick="ApplyAsync" disabled="@(_busy || (_analysis.Report.NodeCodes.Count == 0 && _analysis.Workbook.Feeder is null))">
+                Importar @(_analysis.Report.NodeCodes.Count - _analysis.Report.Counts.RowsSkipped) nodos
+            </button>
+            <span class="tk-muted">No se borra nada: lo ya registrado se conserva y solo se agrega lo que falta.</span>
+        </div>
+    </SectionCard>
+}
+
+@code {
+    private ImportAnalysis? _analysis;
+    private ImportReport? _result;
+    private string? _fileName;
+    private bool _busy;
+    private List<Project> _projects = [];
+    private bool _useExisting;
+    private int _projectId;
+    private string? _newCode;
+    private string? _newName;
+
+    protected override async Task OnInitializedAsync() => _projects = await Projects.ListAsync();
+
+    private async Task OnFileAsync(InputFileChangeEventArgs args)
+    {
+        _result = null;
+        _analysis = null;
+        var file = args.File;
+        if (!file.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            Snackbar.Add("Seleccione un archivo Excel (.xlsx).", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await using var stream = file.OpenReadStream(maxAllowedSize: 25 * 1024 * 1024);
+            _analysis = await Importer.AnalyzeAsync(stream, file.Name);
+            _fileName = file.Name;
+            _newCode = _analysis.Report.SuggestedProjectCode;
+            _newName = _analysis.Report.SuggestedProjectName;
+            _projectId = Selection.CurrentId ?? _projects.FirstOrDefault()?.Id ?? 0;
+            _useExisting = false;
+        }
+        catch (IOException)
+        {
+            Snackbar.Add("No se pudo leer el archivo. Verifique que no supere 25 MB.", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        if (_analysis is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var target = _useExisting ? new ImportTarget(_projectId, null, null) : new ImportTarget(null, _newCode, _newName);
+            _result = await Importer.ApplyAsync(_analysis, target);
+            _projects = await Projects.ListAsync();
+            Snackbar.Add("Importación terminada.", Severity.Success);
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

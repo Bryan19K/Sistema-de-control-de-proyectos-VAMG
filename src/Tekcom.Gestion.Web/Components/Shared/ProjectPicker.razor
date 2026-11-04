@@ -1,0 +1,30 @@
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Services
+@inject ProjectSelection Selection
+
+<div class="tk-project-picker">
+    <span class="tk-project-picker__label">Proyecto</span>
+    <MudSelect T="int" Value="Value" ValueChanged="OnChanged" Variant="Variant.Outlined" Margin="Margin.Dense"
+               Dense="true" Style="min-width:280px" aria-label="Proyecto">
+        @foreach (var project in _projects)
+        {
+            <MudSelectItem T="int" Value="project.Id">@project.Name</MudSelectItem>
+        }
+    </MudSelect>
+</div>
+
+@code {
+    private List<Project> _projects = [];
+
+    [Parameter] public int Value { get; set; }
+    [Parameter] public EventCallback<int> Changed { get; set; }
+
+    protected override async Task OnInitializedAsync() => _projects = await Selection.ListAsync();
+
+    private async Task OnChanged(int id)
+    {
+        Selection.Select(id);
+        Value = id;
+        await Changed.InvokeAsync(id);
+    }
+}

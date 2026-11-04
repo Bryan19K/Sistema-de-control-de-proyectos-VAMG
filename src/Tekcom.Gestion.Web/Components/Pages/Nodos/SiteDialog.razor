@@ -1,0 +1,78 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject ISiteService Sites
+@inject IReferenceDataService Reference
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_model.Code" Label="Código del nodo" Required="true" Placeholder="SON19" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="8"><MudTextField @bind-Value="_model.Zone" Label="Zona o sitio" Placeholder="SONSONATE" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int?" @bind-Value="_model.ContractorId" Label="Brigada / contratista" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var c in _contractors)
+                    {
+                        <MudSelectItem T="int?" Value="c.Id">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int?" @bind-Value="_model.SupervisorId" Label="Supervisor responsable" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var s in _supervisors)
+                    {
+                        <MudSelectItem T="int?" Value="s.Id">@s.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Fecha de inicio" @bind-Value="_model.PlannedStart" /></MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Fecha final" @bind-Value="_model.PlannedEnd" /></MudItem>
+            <MudItem xs="12" sm="6"><MudNumericField T="double?" @bind-Value="_model.Latitude" Label="Latitud" Format="0.######" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudNumericField T="double?" @bind-Value="_model.Longitude" Label="Longitud" Format="0.######" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_model.Notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public Site? Model { get; set; }
+
+    private Site _model = new();
+    private List<Contractor> _contractors = [];
+    private List<Supervisor> _supervisors = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _contractors = await Reference.ContractorsAsync();
+        _supervisors = await Reference.SupervisorsAsync();
+        _model = Model is null
+            ? new Site { ProjectId = ProjectId }
+            : new Site
+            {
+                Id = Model.Id, ProjectId = Model.ProjectId, Code = Model.Code, Zone = Model.Zone,
+                Latitude = Model.Latitude, Longitude = Model.Longitude, ContractorId = Model.ContractorId,
+                SupervisorId = Model.SupervisorId, PlannedStart = Model.PlannedStart, PlannedEnd = Model.PlannedEnd,
+                ActualStart = Model.ActualStart, ActualEnd = Model.ActualEnd, Notes = Model.Notes,
+            };
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var saved = await Sites.SaveAsync(_model);
+            MudDialog.Close(DialogResult.Ok(saved.Id));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

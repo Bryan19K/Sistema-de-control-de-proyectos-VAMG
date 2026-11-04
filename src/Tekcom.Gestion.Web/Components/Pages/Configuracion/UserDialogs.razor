@@ -1,0 +1,101 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Identity
+@using Tekcom.Gestion.Web.Services
+@inject IUserAdminService Users
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            @if (Mode == DialogMode.Create)
+            {
+                <MudTextField @bind-Value="_email" Label="Correo electrónico (usuario)" Required="true" InputType="InputType.Email" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="_fullName" Label="Nombre completo" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            }
+            else
+            {
+                <MudText Typo="Typo.body2">Usuario: <strong>@Email</strong></MudText>
+            }
+
+            @if (Mode is DialogMode.Create or DialogMode.Password)
+            {
+                <MudTextField @bind-Value="_password" Label="@(Mode == DialogMode.Create ? "Contraseña inicial" : "Nueva contraseña")" InputType="InputType.Password"
+                              HelperText="Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo." Variant="Variant.Outlined" Margin="Margin.Dense" />
+            }
+
+            @if (Mode is DialogMode.Create or DialogMode.Roles)
+            {
+                <MudText Typo="Typo.subtitle2">Roles</MudText>
+                @foreach (var role in AppRoles.All)
+                {
+                    var local = role;
+                    <MudCheckBox T="bool" Value="_roles.Contains(local)" ValueChanged="v => ToggleRole(local, v)" Label="@UiText.RoleName(local)" Size="Size.Small" />
+                }
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    public enum DialogMode { Create, Roles, Password }
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public DialogMode Mode { get; set; }
+    [Parameter] public string? UserId { get; set; }
+    [Parameter] public string? Email { get; set; }
+    [Parameter] public IEnumerable<string>? CurrentRoles { get; set; }
+
+    private string? _email;
+    private string? _fullName;
+    private string? _password;
+    private readonly HashSet<string> _roles = [];
+
+    protected override void OnInitialized()
+    {
+        foreach (var role in CurrentRoles ?? [])
+        {
+            _roles.Add(role);
+        }
+
+        if (Mode == DialogMode.Create && _roles.Count == 0)
+        {
+            _roles.Add(AppRoles.Admin);
+        }
+    }
+
+    private void ToggleRole(string role, bool value)
+    {
+        if (value) { _roles.Add(role); } else { _roles.Remove(role); }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            switch (Mode)
+            {
+                case DialogMode.Create:
+                    await Users.CreateAsync(_email ?? string.Empty, _fullName ?? string.Empty, _password ?? string.Empty, _roles);
+                    break;
+                case DialogMode.Roles:
+                    await Users.SetRolesAsync(UserId!, _roles);
+                    break;
+                case DialogMode.Password:
+                    await Users.ResetPasswordAsync(UserId!, _password ?? string.Empty);
+                    Snackbar.Add("La contraseña se cambió.", Severity.Success);
+                    break;
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

@@ -1,0 +1,263 @@
+@page "/nodos/{Id:int}"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject ISiteService Sites
+@inject IQuantityService Quantities
+@inject IProjectService Projects
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ProjectSelection Selection
+@inject UserAccess Access
+
+<PageTitle>Nodo @(_summary?.Site.Code) · TEK-COM</PageTitle>
+
+@if (_summary is null)
+{
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else
+    {
+        <EmptyState Title="El nodo no existe" Icon="@Icons.Material.Outlined.SearchOff">
+            <a href="nodos" class="tk-btn tk-btn--outline mt-4">Volver a nodos</a>
+        </EmptyState>
+    }
+}
+else
+{
+    var site = _summary.Site;
+    <PageHeader Title="@($"Nodo {site.Code}")"
+                Subtitle="@($"{_project?.Name} · {site.Zone ?? "Sin zona"} · {site.Contractor?.Name ?? "Sin brigada"} · Supervisor: {site.Supervisor?.Name ?? "—"}")">
+        <Actions>
+            <a href="nodos" class="tk-btn tk-btn--outline">Todos los nodos</a>
+            @if (site.MapUrl is not null)
+            {
+                <a href="@site.MapUrl" target="_blank" rel="noopener" class="tk-btn tk-btn--outline">Ver en el mapa</a>
+            }
+            @if (_canEdit)
+            {
+                <button type="button" class="tk-btn tk-btn--primary" @onclick="EditAsync">Editar nodo</button>
+            }
+        </Actions>
+    </PageHeader>
+
+    <div class="tk-kpi-grid">
+        <KpiCard Label="Avance del nodo" Value="@($"{_summary.ProgressPercent:0.#}%")" Note="ponderado por días de cada etapa" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Tiempo transcurrido" Value="@($"{_summary.Pace.ElapsedPercent:0.#}%")"
+                 Note="@($"{UiText.Date(site.PlannedStart)} – {UiText.Date(site.PlannedEnd)}")" />
+        <KpiCard Label="Avance de FATs" Value="@($"{_summary.FatPercent:0.#}%")"
+                 Note="@(_summary.ReadyToMeasure ? "Listo para medir" : $"Se mide con {_project?.ReadyToMeasurePercent}%")"
+                 Tone="_summary.ReadyToMeasure ? KpiCard.NoteTone.Warning : KpiCard.NoteTone.Neutral" />
+        <KpiCard Label="Entrega al cliente" Value="@(site.IsReadyToDeliver ? "Listo" : "Pendiente")"
+                 Note="ODN y feeder finalizados" Tone="site.IsReadyToDeliver ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Neutral" />
+    </div>
+
+    <div class="tk-dash-grid">
+        <SectionCard Title="Etapas del nodo">
+            <HeaderActions><PaceChip Pace="_summary.Pace" /></HeaderActions>
+            <ChildContent>
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead><tr><th>Etapa</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Notas</th></tr></thead>
+                        <tbody>
+                            @foreach (var stage in _stages)
+                            {
+                                var local = stage;
+                                <tr>
+                                    <td>@local.Definition?.Name</td>
+                                    <td>
+                                        @if (_canEdit)
+                                        {
+                                            <MudSelect T="StageStatus" Value="local.Status" ValueChanged="status => SetStageAsync(local, status)"
+                                                       Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="tk-inline-select">
+                                                @foreach (var option in OptionsFor(local.Code))
+                                                {
+                                                    <MudSelectItem T="StageStatus" Value="option">@UiText.StageStatusName(option)</MudSelectItem>
+                                                }
+                                            </MudSelect>
+                                        }
+                                        else
+                                        {
+                                            <StatusChip Status="UiText.StageStatusKind(local.Status)" Text="@UiText.StageStatusName(local.Status)" />
+                                        }
+                                    </td>
+                                    <td>@UiText.Date(local.ActualStart)</td>
+                                    <td>@UiText.Date(local.ActualEnd)</td>
+                                    <td>
+                                        @if (_canEdit)
+                                        {
+                                            <MudTextField T="string" Value="local.Notes" ValueChanged="text => SaveNotesAsync(local, text)"
+                                                          Placeholder="Notas" Variant="Variant.Text" Margin="Margin.Dense" Style="min-width:160px" />
+                                        }
+                                        else
+                                        {
+                                            <span>@local.Notes</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </ChildContent>
+        </SectionCard>
+
+        <SectionCard Title="Control del nodo">
+            <div class="tk-flag">
+                <div>
+                    <div class="tk-flag__label">Supervisión de CAES</div>
+                    <div class="tk-flag__help">Solo informativa: no afecta el flujo.</div>
+                </div>
+                <MudSwitch T="bool" Value="site.CaesSupervised" ValueChanged="SetCaesAsync" Disabled="!_canEdit" Color="Color.Primary" />
+            </div>
+            <div class="tk-flag">
+                <div>
+                    <div class="tk-flag__label">ODN finalizada</div>
+                    <div class="tk-flag__help">Se marca a mano cuando están puestos los cruces americanos.@(site.OdnFinalizedOn is null ? "" : $" Desde {UiText.Date(site.OdnFinalizedOn)}.")</div>
+                </div>
+                <MudSwitch T="bool" Value="site.OdnFinalized" ValueChanged="SetOdnAsync" Disabled="!_canEdit" Color="Color.Success" />
+            </div>
+            <div class="tk-flag">
+                <div>
+                    <div class="tk-flag__label">Feeder en este nodo</div>
+                    <div class="tk-flag__help">¿Ya pasó el feeder (troncal) por la construcción de la ODN?</div>
+                </div>
+                <MudSelect T="FeederStatus" Value="site.FeederStatus" ValueChanged="SetFeederAsync" Disabled="!_canEdit"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Style="max-width:170px">
+                    @foreach (var option in Enum.GetValues<FeederStatus>())
+                    {
+                        <MudSelectItem T="FeederStatus" Value="option">@UiText.FeederStatusName(option)</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+            <div class="tk-flag">
+                <div>
+                    <div class="tk-flag__label">Bitácora del supervisor</div>
+                    <div class="tk-flag__help">@(site.LogsUpToDate ? $"Actualizada{(site.LogsUpdatedOn is null ? "" : $" el {UiText.Date(site.LogsUpdatedOn)}")}" : "Hay información por actualizar")</div>
+                </div>
+                <MudSwitch T="bool" Value="site.LogsUpToDate" ValueChanged="SetLogsAsync" Disabled="!_canEdit" Color="Color.Primary" />
+            </div>
+            @if (!string.IsNullOrWhiteSpace(site.Notes))
+            {
+                <div class="tk-flag"><div><div class="tk-flag__label">Notas</div><div class="tk-flag__help">@site.Notes</div></div></div>
+            }
+        </SectionCard>
+    </div>
+
+    <SectionCard Title="Cantidades por material" Class="mt-6">
+        @if (_materials.Count == 0)
+        {
+            <EmptyState Title="Sin cantidades registradas" Icon="@Icons.Material.Outlined.Inventory2"
+                        Description="Importe el Excel de control o cargue la proyección de diseño para ver lo proyectado e instalado de este nodo." />
+        }
+        else
+        {
+            <div class="tk-table-wrap">
+                <table class="tk-table">
+                    <thead>
+                        <tr><th>Material</th><th>UM</th><th>Proyectado (diseño)</th><th>Ajustes</th><th>Proyectado vigente</th><th>Instalado</th><th>Pendiente</th><th>Variación</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var group in _materials.GroupBy(m => m.Material.Category))
+                        {
+                            <tr><td colspan="8" class="strong" style="background:#fafbfd">@UiText.CategoryName(group.Key)</td></tr>
+                            @foreach (var m in group)
+                            {
+                                <tr>
+                                    <td>@m.Material.Name</td>
+                                    <td>@m.Material.Unit</td>
+                                    <td class="num">@UiText.Number(m.DesignProjected)</td>
+                                    <td class="num @(m.Adjustments != 0 ? "text-warning" : "")">@(m.Adjustments > 0 ? "+" : "")@UiText.Number(m.Adjustments)</td>
+                                    <td class="num strong">@UiText.Number(m.Projected)</td>
+                                    <td class="num">@UiText.Number(m.Installed)</td>
+                                    <td class="num @(m.Projected - m.Installed > 0 ? "text-danger" : "")">@(m.Projected == 0 ? "—" : UiText.Number(m.Projected - m.Installed))</td>
+                                    <td class="num @(m.Projected == 0 ? "muted" : m.Variation > 0 ? "text-danger" : m.Variation < 0 ? "text-success" : "")">
+                                        @(m.Projected == 0 ? "—" : $"{(m.Variation > 0 ? "+" : "")}{m.VariationPercent:0.#}%")
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </SectionCard>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private SiteSummary? _summary;
+    private Project? _project;
+    private List<SiteStage> _stages = [];
+    private List<MaterialQuantity> _materials = [];
+    private bool _loading = true;
+    private bool _canEdit;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _stages = await Sites.StagesAsync(Id);
+        _summary = await Sites.GetSummaryAsync(Id);
+        if (_summary is not null)
+        {
+            _project = await Projects.GetAsync(_summary.Site.ProjectId);
+            Selection.Select(_summary.Site.ProjectId);
+            _materials = await Quantities.GetSiteMaterialsAsync(Id);
+        }
+
+        _loading = false;
+    }
+
+    private static IEnumerable<StageStatus> OptionsFor(StageCode code) =>
+        code == StageCode.Corrections
+            ? [StageStatus.Pending, StageStatus.InProgress, StageStatus.InCorrection, StageStatus.Finished, StageStatus.NotApplicable]
+            : [StageStatus.Pending, StageStatus.InProgress, StageStatus.Finished];
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            await LoadAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private Task SetStageAsync(SiteStage stage, StageStatus status) =>
+        RunAsync(() => Sites.SetStageAsync(Id, stage.Code, status, null, null));
+
+    private Task SaveNotesAsync(SiteStage stage, string? text) =>
+        RunAsync(() => Sites.SetStageAsync(Id, stage.Code, stage.Status, null, text));
+
+    private Task SetCaesAsync(bool value) => RunAsync(() => Sites.SetCaesAsync(Id, value));
+    private Task SetOdnAsync(bool value) => RunAsync(() => Sites.SetOdnFinalizedAsync(Id, value));
+    private Task SetFeederAsync(FeederStatus value) => RunAsync(() => Sites.SetFeederStatusAsync(Id, value));
+    private Task SetLogsAsync(bool value) => RunAsync(() => Sites.SetLogsUpToDateAsync(Id, value));
+
+    private async Task EditAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<SiteDialog>("Editar nodo",
+            new DialogParameters { ["ProjectId"] = _summary!.Site.ProjectId, ["Model"] = _summary.Site },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+}

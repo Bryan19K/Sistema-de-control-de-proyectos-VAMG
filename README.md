@@ -87,6 +87,11 @@ El repositorio trae un Dev Container con .NET 10 y SQL Server listos. Pasos en
    administrador. Abrir la URL que muestra la consola (por defecto `https://localhost:7246`)
    e iniciar sesión con el correo y contraseña configurados.
 
+   **Sin SQL Server (solo para probar):** se puede usar SQLite con
+   `dotnet user-secrets set "Database:Provider" "Sqlite"` y
+   `dotnet user-secrets set "ConnectionStrings:DefaultConnection" "DataSource=tekcom.db"`.
+   En producción siempre se usa SQL Server con migraciones.
+
 4. **Compilar y probar**
 
    ```bash

@@ -746,3 +746,36 @@ code {
 }
 
 #blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 0.75rem; top: 0.5rem; }
+
+/* ---------- Selector de proyecto y puntos de etapas ---------- */
+.tk-project-picker { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.tk-project-picker__label { color: var(--tk-text-2); font-weight: 500; }
+
+.tk-dots { display: inline-flex; gap: 4px; flex-wrap: wrap; max-width: 150px; }
+.tk-dot { width: 14px; height: 14px; border-radius: 4px; background: #dfe5ec; display: inline-block; }
+.tk-dot--finished { background: #1e9e55; }
+.tk-dot--inprogress { background: #2f6fe0; }
+.tk-dot--incorrection { background: #e0a21a; }
+.tk-dot--notapplicable { background: #c3cbd5; opacity: 0.5; }
+
+.tk-row-link { color: var(--tk-navy); font-weight: 600; text-decoration: none; }
+.tk-row-link:hover { text-decoration: underline; }
+.tk-actions-cell { white-space: nowrap; text-align: right; }
+.tk-muted { color: var(--tk-text-3); }
+.tk-inline-select { min-width: 150px; }
+.tk-toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+.tk-toolbar .grow { flex: 1; }
+.tk-flag { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--tk-line); }
+.tk-flag:last-child { border-bottom: none; }
+.tk-flag__label { font-weight: 600; color: var(--tk-text); }
+.tk-flag__help { color: var(--tk-text-2); font-size: 0.85rem; }
+.tk-bar-cell { min-width: 170px; }
+.tk-table tr.tk-row-click { cursor: pointer; }
+.tk-table tr.tk-row-click:hover td { background: #f8fafc; }
+.tk-kv { display: grid; grid-template-columns: 170px 1fr; gap: 8px 16px; font-size: 0.97rem; }
+.tk-kv dt { color: var(--tk-text-2); }
+.tk-kv dd { margin: 0; font-weight: 500; }
+.tk-code-sm { font-size: 0.8rem; }
+
+.tk-table--compact th, .tk-table--compact td { padding: 10px 8px; font-size: 0.92rem; }
+.tk-table .nowrap, .nowrap { white-space: nowrap; }

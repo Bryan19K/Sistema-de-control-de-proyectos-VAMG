@@ -72,3 +72,20 @@ public interface IUserAdminService
     Task ResetPasswordAsync(string userId, string newPassword, CancellationToken ct = default);
     Task SetLockedAsync(string userId, bool locked, string currentUserId, CancellationToken ct = default);
 }
+
+public sealed record FeederProgress(FeederLine Line, decimal Installed)
+{
+    public decimal Planned => Line.PlannedQuantity;
+    public decimal Pending => Planned - Installed;
+    public decimal Percent => Planned <= 0 ? 0 : Math.Round(Installed / Planned * 100m, 1);
+}
+
+public interface IFeederService
+{
+    /// <summary>Feeder global del proyecto: metros por tipo de fibra, cierres y ODF.</summary>
+    Task<List<FeederProgress>> GetAsync(int projectId, CancellationToken ct = default);
+
+    Task SavePlannedAsync(int projectId, FeederItemKind kind, decimal planned, CancellationToken ct = default);
+
+    Task AddEntryAsync(int projectId, FeederItemKind kind, DateOnly date, decimal quantity, string? notes, CancellationToken ct = default);
+}

@@ -1,0 +1,169 @@
+@page "/nodos"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject ISiteService Sites
+@inject IProjectService Projects
+@inject IReferenceDataService Reference
+@inject ProjectSelection Selection
+@inject IDialogService Dialogs
+@inject NavigationManager Navigation
+@inject UserAccess Access
+
+<PageTitle>Nodos y avance · TEK-COM</PageTitle>
+
+<PageHeader Title="Nodos y avance" Subtitle="Avance por nodo, etapas del flujo y estado del feeder">
+    <Actions>
+        <a href="importar" class="tk-btn tk-btn--outline">Importar Excel</a>
+        @if (_canEdit && _projectId > 0)
+        {
+            <button type="button" class="tk-btn tk-btn--primary" @onclick="NewAsync">+ Nuevo nodo</button>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_projectId == 0)
+{
+    <SectionCard>
+        <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.FolderOpen"
+                    Description="Cree un proyecto o impórtelo desde el Excel de control para ver sus nodos.">
+            <a href="proyectos" class="tk-btn tk-btn--outline mt-4">Ir a proyectos</a>
+        </EmptyState>
+    </SectionCard>
+}
+else
+{
+    <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
+
+    <div class="tk-kpi-grid">
+        <KpiCard Label="Nodos" Value="@_all.Count.ToString()" Note="@($"{_all.Count(s => s.Pace.Status == PaceStatus.Behind)} atrasados")"
+                 Tone="_all.Any(s => s.Pace.Status == PaceStatus.Behind) ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Neutral" />
+        <KpiCard Label="ODN finalizadas" Value="@_all.Count(s => s.Site.OdnFinalized).ToString()" Note="@($"de {_all.Count}")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Listos para entregar" Value="@_all.Count(s => s.Site.IsReadyToDeliver).ToString()" Note="ODN y feeder finalizados" Tone="KpiCard.NoteTone.Success" />
+        <KpiCard Label="Listos para medir" Value="@_all.Count(s => s.ReadyToMeasure).ToString()" Note="@($"{_all.Count(s => !s.Site.LogsUpToDate && s.Stages.Values.Any(v => v != StageStatus.Pending))} con bitácora por actualizar")" Tone="KpiCard.NoteTone.Warning" />
+    </div>
+
+    <div class="tk-toolbar">
+        <MudTextField @bind-Value="_search" Immediate="true" Placeholder="Buscar nodo, brigada o supervisor"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:320px" />
+        <MudSwitch T="bool" @bind-Value="_onlyBehind" Label="Solo atrasados" Color="Color.Primary" />
+    </div>
+
+    <SectionCard>
+        @if (Filtered.Count == 0)
+        {
+            <EmptyState Title="No hay nodos para mostrar" Icon="@Icons.Material.Outlined.CellTower"
+                        Description="Cree un nodo nuevo o cambie el filtro." />
+        }
+        else
+        {
+            <div class="tk-table-wrap">
+                <table class="tk-table tk-table--compact">
+                    <thead>
+                        <tr><th>Nodo</th><th>Brigada / supervisor</th><th>Plan</th><th>Etapas</th><th>Avance vs. tiempo</th><th>Ritmo</th><th>ODN</th><th>Feeder</th><th>Estado</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in Filtered)
+                        {
+                            <tr class="tk-row-click" @onclick='() => Navigation.NavigateTo($"nodos/{s.Site.Id}")'>
+                                <td><a class="tk-row-link" href="nodos/@s.Site.Id">@s.Site.Code</a></td>
+                                <td>
+                                    <div>@(s.Site.Contractor?.Name ?? "—")</div>
+                                    <div class="tk-muted tk-code-sm">@(s.Site.Supervisor?.Name ?? "Sin supervisor")</div>
+                                </td>
+                                <td class="nowrap">@UiText.ShortDate(s.Site.PlannedStart)<br /><span class="tk-muted">@UiText.ShortDate(s.Site.PlannedEnd)</span></td>
+                                <td>
+                                    <span class="tk-dots">
+                                        @foreach (var def in _definitions)
+                                        {
+                                            var status = s.Stages.GetValueOrDefault(def.Code);
+                                            <span class="tk-dot tk-dot--@status.ToString().ToLowerInvariant()" title="@def.Name: @UiText.StageStatusName(status)"></span>
+                                        }
+                                    </span>
+                                </td>
+                                <td class="tk-bar-cell"><PaceBar Progress="(int)Math.Round(s.ProgressPercent)" Elapsed="(int)Math.Round(s.Pace.ElapsedPercent)" /></td>
+                                <td><PaceChip Pace="s.Pace" /></td>
+                                <td>@if (s.Site.OdnFinalized) { <StatusChip Status="StatusChip.Kind.Ok" Text="Finalizada" /> } else { <StatusChip Status="StatusChip.Kind.Neutral" Text="Pendiente" /> }</td>
+                                <td><StatusChip Status="UiText.FeederStatusKind(s.Site.FeederStatus)" Text="@UiText.FeederStatusName(s.Site.FeederStatus)" /></td>
+                                <td>
+                                    @if (s.Site.IsReadyToDeliver)
+                                    {
+                                        <StatusChip Status="StatusChip.Kind.Ok" Text="Listo para entregar" />
+                                    }
+                                    else if (s.ReadyToMeasure)
+                                    {
+                                        <StatusChip Status="StatusChip.Kind.Bajo" Text="Listo para medir" />
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </SectionCard>
+}
+
+@code {
+    private List<SiteSummary> _all = [];
+    private List<StageDefinition> _definitions = [];
+    private int _projectId;
+    private bool _loading = true;
+    private bool _canEdit;
+    private string? _search;
+    private bool _onlyBehind;
+
+    private List<SiteSummary> Filtered => _all
+        .Where(s => !_onlyBehind || s.Pace.Status == PaceStatus.Behind)
+        .Where(s => string.IsNullOrWhiteSpace(_search)
+            || s.Site.Code.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (s.Site.Contractor?.Name ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (s.Site.Supervisor?.Name ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        await LoadAsync();
+    }
+
+    private async Task OnProjectChanged(int id)
+    {
+        _projectId = id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        if (_projectId > 0)
+        {
+            var project = await Projects.GetAsync(_projectId);
+            _all = await Sites.ListAsync(_projectId);
+            _definitions = project is null ? [] : (await Reference.StageDefinitionsAsync(project.ProjectTypeId)).Where(d => d.CountsForProgress).ToList();
+        }
+
+        _loading = false;
+    }
+
+    private async Task NewAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<SiteDialog>("Nuevo nodo",
+            new DialogParameters { ["ProjectId"] = _projectId },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: int id })
+        {
+            Navigation.NavigateTo($"nodos/{id}");
+        }
+    }
+}

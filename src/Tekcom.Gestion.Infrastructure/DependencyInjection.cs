@@ -55,6 +55,7 @@ public static class DependencyInjection
         services.AddScoped<ISiteService, SiteService>();
         services.AddScoped<IMaterialService, MaterialService>();
         services.AddScoped<IUserAdminService, UserAdminService>();
+        services.AddScoped<IFeederService, FeederService>();
         services.AddScoped<IExcelImportService, Import.ExcelImportService>();
 
         services.Configure<SeedAdminOptions>(configuration.GetSection(SeedAdminOptions.SectionName));

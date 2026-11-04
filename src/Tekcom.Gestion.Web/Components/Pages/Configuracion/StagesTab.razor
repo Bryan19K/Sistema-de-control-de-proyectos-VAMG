@@ -1,0 +1,82 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Services
+@inject IReferenceDataService Reference
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.body2" Class="mb-3 tk-muted">
+    El avance de cada nodo se pondera por los <strong>días planificados</strong> de sus etapas: una etapa que tarda más pesa más.
+    Los días que ve aquí son valores iniciales (1 día por etapa); ajústelos a la duración real de su operación.
+    Las etapas informativas no cuentan para el avance.
+</MudText>
+
+<div class="tk-toolbar">
+    <MudSelect T="int" Value="_typeId" ValueChanged="OnTypeChanged" Label="Tipo de proyecto" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:280px">
+        @foreach (var type in _types)
+        {
+            <MudSelectItem T="int" Value="type.Id">@type.Name</MudSelectItem>
+        }
+    </MudSelect>
+</div>
+
+@if (_stages.Count == 0)
+{
+    <EmptyState Title="Este tipo de proyecto no tiene etapas" Icon="@Icons.Material.Outlined.Timeline"
+                Description="Los proyectos generales no usan etapas por nodo." />
+}
+else
+{
+    <div class="tk-table-wrap">
+        <table class="tk-table">
+            <thead><tr><th>#</th><th>Etapa</th><th>Días planificados</th><th>Cuenta para el avance</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var s in _stages)
+                {
+                    var stage = s;
+                    <tr>
+                        <td class="muted">@stage.SortOrder</td>
+                        <td><MudTextField @bind-Value="stage.Name" Variant="Variant.Text" Margin="Margin.Dense" Style="min-width:260px" /></td>
+                        <td><MudNumericField T="decimal" @bind-Value="stage.PlannedDays" Min="0" Variant="Variant.Text" Margin="Margin.Dense" Style="max-width:110px" /></td>
+                        <td><MudCheckBox T="bool" @bind-Value="stage.CountsForProgress" /></td>
+                        <td class="tk-actions-cell"><MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => SaveAsync(stage)">Guardar</MudButton></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<ProjectType> _types = [];
+    private List<StageDefinition> _stages = [];
+    private int _typeId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _types = await Reference.ProjectTypesAsync();
+        _typeId = _types.FirstOrDefault(t => t.Code == "FTTH")?.Id ?? _types.FirstOrDefault()?.Id ?? 0;
+        await LoadAsync();
+    }
+
+    private async Task OnTypeChanged(int id)
+    {
+        _typeId = id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _stages = _typeId == 0 ? [] : await Reference.StageDefinitionsAsync(_typeId);
+
+    private async Task SaveAsync(StageDefinition stage)
+    {
+        try
+        {
+            await Reference.SaveStageDefinitionAsync(stage);
+            Snackbar.Add($"Etapa '{stage.Name}' guardada.", Severity.Success);
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

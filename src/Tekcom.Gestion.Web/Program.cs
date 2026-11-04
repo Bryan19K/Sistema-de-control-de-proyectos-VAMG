@@ -30,6 +30,8 @@ builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<ProjectSelection>();
+builder.Services.AddScoped<UserAccess>();
 
 builder.Services.AddAuthentication(options =>
     {

@@ -1,0 +1,130 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IProjectService Projects
+@inject IReferenceDataService Reference
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4"><MudTextField @bind-Value="_model.Code" Label="Código" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="8"><MudTextField @bind-Value="_model.Name" Label="Nombre del proyecto" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudAutocomplete T="string" @bind-Value="_clientName" Label="Cliente" SearchFunc="SearchClients"
+                                     CoerceValue="true" CoerceText="false" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int" @bind-Value="_model.ProjectTypeId" Label="Tipo de proyecto" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var type in _types)
+                        {
+                            <MudSelectItem T="int" Value="type.Id">@type.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="ProjectStatus" @bind-Value="_model.Status" Label="Estado" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var status in Enum.GetValues<ProjectStatus>())
+                        {
+                            <MudSelectItem T="ProjectStatus" Value="status">@UiText.ProjectStatusName(status)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.ResponsibleName" Label="Responsable" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="6"><DatePick Label="Inicio planificado" @bind-Value="_model.PlannedStart" /></MudItem>
+                <MudItem xs="12" sm="6"><DatePick Label="Fin planificado" @bind-Value="_model.PlannedEnd" /></MudItem>
+                <MudItem xs="12" sm="6"><DatePick Label="Inicio real" @bind-Value="_model.ActualStart" /></MudItem>
+                <MudItem xs="12" sm="6"><DatePick Label="Fin real" @bind-Value="_model.ActualEnd" /></MudItem>
+            </MudGrid>
+
+            <MudText Typo="Typo.subtitle2" Class="mt-2">Reglas del proyecto</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="int" @bind-Value="_model.PaceMarginPercent" Label="Margen del ritmo (puntos %)" Min="0" Max="50"
+                                     HelperText="Dentro de ± este margen el proyecto está 'En tiempo'." Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="int" @bind-Value="_model.ReadyToMeasurePercent" Label="% de FATs para medir" Min="1" Max="100"
+                                     HelperText="Con este % de FATs instaladas el nodo queda listo para medir." Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal?" @bind-Value="_model.MinAcceptableDbm" Label="Potencia mínima aceptable (dBm)"
+                                     HelperText="Opcional. Si define mínimo y máximo, las mediciones se califican solas." Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal?" @bind-Value="_model.MaxAcceptableDbm" Label="Potencia máxima aceptable (dBm)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+
+            <MudTextField @bind-Value="_model.Description" Label="Descripción" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_saving">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Project? Model { get; set; }
+
+    private Project _model = new();
+    private List<ProjectType> _types = [];
+    private List<Client> _clients = [];
+    private string? _clientName;
+    private bool _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _types = await Reference.ProjectTypesAsync();
+        _clients = await Reference.ClientsAsync();
+
+        if (Model is not null)
+        {
+            _model = new Project
+            {
+                Id = Model.Id, Code = Model.Code, Name = Model.Name, Description = Model.Description,
+                ClientId = Model.ClientId, ProjectTypeId = Model.ProjectTypeId, Status = Model.Status,
+                PlannedStart = Model.PlannedStart, PlannedEnd = Model.PlannedEnd,
+                ActualStart = Model.ActualStart, ActualEnd = Model.ActualEnd,
+                ResponsibleName = Model.ResponsibleName, PaceMarginPercent = Model.PaceMarginPercent,
+                ReadyToMeasurePercent = Model.ReadyToMeasurePercent,
+                MinAcceptableDbm = Model.MinAcceptableDbm, MaxAcceptableDbm = Model.MaxAcceptableDbm,
+            };
+            _clientName = Model.Client?.Name;
+        }
+        else
+        {
+            _model.ProjectTypeId = _types.FirstOrDefault(t => t.Code == "FTTH")?.Id ?? _types.FirstOrDefault()?.Id ?? 0;
+        }
+    }
+
+    private Task<IEnumerable<string>> SearchClients(string? text, CancellationToken ct) =>
+        Task.FromResult(_clients.Select(c => c.Name)
+            .Where(n => string.IsNullOrWhiteSpace(text) || n.Contains(text, StringComparison.OrdinalIgnoreCase)));
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            _model.ClientId = string.IsNullOrWhiteSpace(_clientName) ? null : (await Reference.GetOrCreateClientAsync(_clientName)).Id;
+            var saved = await Projects.SaveAsync(_model);
+            MudDialog.Close(DialogResult.Ok(saved.Id));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

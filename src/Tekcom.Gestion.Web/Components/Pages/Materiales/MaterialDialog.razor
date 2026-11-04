@@ -1,0 +1,145 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IMaterialService Materials
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="8"><MudTextField @bind-Value="_model.Name" Label="Nombre" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_model.Code" Label="Código ERP" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="6" sm="3"><MudTextField @bind-Value="_model.Unit" Label="Unidad" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="6" sm="5">
+                <MudSelect T="MaterialCategory" @bind-Value="_model.Category" Label="Categoría" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var category in Enum.GetValues<MaterialCategory>())
+                    {
+                        <MudSelectItem T="MaterialCategory" Value="category">@UiText.CategoryName(category)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="4"><MudNumericField T="int?" @bind-Value="_model.LengthMeters" Label="Largo (m)" Min="1" HelperText="Solo cables" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="QuantityGroup" @bind-Value="_model.Group" Label="Rol en el flujo del nodo" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           HelperText="Hace que cuente en el avance de FATs, cables, fusiones o cruces.">
+                    @foreach (var group in Enum.GetValues<QuantityGroup>())
+                    {
+                        <MudSelectItem T="QuantityGroup" Value="group">@UiText.GroupName(group)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6"><MudNumericField T="decimal" @bind-Value="_model.MinimumStock" Label="Stock mínimo" Min="0" HelperText="Avisa cuando el stock baja de aquí" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudCheckBox T="bool" @bind-Value="_model.TracksStock" Label="Pasa por bodega (controla stock)" /></MudItem>
+            <MudItem xs="12" sm="6"><MudCheckBox T="bool" @bind-Value="_model.IsActive" Label="Activo" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_model.Notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-1">Alias (nombres alternos)</MudText>
+        @if (_model.Id == 0)
+        {
+            <MudText Typo="Typo.caption" Class="tk-muted">Guarde el material para agregar sus alias.</MudText>
+        }
+        else
+        {
+            <div class="mb-2">
+                @foreach (var alias in _aliases)
+                {
+                    var local = alias;
+                    <MudChip T="string" Size="Size.Small" OnClose="() => RemoveAliasAsync(local)">@local.Alias</MudChip>
+                }
+                @if (_aliases.Count == 0)
+                {
+                    <MudText Typo="Typo.caption" Class="tk-muted">Sin alias.</MudText>
+                }
+            </div>
+            <div style="display:flex; gap:8px; align-items:center">
+                <MudTextField @bind-Value="_newAlias" Placeholder="Ej.: SUB-BOX" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:260px"
+                              OnKeyDown="OnAliasKey" />
+                <MudButton Variant="Variant.Outlined" OnClick="AddAliasAsync">Agregar alias</MudButton>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Close(DialogResult.Ok(_changed))">Cerrar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Material? Model { get; set; }
+
+    private Material _model = new() { Unit = "UND" };
+    private List<MaterialAlias> _aliases = [];
+    private string? _newAlias;
+    private bool _changed;
+
+    protected override void OnInitialized()
+    {
+        if (Model is not null)
+        {
+            _model = new Material
+            {
+                Id = Model.Id, Name = Model.Name, Code = Model.Code, Unit = Model.Unit, Category = Model.Category,
+                Group = Model.Group, LengthMeters = Model.LengthMeters, TracksStock = Model.TracksStock,
+                MinimumStock = Model.MinimumStock, IsActive = Model.IsActive, Notes = Model.Notes,
+            };
+            _aliases = Model.Aliases.ToList();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var saved = await Materials.SaveAsync(_model);
+            _changed = true;
+            if (_model.Id == 0)
+            {
+                // Se queda abierto para poder agregar alias al material recién creado.
+                _model.Id = saved.Id;
+                Snackbar.Add("Material guardado. Ahora puede agregar sus alias.", Severity.Success);
+            }
+            else
+            {
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task OnAliasKey(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await AddAliasAsync();
+        }
+    }
+
+    private async Task AddAliasAsync()
+    {
+        try
+        {
+            await Materials.AddAliasAsync(_model.Id, _newAlias ?? string.Empty);
+            _newAlias = null;
+            _changed = true;
+            _aliases = (await Materials.GetAsync(_model.Id))?.Aliases.ToList() ?? [];
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task RemoveAliasAsync(MaterialAlias alias)
+    {
+        await Materials.RemoveAliasAsync(alias.Id);
+        _changed = true;
+        _aliases = (await Materials.GetAsync(_model.Id))?.Aliases.ToList() ?? [];
+    }
+}

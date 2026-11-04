@@ -1,0 +1,210 @@
+@page "/proyectos/{Id:int}"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IProjectService Projects
+@inject ISiteService Sites
+@inject IFeederService Feeder
+@inject IDialogService Dialogs
+@inject NavigationManager Navigation
+@inject ProjectSelection Selection
+@inject UserAccess Access
+
+<PageTitle>@(_project?.Name ?? "Proyecto") · TEK-COM</PageTitle>
+
+@if (_project is null)
+{
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else
+    {
+        <EmptyState Title="El proyecto no existe" Icon="@Icons.Material.Outlined.SearchOff">
+            <a href="proyectos" class="tk-btn tk-btn--outline mt-4">Volver a proyectos</a>
+        </EmptyState>
+    }
+}
+else
+{
+    <PageHeader Title="@_project.Name" Subtitle="@($"{_project.Code} · {_project.Client?.Name ?? "Sin cliente"} · {_project.ProjectType?.Name}")">
+        <Actions>
+            <a href="proyectos" class="tk-btn tk-btn--outline">Todos los proyectos</a>
+            <button type="button" class="tk-btn tk-btn--outline" @onclick="OpenNodes">Ver nodos y avance</button>
+            @if (_canEdit)
+            {
+                <button type="button" class="tk-btn tk-btn--primary" @onclick="EditAsync">Editar proyecto</button>
+            }
+        </Actions>
+    </PageHeader>
+
+    <div class="tk-kpi-grid">
+        <KpiCard Label="Nodos" Value="@_sites.Count.ToString()" Note="@($"{_sites.Count(s => s.Pace.Status == PaceStatus.Behind)} atrasados")"
+                 Tone="_sites.Any(s => s.Pace.Status == PaceStatus.Behind) ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Neutral" />
+        <KpiCard Label="ODN finalizadas" Value="@_sites.Count(s => s.Site.OdnFinalized).ToString()" Note="@($"de {_sites.Count} nodos")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Feeder finalizado" Value="@_sites.Count(s => s.Site.FeederStatus == FeederStatus.Finished).ToString()" Note="@($"de {_sites.Count} nodos")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Listos para entregar" Value="@_sites.Count(s => s.Site.IsReadyToDeliver).ToString()" Note="ODN y feeder finalizados" Tone="KpiCard.NoteTone.Success" />
+    </div>
+
+    <div class="tk-two-col">
+        <SectionCard Title="Información">
+            <dl class="tk-kv">
+                <dt>Estado</dt><dd><StatusChip Status="UiText.ProjectStatusKind(_project.Status)" Text="@UiText.ProjectStatusName(_project.Status)" /></dd>
+                <dt>Responsable</dt><dd>@(_project.ResponsibleName ?? "—")</dd>
+                <dt>Plan</dt><dd>@UiText.Date(_project.PlannedStart) – @UiText.Date(_project.PlannedEnd)</dd>
+                <dt>Real</dt><dd>@UiText.Date(_project.ActualStart) – @UiText.Date(_project.ActualEnd)</dd>
+                <dt>Margen del ritmo</dt><dd>± @_project.PaceMarginPercent puntos</dd>
+                <dt>Listo para medir</dt><dd>@_project.ReadyToMeasurePercent % de FATs instaladas</dd>
+                <dt>Potencia aceptable</dt>
+                <dd>
+                    @if (_project.MinAcceptableDbm is not null && _project.MaxAcceptableDbm is not null)
+                    {
+                        <span>@_project.MinAcceptableDbm a @_project.MaxAcceptableDbm dBm</span>
+                    }
+                    else
+                    {
+                        <span class="tk-muted">Sin definir (se marca a mano en cada FAT)</span>
+                    }
+                </dd>
+                @if (!string.IsNullOrWhiteSpace(_project.Description))
+                {
+                    <dt>Descripción</dt><dd>@_project.Description</dd>
+                }
+            </dl>
+        </SectionCard>
+
+        <SectionCard Title="Feeder del proyecto">
+            <HeaderActions>
+                @if (_canEdit)
+                {
+                    <button type="button" class="tk-btn tk-btn--outline" @onclick="() => FeederAsync(planning: true)">Proyectado</button>
+                    <button type="button" class="tk-btn tk-btn--primary" @onclick="() => FeederAsync(planning: false)">+ Instalación</button>
+                }
+            </HeaderActions>
+            <ChildContent>
+                @if (_feeder.Count == 0)
+                {
+                    <EmptyState Title="Sin feeder registrado" Icon="@Icons.Material.Outlined.Cable"
+                                Description="Defina lo proyectado por tipo de fibra o importe la hoja AVANCE FEEDER del Excel." />
+                }
+                else
+                {
+                    <div class="tk-table-wrap">
+                        <table class="tk-table">
+                            <thead><tr><th>Tipo</th><th>Proyectado</th><th>Instalado</th><th>Avance</th></tr></thead>
+                            <tbody>
+                                @foreach (var f in _feeder)
+                                {
+                                    <tr>
+                                        <td>@FeederLabels.Name(f.Line.Kind)</td>
+                                        <td class="num">@UiText.Number(f.Planned) @FeederLabels.Unit(f.Line.Kind)</td>
+                                        <td class="num">@UiText.Number(f.Installed) @FeederLabels.Unit(f.Line.Kind)</td>
+                                        <td class="tk-bar-cell">
+                                            <PaceBar Progress="(int)Math.Round(f.Percent)" Elapsed="(int)Math.Round(f.Percent)" ShowLabel="false" />
+                                            <div class="tk-pace__label">@f.Percent.ToString("0.#")%</div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </ChildContent>
+        </SectionCard>
+    </div>
+
+    <SectionCard Title="Nodos" Class="mt-6">
+        <HeaderActions>
+            <a href="nodos" class="tk-btn tk-btn--outline">Abrir nodos y avance</a>
+        </HeaderActions>
+        <ChildContent>
+            @if (_sites.Count == 0)
+            {
+                <EmptyState Title="Este proyecto todavía no tiene nodos" Icon="@Icons.Material.Outlined.CellTower"
+                            Description="Cree los nodos en 'Nodos y avance' o impórtelos desde el Excel de control." />
+            }
+            else
+            {
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead><tr><th>Nodo</th><th>Brigada</th><th>Avance</th><th>Ritmo</th><th>ODN</th><th>Feeder</th></tr></thead>
+                        <tbody>
+                            @foreach (var s in _sites)
+                            {
+                                <tr class="tk-row-click" @onclick='() => Navigation.NavigateTo($"nodos/{s.Site.Id}")'>
+                                    <td><a class="tk-row-link" href="nodos/@s.Site.Id">@s.Site.Code</a></td>
+                                    <td>@(s.Site.Contractor?.Name ?? "—")</td>
+                                    <td class="tk-bar-cell"><PaceBar Progress="(int)Math.Round(s.ProgressPercent)" Elapsed="(int)Math.Round(s.Pace.ElapsedPercent)" /></td>
+                                    <td><PaceChip Pace="s.Pace" /></td>
+                                    <td>@if (s.Site.OdnFinalized) { <StatusChip Status="StatusChip.Kind.Ok" Text="Finalizada" /> } else { <StatusChip Status="StatusChip.Kind.Neutral" Text="Pendiente" /> }</td>
+                                    <td><StatusChip Status="UiText.FeederStatusKind(s.Site.FeederStatus)" Text="@UiText.FeederStatusName(s.Site.FeederStatus)" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </ChildContent>
+    </SectionCard>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Project? _project;
+    private List<SiteSummary> _sites = [];
+    private List<FeederProgress> _feeder = [];
+    private bool _loading = true;
+    private bool _canEdit;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _project = await Projects.GetAsync(Id);
+        if (_project is not null)
+        {
+            Selection.Select(_project.Id);
+            _sites = await Sites.ListAsync(Id);
+            _feeder = await Feeder.GetAsync(Id);
+        }
+
+        _loading = false;
+    }
+
+    private void OpenNodes()
+    {
+        Selection.Select(Id);
+        Navigation.NavigateTo("nodos");
+    }
+
+    private async Task EditAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<ProjectDialog>("Editar proyecto",
+            new DialogParameters { ["Model"] = _project },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task FeederAsync(bool planning)
+    {
+        var dialog = await Dialogs.ShowAsync<FeederDialog>(planning ? "Feeder proyectado" : "Registrar instalación de feeder",
+            new DialogParameters { ["ProjectId"] = Id, ["Planning"] = planning },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            _feeder = await Feeder.GetAsync(Id);
+        }
+    }
+}
