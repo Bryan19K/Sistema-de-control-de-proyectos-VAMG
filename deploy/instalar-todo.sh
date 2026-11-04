@@ -12,7 +12,9 @@ set -euo pipefail
 
 REPO="Bryan19K/Sistema-de-control-de-proyectos-VAMG"
 REF="${REF:-claude/desarrollo-inicial-5m8ya1}"
-HOST="${HOST:-vps3795068.trouble-free.net}"
+# SSH_HOST: a dónde se conecta (la IP no depende del DNS). DOMAIN: nombre para el HTTPS de la aplicación.
+HOST="${SSH_HOST:-162.35.14.225}"
+DOMAIN="${DOMAIN:-vps3795068.trouble-free.net}"
 RAW="https://raw.githubusercontent.com/${REPO}/${REF}/deploy"
 
 paso() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
@@ -28,7 +30,7 @@ trap 'ssh -O exit -o ControlPath="$WORK/cm" "root@$HOST" >/dev/null 2>&1 || true
 paso "Datos"
 read -r -p "Correo del administrador de la aplicación: " ADMIN_EMAIL < /dev/tty
 [ -n "$ADMIN_EMAIL" ] || fallo "Hace falta un correo."
-echo "Servidor: $HOST"
+echo "Servidor: $HOST  ·  Dirección de la aplicación: https://$DOMAIN"
 
 paso "1/5 Llave SSH para las publicaciones automáticas"
 ssh-keygen -q -t ed25519 -N "" -C "deploy-tekcom" -f "$WORK/deploy_key"
@@ -39,7 +41,7 @@ SSH_ROOT=(ssh -o StrictHostKeyChecking=accept-new -o ControlMaster=auto -o Contr
 
 paso "2/5 Preparando el servidor (pedirá la contraseña de root una vez; no se ve al escribir)"
 curl -fsSL "$RAW/setup-server.sh" -o "$WORK/setup-server.sh"
-"${SSH_ROOT[@]}" "DOMAIN='$HOST' SEED_ADMIN_EMAIL='$ADMIN_EMAIL' DEPLOY_PUBKEY='$PUBKEY' bash -s" \
+"${SSH_ROOT[@]}" "DOMAIN='$DOMAIN' SEED_ADMIN_EMAIL='$ADMIN_EMAIL' DEPLOY_PUBKEY='$PUBKEY' bash -s" \
   < "$WORK/setup-server.sh" | tee "$WORK/setup.log"
 
 paso "3/5 Probando la llave en el servidor"
@@ -82,7 +84,7 @@ ADMIN_PASSWORD="$(grep 'Contraseña inicial:' "$WORK/setup.log" | sed 's/.*Contr
 echo
 echo "=============================================================="
 echo " Listo. Cuando la publicación termine en verde (unos 5 a 10 minutos),"
-echo " abra:  https://$HOST"
+echo " abra:  https://$DOMAIN"
 echo " Usuario:    $ADMIN_EMAIL"
 if [ -n "$ADMIN_PASSWORD" ]; then
   echo " Contraseña: $ADMIN_PASSWORD   (cámbiela al entrar)"
