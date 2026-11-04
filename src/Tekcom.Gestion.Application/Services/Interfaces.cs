@@ -308,3 +308,9 @@ public interface IMinuteService
     /// <summary>Pendientes sin cerrar de todas las minutas del proyecto, opcionalmente de un nodo.</summary>
     Task<List<MinuteItem>> PendingAsync(int projectId, int? siteId = null, CancellationToken ct = default);
 }
+
+public interface IPresentationService
+{
+    /// <summary>Todos los datos de los gráficos de la sección Presentación, de un proyecto.</summary>
+    Task<PresentationData> GetAsync(int projectId, CancellationToken ct = default);
+}

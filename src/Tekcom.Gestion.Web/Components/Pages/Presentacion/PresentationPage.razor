@@ -1,0 +1,371 @@
+@page "/presentacion"
+@attribute [Authorize]
+@using System.Globalization
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IPresentationService Presentation
+@inject IJSRuntime JS
+@inject ProjectSelection Selection
+
+<PageTitle>Presentación · TEK-COM</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_projectId == 0 || _data is null)
+{
+    <PageHeader Title="Presentación" Subtitle="Gráficos del avance del proyecto para reuniones y reportes" />
+    <SectionCard>
+        <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.Slideshow"
+                    Description="Importe el Excel o cree un proyecto para ver aquí sus gráficos.">
+            <a href="importar" class="tk-btn tk-btn--outline mt-4">Importar Excel</a>
+        </EmptyState>
+    </SectionCard>
+}
+else
+{
+    var d = _data;
+    <PageHeader Title="@d.ProjectName" Subtitle="@($"Presentación del avance · {UiText.LongDate(d.Today)}")">
+        <Actions>
+            <button type="button" class="tk-btn tk-btn--outline tk-no-print" @onclick="FullscreenAsync">Pantalla completa</button>
+            <button type="button" class="tk-btn tk-btn--primary tk-no-print" @onclick="PrintAsync">Descargar PDF</button>
+        </Actions>
+    </PageHeader>
+
+    <div class="tk-toolbar tk-no-print">
+        <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
+    </div>
+
+    <div class="tk-card tk-hero">
+        <div class="tk-hero__main">
+            <div class="tk-hero__value">@d.Progress.ToString("0.#")<span>%</span></div>
+            <div class="tk-hero__label">avance general</div>
+        </div>
+        <div class="tk-hero__stat"><strong>@d.Pace.ElapsedPercent.ToString("0.#")%</strong><span>del tiempo transcurrido</span></div>
+        <div class="tk-hero__stat"><PaceChip Pace="d.Pace" /><span>ritmo del proyecto</span></div>
+        <div class="tk-hero__stat"><strong>@UiText.LongDate(d.PlanEnd)</strong><span>cierre planificado</span></div>
+        @if (d.Pace.ProjectedEnd is { } projected && d.Pace.Status != PaceStatus.Completed)
+        {
+            <div class="tk-hero__stat"><strong>@UiText.LongDate(projected)</strong><span>cierre proyectado</span></div>
+        }
+        <div class="tk-hero__stat"><strong>@d.Charts.SitesReady / @d.TotalSites</strong><span>nodos listos para entregar</span></div>
+    </div>
+
+    <div class="tk-chart-grid">
+        <SectionCard Title="1 · Avance real vs. planificado" Class="tk-span-2">
+            @if (d.Curve.Count < 2)
+            {
+                <EmptyState Title="Sin plan de trabajo" Icon="@Icons.Material.Outlined.Timeline" Description="Cree el plan de trabajo para ver la curva planificada contra la real." />
+            }
+            else
+            {
+                <svg class="tk-curve" viewBox="0 0 1000 340" role="img" aria-label="Curva de avance planificado contra real">
+                    @foreach (var y in new[] { 0, 25, 50, 75, 100 })
+                    {
+                        <line x1="@PadL" x2="990" y1="@Y(y)" y2="@Y(y)" class="tk-curve__grid" />
+                        @SvgText(PadL - 8, Y(y) + 4, "end", $"{y}%")
+                    }
+                    @foreach (var tick in XTicks(d))
+                    {
+                        @SvgText(X(d, tick), 326, "middle", tick.ToString("dd/MM", Culture))
+                    }
+                    <polyline class="tk-curve__planned" points="@Points(d, p => p.Planned)" />
+                    <polyline class="tk-curve__real @(d.Pace.Status == PaceStatus.Behind ? "is-late" : string.Empty)" points="@RealPoints(d)" />
+                    <line x1="@X(d, d.Today)" x2="@X(d, d.Today)" y1="14" y2="@(PadT + PlotH)" class="tk-curve__today" />
+                    @SvgText(X(d, d.Today), 10, "middle", "Hoy")
+                    <circle cx="@X(d, d.Today)" cy="@Y(d.Progress)" r="6" class="tk-curve__dot @(d.Pace.Status == PaceStatus.Behind ? "is-late" : string.Empty)" />
+                </svg>
+                <div class="tk-legend">
+                    <span class="tk-legend__item"><span class="tk-legend__swatch" style="background:#9db4d0"></span> Planificado</span>
+                    <span class="tk-legend__item"><span class="tk-legend__swatch" style="background:@(d.Pace.Status == PaceStatus.Behind ? "#d13b3b" : "#1e9e55")"></span> Real</span>
+                    <span class="tk-legend__item"><span style="display:inline-block;width:3px;height:16px;background:var(--tk-orange)"></span> Hoy</span>
+                </div>
+                <div class="tk-muted mt-2" style="font-size:0.85rem">El avance real se arma con las actividades terminadas (fecha real de fin) y, hoy, con el avance actual del plan.</div>
+            }
+        </SectionCard>
+
+        <SectionCard Title="2 · Nodos por estado">
+            @if (d.TotalSites == 0)
+            {
+                <EmptyState Title="Sin nodos" Icon="@Icons.Material.Outlined.Hub" Description="Importe el Excel del proyecto." />
+            }
+            else
+            {
+                <div class="tk-donut-wrap">
+                    <div class="tk-donut" style="@Donut(d.Charts.SitesFinished, d.Charts.SitesInProgress, d.Charts.SitesNotStarted)" role="img" aria-label="Nodos por estado">
+                        <div class="tk-donut__hole"><strong>@d.TotalSites</strong><span>nodos</span></div>
+                    </div>
+                    <ul class="tk-legend-list">
+                        <li><span class="tk-dot" style="background:var(--tk-success)"></span> Finalizados <strong>@d.Charts.SitesFinished</strong></li>
+                        <li><span class="tk-dot" style="background:var(--tk-info)"></span> En proceso <strong>@d.Charts.SitesInProgress</strong></li>
+                        <li><span class="tk-dot" style="background:var(--tk-planned)"></span> Sin iniciar <strong>@d.Charts.SitesNotStarted</strong></li>
+                    </ul>
+                </div>
+                <div class="tk-sprint-summary">Listos para entregar: <strong>@d.Charts.SitesReady</strong></div>
+            }
+        </SectionCard>
+
+        <SectionCard Title="3 · Instalación por partida">
+            <div class="tk-hbars">
+                @foreach (var row in InstallRows(d))
+                {
+                    <div class="tk-hbar">
+                        <span class="tk-hbar__label">@row.Label</span>
+                        <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@Tone(row.Percent)" style="width:@Pct(row.Percent)%"></span></span>
+                        <span class="tk-hbar__value" title="@($"{UiText.Number(row.Installed)} de {UiText.Number(row.Projected)}")">@row.Percent.ToString("0")%</span>
+                    </div>
+                }
+                @if (InstallRows(d).Count == 0)
+                {
+                    <EmptyState Title="Sin cantidades" Icon="@Icons.Material.Outlined.BarChart" Description="Aparecen al importar el Excel." />
+                }
+            </div>
+        </SectionCard>
+
+        <SectionCard Title="4 · Avance por nodo" Class="tk-span-2">
+            @if (d.Nodes.Count == 0)
+            {
+                <EmptyState Title="Sin nodos" Icon="@Icons.Material.Outlined.Hub" Description="Importe el Excel del proyecto." />
+            }
+            else
+            {
+                <div class="tk-vbars" role="img" aria-label="Avance por nodo">
+                    @foreach (var n in d.Nodes)
+                    {
+                        <div class="tk-vbar" title="@($"{n.Code}: {n.Progress:0.#}%")">
+                            <span class="tk-vbar__value">@n.Progress.ToString("0")</span>
+                            <span class="tk-vbar__track"><span class="tk-vbar__fill tk-vbar__fill--@PaceTone(n.Pace)" style="height:@Pct(n.Progress)%"></span></span>
+                            <span class="tk-vbar__label">@n.Code</span>
+                        </div>
+                    }
+                </div>
+                <div class="tk-legend mt-2">
+                    <span class="tk-legend__item"><span class="tk-dot" style="background:var(--tk-success)"></span> Adelantado o finalizado</span>
+                    <span class="tk-legend__item"><span class="tk-dot" style="background:var(--tk-info)"></span> En tiempo</span>
+                    <span class="tk-legend__item"><span class="tk-dot" style="background:var(--tk-danger)"></span> Atrasado</span>
+                </div>
+            }
+        </SectionCard>
+
+        <SectionCard Title="5 · Bodega: materiales principales" Class="tk-span-2">
+            @if (d.Materials.Count == 0)
+            {
+                <EmptyState Title="Sin movimientos de bodega" Icon="@Icons.Material.Outlined.Inventory2" Description="Registre ingresos y entregas en Materiales." />
+            }
+            else
+            {
+                var max = d.Materials.Max(m => Math.Max(Math.Max(m.Received, m.Delivered), Math.Max(m.Installed, m.Returned)));
+                <div class="tk-matbars">
+                    @foreach (var m in d.Materials)
+                    {
+                        <div class="tk-matbar">
+                            <div class="tk-matbar__name">@m.Name <span class="tk-muted">@m.Unit</span></div>
+                            @Mini("Recibido", m.Received, max, "info")
+                            @Mini("Entregado", m.Delivered, max, "warning")
+                            @Mini("Instalado", m.Installed, max, "success")
+                            @Mini("Devuelto", m.Returned, max, "muted")
+                        </div>
+                    }
+                </div>
+            }
+        </SectionCard>
+
+        <SectionCard Title="6 · Tareas">
+            @{ var totalTasks = d.Charts.TasksByStatus.Values.Sum(); }
+            @if (totalTasks == 0)
+            {
+                <EmptyState Title="Sin tareas" Icon="@Icons.Material.Outlined.Checklist" Description="Cree tareas en Sprints y tareas." />
+            }
+            else
+            {
+                <div class="tk-subtitle">Por estado</div>
+                <div class="tk-hbars">
+                    @foreach (var (status, count) in d.Charts.TasksByStatus)
+                    {
+                        <div class="tk-hbar">
+                            <span class="tk-hbar__label">@UiText.TaskStatusName(status)</span>
+                            <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@(status == TaskItemStatus.Done ? "success" : status == TaskItemStatus.InProgress ? "info" : status == TaskItemStatus.InReview ? "warning" : "muted")" style="width:@Pct(count * 100m / totalTasks)%"></span></span>
+                            <span class="tk-hbar__value">@count</span>
+                        </div>
+                    }
+                </div>
+                <div class="tk-subtitle mt-4">Por responsable</div>
+                <div class="tk-hbars">
+                    @foreach (var p in d.TasksByPerson)
+                    {
+                        <div class="tk-hbar">
+                            <span class="tk-hbar__label">@p.Name</span>
+                            <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--info" style="width:@Pct(p.Count * 100m / d.TasksByPerson.Max(x => x.Count))%"></span></span>
+                            <span class="tk-hbar__value">@p.Count</span>
+                        </div>
+                    }
+                </div>
+            }
+        </SectionCard>
+
+        <SectionCard Title="7 · Sprints">
+            @if (d.Sprints.Count == 0)
+            {
+                <EmptyState Title="Sin sprints" Icon="@Icons.Material.Outlined.Loop" Description="Cree sprints en Sprints y tareas." />
+            }
+            else
+            {
+                @foreach (var s in d.Sprints)
+                {
+                    <div class="tk-sprint-row">
+                        <div class="tk-sprint-row__head"><strong>@s.Name</strong>@if (s.Closed) { <span class="tk-muted"> · cerrado</span> }</div>
+                        <PaceBar Progress="(int)Math.Round(s.Progress)" Elapsed="(int)Math.Round(s.Elapsed)" />
+                    </div>
+                }
+            }
+        </SectionCard>
+
+        <SectionCard Title="8 · Calidad y cierre" Class="tk-span-2">
+            <div class="tk-donut-wrap">
+                @if (d.MeasuredFats > 0)
+                {
+                    <div class="tk-donut" style="@Donut(d.AcceptableFats, d.NotAcceptableFats, 0)" role="img" aria-label="Mediciones aceptables y no aceptables">
+                        <div class="tk-donut__hole"><strong>@d.MeasuredFats</strong><span>FAT medidas</span></div>
+                    </div>
+                    <ul class="tk-legend-list">
+                        <li><span class="tk-dot" style="background:var(--tk-success)"></span> Aceptables <strong>@d.AcceptableFats</strong></li>
+                        <li><span class="tk-dot" style="background:var(--tk-info)"></span> No aceptables <strong>@d.NotAcceptableFats</strong></li>
+                    </ul>
+                }
+                else
+                {
+                    <div class="tk-muted">Todavía no hay mediciones de potencia registradas.</div>
+                }
+            </div>
+            <div class="tk-hbars mt-4">
+                <div class="tk-hbar">
+                    <span class="tk-hbar__label">Liquidaciones cerradas</span>
+                    <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--success" style="width:@Pct(d.TotalSites == 0 ? 0 : d.ClosedLiquidations * 100m / d.TotalSites)%"></span></span>
+                    <span class="tk-hbar__value">@d.ClosedLiquidations/@d.TotalSites</span>
+                </div>
+            </div>
+        </SectionCard>
+    </div>
+}
+
+@code {
+    private static readonly CultureInfo Culture = new("es-SV");
+    private const int PadL = 44, PadT = 22, PlotW = 940, PlotH = 280;
+
+    private bool _loading = true;
+    private int _projectId;
+    private PresentationData? _data;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        await LoadAsync();
+    }
+
+    private async Task OnProjectChanged(int id)
+    {
+        _projectId = id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _data = _projectId == 0 ? null : await Presentation.GetAsync(_projectId);
+        _loading = false;
+    }
+
+    private async Task FullscreenAsync() => await JS.InvokeVoidAsync("tkFullscreen");
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("print");
+
+    // ---- gráficos
+    private static MarkupString SvgText(double x, double y, string anchor, string text) =>
+        new($"<text x=\"{F(x)}\" y=\"{F(y)}\" class=\"tk-curve__axis\" text-anchor=\"{anchor}\">{System.Net.WebUtility.HtmlEncode(text)}</text>");
+
+    private static string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+    private static string Pct(decimal v) => F((double)Math.Clamp(v, 0, 100));
+
+    private static double Y(decimal percent) => PadT + PlotH - (double)Math.Clamp(percent, 0, 100) / 100 * PlotH;
+    private static double Y(int percent) => Y((decimal)percent);
+
+    private static double X(PresentationData d, DateOnly date)
+    {
+        var first = d.Curve[0].Date.DayNumber;
+        var last = d.Curve[^1].Date.DayNumber;
+        var span = Math.Max(1, last - first);
+        return PadL + (double)(date.DayNumber - first) / span * PlotW;
+    }
+
+    private static string Points(PresentationData d, Func<CurvePoint, decimal?> pick) =>
+        string.Join(' ', d.Curve.Where(p => pick(p) is not null).Select(p => $"{F(X(d, p.Date))},{F(Y(pick(p)!.Value))}"));
+
+    // El real solo se dibuja donde hay datos: puntos con avance mayor que cero y el de hoy (no se inventa historia).
+    private static string RealPoints(PresentationData d) =>
+        string.Join(' ', d.Curve.Where(p => p.Real is > 0 || p.Date == d.Today).Where(p => p.Real is not null)
+            .Select(p => $"{F(X(d, p.Date))},{F(Y(p.Real!.Value))}"));
+
+    private static IEnumerable<DateOnly> XTicks(PresentationData d)
+    {
+        var first = d.Curve[0].Date;
+        var last = d.Curve[^1].Date;
+        var weeks = Math.Max(1, (last.DayNumber - first.DayNumber) / 7);
+        var every = Math.Max(1, (int)Math.Ceiling(weeks / 8.0)) * 7;
+        for (var date = first; date <= last; date = date.AddDays(every))
+        {
+            yield return date;
+        }
+    }
+
+    private static string Donut(int a, int b, int c)
+    {
+        var total = Math.Max(1, a + b + c);
+        var pa = a * 100.0 / total;
+        var pb = pa + b * 100.0 / total;
+        return $"background: conic-gradient(var(--tk-success) 0 {F(pa)}%, var(--tk-info) {F(pa)}% {F(pb)}%, var(--tk-planned) {F(pb)}% 100%)";
+    }
+
+    private static string PaceTone(PaceStatus status) => status switch
+    {
+        PaceStatus.Behind => "danger",
+        PaceStatus.Ahead or PaceStatus.Completed => "success",
+        _ => "info",
+    };
+
+    private static string Tone(decimal percent) => percent >= 90 ? "success" : percent >= 40 ? "info" : "warning";
+
+    private sealed record InstallRow(string Label, decimal Projected, decimal Installed)
+    {
+        public decimal Percent => Projected <= 0 ? 0 : Math.Round(Installed / Projected * 100m, 1);
+    }
+
+    private static List<InstallRow> InstallRows(PresentationData d)
+    {
+        var rows = new List<InstallRow>();
+        void Add(string label, params QuantityGroup[] groups)
+        {
+            var projected = groups.Sum(g => d.Charts.Installation.GetValueOrDefault(g).Projected);
+            var installed = groups.Sum(g => d.Charts.Installation.GetValueOrDefault(g).Installed);
+            if (projected > 0) { rows.Add(new InstallRow(label, projected, installed)); }
+        }
+
+        Add("Cable FC", QuantityGroup.FcCable);
+        Add("Cable MPO", QuantityGroup.MpoCable);
+        Add("FAT (cajas)", QuantityGroup.SubBox, QuantityGroup.EndBox, QuantityGroup.HubBox, QuantityGroup.XBox);
+        Add("Fusiones", QuantityGroup.Fusion);
+        Add("Cruces americanos", QuantityGroup.Crossing);
+        foreach (var f in d.Charts.Feeder.Where(f => f.Planned > 0))
+        {
+            rows.Add(new InstallRow(FeederLabels.Name(f.Line.Kind), f.Planned, f.Installed));
+        }
+
+        return rows;
+    }
+
+    private RenderFragment Mini(string label, decimal value, decimal max, string tone) => @<div class="tk-hbar tk-hbar--mini">
+        <span class="tk-hbar__label">@label</span>
+        <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@tone" style="width:@Pct(max <= 0 ? 0 : value * 100m / max)%"></span></span>
+        <span class="tk-hbar__value">@UiText.Number(value)</span>
+    </div>;
+}
