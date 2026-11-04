@@ -8,7 +8,9 @@ certificado HTTPS). GitHub Actions publica cada cambio que llegue a `main`.
 
 ## Paso 1 · Aprobar el pull request
 
-Abra el pull request en GitHub, revíselo y apruébelo. **Todavía no haga el merge**: primero se prepara el servidor.
+Los archivos de despliegue (Dockerfile, `deploy/`, flujo de Actions) ya están en `main`. El pull request solo trae el ajuste
+final de esta guía. Revíselo y apruébelo, pero **no haga el merge todavía**: el merge dispara la publicación y antes hay que
+preparar el servidor y cargar los secretos.
 
 ## Paso 2 · Conectarse al VPS (desde la terminal del Codespace)
 
@@ -21,16 +23,16 @@ Si el SSH no responde, el panel de InterServer tiene una consola web (VNC) que s
 
 ## Paso 3 · Preparar el servidor (una sola vez)
 
-En la terminal del Codespace, ya dentro de la carpeta del repositorio y en la rama del pull request:
+Conéctese al VPS (paso 2) y, ya dentro, corra:
 
 ```bash
-ssh root@TU_IP 'bash -s' < deploy/setup-server.sh
+curl -fsSL https://raw.githubusercontent.com/Bryan19K/Sistema-de-control-de-proyectos-VAMG/main/deploy/setup-server.sh | bash
 ```
 
-Para poner su correo como administrador, anteponga la variable:
+Para poner su correo como administrador, anteponga la variable al `bash`:
 
 ```bash
-ssh root@TU_IP 'SEED_ADMIN_EMAIL=su@correo.com bash -s' < deploy/setup-server.sh
+curl -fsSL https://raw.githubusercontent.com/Bryan19K/Sistema-de-control-de-proyectos-VAMG/main/deploy/setup-server.sh | SEED_ADMIN_EMAIL=su@correo.com bash
 ```
 
 El script instala Docker, activa el firewall (SSH, 80 y 443), crea el usuario `deploy`, deja preparado
@@ -39,9 +41,9 @@ El script instala Docker, activa el firewall (SSH, 80 y 443), crea el usuario `d
 - la contraseña temporal del usuario `deploy` (se usa en el paso 4), y
 - el correo y la contraseña inicial del administrador de la aplicación. **Guárdelos.**
 
+Cuando termine, salga del servidor con `exit`.
+
 Es seguro volver a correrlo: no cambia contraseñas ni sobrescribe el `.env`.
-(Una vez que el código esté en `main` también sirve:
-`curl -fsSL https://raw.githubusercontent.com/Bryan19K/Sistema-de-control-de-proyectos-VAMG/main/deploy/setup-server.sh | bash` desde el propio servidor.)
 
 ## Paso 4 · Llave para que GitHub publique solo
 
@@ -67,7 +69,7 @@ Opcional, cuando la llave ya funcione: bloquee la contraseña temporal con
 
 ## Paso 5 · Publicar
 
-Haga el **merge del pull request a `main`**. En la pestaña **Actions** verá el despliegue:
+Haga el **merge del pull request a `main`** (o, desde la pestaña **Actions**, elija *Publicar en el VPS* y **Run workflow**). Verá el despliegue:
 compila, prueba, construye la imagen, la sube a `ghcr.io` y la instala en el servidor.
 Cuando termine en verde, abra `https://vps3795068.trouble-free.net` e inicie sesión con el administrador del paso 3.
 
