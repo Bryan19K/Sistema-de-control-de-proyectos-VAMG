@@ -126,6 +126,10 @@ public static class UiText
             ? value.ToString("#,##0", System.Globalization.CultureInfo.GetCultureInfo("es-SV"))
             : value.ToString("#,##0.###", System.Globalization.CultureInfo.GetCultureInfo("es-SV"));
 
+    /// <summary>Dinero en dólares: $1,234.56.</summary>
+    public static string Money(decimal value) =>
+        (value < 0 ? "-$" : "$") + Math.Abs(value).ToString("#,##0.00", System.Globalization.CultureInfo.InvariantCulture);
+
     public static string Date(DateOnly? date) => date is null ? "—" : date.Value.ToString("dd/MM/yyyy");
 
     private static readonly System.Globalization.CultureInfo Spanish = System.Globalization.CultureInfo.GetCultureInfo("es-SV");

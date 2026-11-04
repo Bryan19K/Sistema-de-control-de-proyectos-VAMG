@@ -16,6 +16,7 @@ public static class CatalogSeeder
 
     public const string FtthCode = "FTTH";
     public const string GeneralCode = "GENERAL";
+    public const string BuildingCode = "EDIFICIOS";
 
     public static async Task EnsureAllAsync(ApplicationDbContext db, CancellationToken ct = default)
     {
@@ -93,6 +94,17 @@ public static class CatalogSeeder
                 Code = GeneralCode,
                 Name = "General",
                 Modules = ProjectModules.General,
+                IsSystem = true,
+            });
+        }
+
+        if (!await db.ProjectTypes.AnyAsync(t => t.Code == BuildingCode, ct))
+        {
+            db.ProjectTypes.Add(new ProjectType
+            {
+                Code = BuildingCode,
+                Name = "Edificios / Cableado interno",
+                Modules = ProjectModules.General | ProjectModules.Warehouse,
                 IsSystem = true,
             });
         }

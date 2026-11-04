@@ -38,13 +38,14 @@
     {
         <div class="tk-table-wrap">
             <table class="tk-table">
-                <thead><tr><th>Material</th><th>Código ERP</th><th>UM</th><th>Categoría</th><th>Alias</th><th>Estado</th><th></th></tr></thead>
+                <thead><tr><th>Material</th><th>Código ERP</th><th>Modelo</th><th>UM</th><th>Categoría</th><th>Alias</th><th>Estado</th><th></th></tr></thead>
                 <tbody>
                     @foreach (var m in _items)
                     {
                         <tr>
                             <td>@m.Name @if (m.LengthMeters is not null) { <span class="tk-muted">· @m.LengthMeters m</span> }</td>
                             <td>@(m.Code ?? "—")</td>
+                            <td title="@m.Description">@(m.Model ?? "—")</td>
                             <td>@m.Unit</td>
                             <td>@UiText.CategoryName(m.Category)</td>
                             <td>

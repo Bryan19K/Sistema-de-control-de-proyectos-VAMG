@@ -1,0 +1,233 @@
+@page "/gastos"
+@attribute [Authorize(Roles = AppRoles.Admin)]
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Services
+@inject IFinanceService Finance
+@inject ProjectSelection Selection
+
+<PageTitle>Gastos · TEK-COM</PageTitle>
+
+<PageHeader Title="Gastos y precios" Subtitle="Compras, caja chica, viáticos, valor de las órdenes por nodo y precios target. Solo lo ve el administrador" />
+
+@if (_summary is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_summary.Entries == 0 && _orders.Count == 0)
+{
+    <SectionCard>
+        <EmptyState Title="Todavía no hay gastos cargados" Icon="@Icons.Material.Outlined.Receipt"
+                    Description="Suba el Excel de gastos y el preciario en Importar Excel." />
+    </SectionCard>
+}
+else
+{
+    <div class="tk-kpi-grid">
+        <KpiCard Label="Total gastado" Value="@UiText.Money(_summary.GrandTotal)" Note="@($"{_summary.Entries} registros")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Compras con IVA" Value="@UiText.Money(_summary.PurchasesTotal)" Note="@($"IVA {UiText.Money(_summary.PurchasesVat)}")" />
+        <KpiCard Label="Caja chica" Value="@UiText.Money(_summary.PettyCashTotal)" Note="con factura (DTE)" />
+        <KpiCard Label="Viáticos" Value="@UiText.Money(_summary.TravelTotal)" Note="supervisores y técnicos" />
+        @if (_orders.Count > 0)
+        {
+            <KpiCard Label="Valor de las órdenes" Value="@UiText.Money(_orders.Sum(o => o.Total))" Note="@($"{_orders.Count} órdenes con IVA")" Tone="KpiCard.NoteTone.Success" />
+        }
+    </div>
+
+    <MudTabs Elevation="0" Rounded="true" Color="Color.Primary" ApplyEffectsToContainer="true" TabPanelsClass="pt-4">
+        <MudTabPanel Text="Resumen">
+            <div class="tk-two-col">
+                <SectionCard Title="Gasto por tipo">
+                    <div class="tk-hbars tk-hbars--money">
+                        @foreach (var item in _summary.ByCategory)
+                        {
+                            <div class="tk-hbar" data-tip="@($"{UiText.Money(item.Total)}|{item.Category}")">
+                                <span class="tk-hbar__label">@item.Category</span>
+                                <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--info" style="width:@Width(item.Total, _summary.ByCategory.Max(c => c.Total))%"></span></span>
+                                <span class="tk-hbar__value">@UiText.Money(item.Total)</span>
+                            </div>
+                        }
+                    </div>
+                </SectionCard>
+                <SectionCard Title="Gasto por centro de costos">
+                    <div class="tk-hbars tk-hbars--money">
+                        @foreach (var item in _summary.ByCostCenter)
+                        {
+                            <div class="tk-hbar" data-tip="@($"{UiText.Money(item.Total)}|{item.CostCenter} · {item.Entries} registros")">
+                                <span class="tk-hbar__label">@item.CostCenter@(item.ProjectName is null ? "" : $" · {item.ProjectName}")</span>
+                                <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--success" style="width:@Width(item.Total, _summary.ByCostCenter.Max(c => c.Total))%"></span></span>
+                                <span class="tk-hbar__value">@UiText.Money(item.Total)</span>
+                            </div>
+                        }
+                    </div>
+                </SectionCard>
+            </div>
+
+            <SectionCard Title="Fondos de caja chica y viáticos" Class="mt-4">
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead><tr><th>Fondo</th><th class="num">Asignado</th><th class="num">Gastado</th><th class="num">Saldo</th><th>Registros</th><th>Estado</th></tr></thead>
+                        <tbody>
+                            @foreach (var f in _summary.Funds)
+                            {
+                                <tr>
+                                    <td>@f.Fund.Name</td>
+                                    <td class="num">@UiText.Money(f.Fund.AssignedAmount)</td>
+                                    <td class="num">@UiText.Money(f.Spent)</td>
+                                    <td class="num @(f.Overspent ? "tk-neg" : "")">@UiText.Money(f.Balance)</td>
+                                    <td>@f.Entries</td>
+                                    <td>@if (f.Overspent) { <StatusChip Status="StatusChip.Kind.Atrasado" Text="Se pasó del fondo" /> } else { <StatusChip Status="StatusChip.Kind.Ok" Text="Dentro del fondo" /> }</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </SectionCard>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Compras">
+            <SectionCard>
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Proveedor</th><th class="num">Subtotal</th><th class="num">IVA</th><th class="num">Total</th><th>Estado</th><th>Comprado por</th></tr></thead>
+                        <tbody>
+                            @foreach (var e in _purchases)
+                            {
+                                <tr>
+                                    <td>@UiText.Date(e.Date)</td><td>@e.Description</td><td>@e.Category</td><td>@e.Supplier</td>
+                                    <td class="num">@UiText.Money(e.Subtotal ?? e.Total)</td><td class="num">@UiText.Money(e.Vat ?? 0)</td><td class="num">@UiText.Money(e.Total)</td>
+                                    <td>@e.Status</td><td>@e.PaidBy</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </SectionCard>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Caja chica">
+            <SectionCard>
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead><tr><th>Fecha</th><th>Fondo</th><th>Factura</th><th>Comercio</th><th>Descripción</th><th>Centro de costos</th><th class="num">Monto</th></tr></thead>
+                        <tbody>
+                            @foreach (var e in _petty)
+                            {
+                                <tr>
+                                    <td>@UiText.Date(e.Date)</td><td>@e.Fund?.Name</td>
+                                    <td>@if (string.IsNullOrWhiteSpace(e.InvoiceNumber) || e.InvoiceNumber.TrimEnd('-', ' ', 'D', 'T', 'E') == "") { <StatusChip Status="StatusChip.Kind.Bajo" Text="Sin factura" /> } else { @e.InvoiceNumber }</td>
+                                    <td>@e.Supplier</td><td>@e.Description</td><td>@(e.CostCenter ?? "—")</td><td class="num">@UiText.Money(e.Total)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </SectionCard>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Viáticos">
+            <SectionCard>
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead><tr><th>Fecha</th><th>Fondo</th><th>Descripción</th><th>Centro de costos</th><th class="num">Monto</th></tr></thead>
+                        <tbody>
+                            @foreach (var e in _travel)
+                            {
+                                <tr><td>@UiText.Date(e.Date)</td><td>@e.Fund?.Name</td><td>@e.Description</td><td>@(e.CostCenter ?? "—")</td><td class="num">@UiText.Money(e.Total)</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </SectionCard>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Órdenes por nodo">
+            <ProjectPicker Value="_projectId" Changed="OnProjectAsync" />
+            @if (_orders.Count == 0)
+            {
+                <SectionCard><EmptyState Title="Este proyecto no tiene órdenes cargadas" Icon="@Icons.Material.Outlined.Receipt" Description="Suba el preciario en Importar Excel." /></SectionCard>
+            }
+            else
+            {
+                <SectionCard Title="@($"Órdenes · {UiText.Money(_orders.Sum(o => o.Total))} con IVA")">
+                    <div class="tk-table-wrap">
+                        <table class="tk-table">
+                            <thead><tr><th>Nodo</th><th>Orden</th><th class="num">HP</th><th class="num">Subtotal</th><th class="num">IVA</th><th class="num">Total</th><th>Brigada</th><th>Material</th><th>Liquidación</th></tr></thead>
+                            <tbody>
+                                @foreach (var o in _orders)
+                                {
+                                    <tr>
+                                        <td>@o.Code</td><td>@o.OrderNumber</td><td class="num">@(o.HomesPassed is { } hp ? UiText.Number(hp) : "—")</td>
+                                        <td class="num">@UiText.Money(o.Subtotal)</td><td class="num">@UiText.Money(o.Vat)</td><td class="num">@UiText.Money(o.Total)</td>
+                                        <td>@(o.ContractorName ?? "—")</td>
+                                        <td>@(o.MaterialStatus ?? "—")</td>
+                                        <td>@if (string.Equals(o.LiquidationStatus, "REALIZADA", StringComparison.OrdinalIgnoreCase)) { <StatusChip Status="StatusChip.Kind.Ok" Text="Realizada" /> } else { <StatusChip Status="StatusChip.Kind.Neutral" Text="@(o.LiquidationStatus is null ? "—" : Xl(o.LiquidationStatus))" /> }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </SectionCard>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Precios target">
+            @if (_prices.Count == 0)
+            {
+                <SectionCard><EmptyState Title="Este proyecto no tiene precios cargados" Icon="@Icons.Material.Outlined.Sell" Description="Suba el preciario en Importar Excel." /></SectionCard>
+            }
+            else
+            {
+                @foreach (var section in _prices.GroupBy(p => p.Section))
+                {
+                    <SectionCard Title="@($"Precio target · {section.Key}")" Class="mb-4">
+                        <div class="tk-table-wrap">
+                            <table class="tk-table">
+                                <thead><tr><th>Rubro</th><th>Tipo</th><th>Unidad</th><th class="num">Precio target</th></tr></thead>
+                                <tbody>
+                                    @foreach (var p in section)
+                                    {
+                                        <tr><td>@p.Item</td><td>@p.Type</td><td>@p.Unit</td><td class="num">@UiText.Money(p.TargetPrice)</td></tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </SectionCard>
+                }
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    private ExpenseSummary? _summary;
+    private List<ExpenseEntry> _purchases = [];
+    private List<ExpenseEntry> _petty = [];
+    private List<ExpenseEntry> _travel = [];
+    private List<ContractOrder> _orders = [];
+    private List<PriceItem> _prices = [];
+    private int _projectId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _summary = await Finance.SummaryAsync();
+        _purchases = await Finance.ExpensesAsync(ExpenseKind.Purchase, null);
+        _petty = await Finance.ExpensesAsync(ExpenseKind.PettyCash, null);
+        _travel = await Finance.ExpensesAsync(ExpenseKind.Travel, null);
+        _projectId = Selection.CurrentId ?? (await Selection.ListAsync()).FirstOrDefault()?.Id ?? 0;
+        await OnProjectAsync(_projectId);
+    }
+
+    private async Task OnProjectAsync(int id)
+    {
+        _projectId = id;
+        _orders = id == 0 ? [] : await Finance.OrdersAsync(id);
+        _prices = id == 0 ? [] : await Finance.PricesAsync(id);
+    }
+
+    private static string Width(decimal value, decimal max) =>
+        max <= 0 ? "0" : Math.Max(2, Math.Round(value / max * 100, 1)).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string Xl(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..].ToLowerInvariant();
+}

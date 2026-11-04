@@ -244,6 +244,7 @@ public sealed class ExcelImportService(
 
         await BuildSystemChecksAsync(report, workbook, project.Id, siteIds, nodes.Count, ct);
         report.Applied = true;
+        report.ProjectId = project.Id;
         return report;
     }
 

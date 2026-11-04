@@ -25,6 +25,15 @@ public class Material : AuditableEntity
     public bool IsActive { get; set; } = true;
     public string? Notes { get; set; }
 
+    /// <summary>Modelo del fabricante (ej. FAT2810-SS-8-A).</summary>
+    public string? Model { get; set; }
+
+    /// <summary>Descripción técnica como viene en el catálogo del proveedor.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Si el material se recibe con número de serie (se controla en Equipos y seriales).</summary>
+    public bool HasSerial { get; set; }
+
     public ICollection<MaterialAlias> Aliases { get; set; } = [];
 }
 

@@ -47,6 +47,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<NotificationRule> NotificationRules => Set<NotificationRule>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
 
+    // Edificios (proyectos NextWave)
+    public DbSet<ProjectPhase> ProjectPhases => Set<ProjectPhase>();
+    public DbSet<BuildingRecord> BuildingRecords => Set<BuildingRecord>();
+
+    // Gastos y precios
+    public DbSet<ExpenseFund> ExpenseFunds => Set<ExpenseFund>();
+    public DbSet<ExpenseEntry> ExpenseEntries => Set<ExpenseEntry>();
+    public DbSet<PriceItem> PriceItems => Set<PriceItem>();
+    public DbSet<ContractOrder> ContractOrders => Set<ContractOrder>();
+
     // Exportes
     public DbSet<ExportTemplate> ExportTemplates => Set<ExportTemplate>();
 

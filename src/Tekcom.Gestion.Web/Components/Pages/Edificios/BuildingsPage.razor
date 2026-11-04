@@ -1,0 +1,257 @@
+@page "/edificios"
+@attribute [Authorize]
+@using System.Text.Json
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IBuildingService Buildings
+
+<PageTitle>Edificios · TEK-COM</PageTitle>
+
+<PageHeader Title="Edificios" Subtitle="Proyectos de cableado interno de NextWave: fases, apartamentos, infraestructura, niveles y materiales" />
+
+@if (_overview is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_overview.Count == 0)
+{
+    <SectionCard>
+        <EmptyState Title="Todavía no hay edificios cargados" Icon="@Icons.Material.Outlined.Apartment"
+                    Description="El administrador los carga con el Excel de control de proyectos en Importar Excel." />
+    </SectionCard>
+}
+else
+{
+    <div class="tk-kpi-grid">
+        <KpiCard Label="Proyectos" Value="@_overview.Count.ToString()" Note="@($"{_overview.Count(o => o.Project.Status == ProjectStatus.Closed)} finalizados")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Avance promedio" Value="@($"{AverageProgress:0.#}%")" Note="de los cinco edificios" Tone="KpiCard.NoteTone.Success" />
+        <KpiCard Label="Apartamentos" Value="@_overview.Sum(o => o.Units).ToString()" Note="@($"{_overview.Sum(o => o.UnitsFinished)} terminados")" />
+        <KpiCard Label="En proceso" Value="@_overview.Count(o => o.Project.Status == ProjectStatus.Active).ToString()" Note="construcción en curso" Tone="KpiCard.NoteTone.Warning" />
+    </div>
+
+    <div class="tk-building-grid">
+        @foreach (var item in _overview)
+        {
+            <SectionCard Title="@item.Project.Name" Badge="@null">
+                <p class="tk-muted mb-2">Centro de costos @item.Project.Code · @(item.Project.Client?.Name ?? "—")</p>
+                <div class="mb-2"><StatusChip Status="StatusKind(item.Project.Status)" Text="@UiText.ProjectStatusName(item.Project.Status)" /></div>
+                <div class="tk-phase">
+                    <strong>Avance global</strong>
+                    <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@(item.Project.Status == ProjectStatus.Closed ? "success" : "info")" style="width:@Pct(item.Project.ReportedProgress)%"></span></span>
+                    <strong>@($"{item.Project.ReportedProgress ?? 0:0.#}%")</strong>
+                </div>
+                @foreach (var phase in item.Phases)
+                {
+                    <div class="tk-phase @(phase.ParentName is null ? "" : "tk-phase--child")" data-tip="@($"{phase.Percent:0.#}%|{phase.Name} · peso {phase.Weight:0.#}%")">
+                        <span>@phase.Name <span class="tk-muted">· @($"{phase.Weight:0.#}%")</span></span>
+                        <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@(phase.Percent >= 100 ? "success" : "info")" style="width:@Pct(phase.Percent)%"></span></span>
+                        <span>@($"{phase.Percent:0.#}%")</span>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(item.Project.PendingWork))
+                {
+                    <p class="mt-3"><strong>Trabajos por ejecutar:</strong> @item.Project.PendingWork</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(item.Project.Description))
+                {
+                    <p class="tk-muted mt-2" style="white-space:pre-line">@item.Project.Description</p>
+                }
+                <p class="tk-muted mt-2">@(item.Project.ResponsibleName ?? "—") · @UiText.Date(item.Project.PlannedStart) – @UiText.Date(item.Project.PlannedEnd)</p>
+            </SectionCard>
+        }
+    </div>
+
+    <SectionCard Title="Detalle del edificio" Class="mb-4">
+        <MudSelect T="int" Value="_projectId" ValueChanged="OnProjectAsync" Label="Edificio" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:360px">
+            @foreach (var o in _overview)
+            {
+                <MudSelectItem T="int" Value="o.Project.Id">@o.Project.Name (@o.Project.Code)</MudSelectItem>
+            }
+        </MudSelect>
+    </SectionCard>
+
+    <MudTabs Elevation="0" Rounded="true" Color="Color.Primary" ApplyEffectsToContainer="true" TabPanelsClass="pt-4">
+        <MudTabPanel Text="@($"Apartamentos ({_units.Count})")">
+            @if (_units.Count == 0)
+            {
+                <SectionCard><EmptyState Title="Este edificio no tiene apartamentos registrados" Icon="@Icons.Material.Outlined.Apartment" Description="Los edificios de infraestructura no se miden por apartamento." /></SectionCard>
+            }
+            else
+            {
+                <div class="tk-toolbar">
+                    <MudTextField @bind-Value="_search" Immediate="true" Placeholder="Buscar apartamento o nivel" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:260px" />
+                </div>
+                <SectionCard>
+                    <div class="tk-table-wrap">
+                        <table class="tk-table">
+                            <thead><tr><th>Nivel</th><th>Apartamento</th><th>Avance</th><th>Estado</th><th>Detalle</th></tr></thead>
+                            <tbody>
+                                @foreach (var u in FilteredUnits)
+                                {
+                                    <tr>
+                                        <td>@u.Level</td><td>@u.Name</td>
+                                        <td class="tk-bar-cell"><span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@((u.ProgressPercent ?? 0) >= 100 ? "success" : "info")" style="width:@Pct(u.ProgressPercent)%"></span></span> @($"{u.ProgressPercent ?? 0:0.#}%")</td>
+                                        <td>@u.Status</td>
+                                        <td>@DetailView(u)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </SectionCard>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Infraestructura">
+            @foreach (var record in _infra)
+            {
+                <SectionCard Title="@($"Infraestructura · {@record.Status ?? "—"} · {record.ProgressPercent ?? 0:0.#}%")" Class="mb-4">
+                    @DetailBlock(record)
+                    @if (!string.IsNullOrWhiteSpace(record.Notes)) { <p class="tk-muted">@record.Notes</p> }
+                </SectionCard>
+            }
+            @if (_infra.Count == 0)
+            {
+                <SectionCard><EmptyState Title="Sin datos de infraestructura" Icon="@Icons.Material.Outlined.Hub" Description="Cargue el Excel de control de proyectos." /></SectionCard>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Niveles ({_levels.Count})")">
+            <SectionCard>
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead><tr><th>Nivel</th><th>Avance</th><th>Estado</th><th>Comentarios</th><th>Detalle</th></tr></thead>
+                        <tbody>
+                            @foreach (var l in _levels)
+                            {
+                                <tr><td>@l.Name</td><td>@($"{l.ProgressPercent ?? 0:0.#}%")</td><td>@l.Status</td><td>@l.Notes</td><td>@DetailView(l)</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </SectionCard>
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Materiales ({_materials.Count})")">
+            @if (_materials.Count == 0)
+            {
+                <SectionCard><EmptyState Title="Sin materiales cargados" Icon="@Icons.Material.Outlined.Inventory2" Description="Cargue el control de materiales en Importar Excel." /></SectionCard>
+            }
+            else
+            {
+                <SectionCard>
+                    <div class="tk-table-wrap">
+                        <table class="tk-table">
+                            <thead><tr><th>Material</th><th>UM</th><th class="num">Asignado</th><th class="num">Instalado</th><th class="num">Devuelto</th><th class="num">Falta devolver</th></tr></thead>
+                            <tbody>
+                                @foreach (var m in _materials)
+                                {
+                                    <tr>
+                                        <td>@m.Material</td><td>@m.Unit</td>
+                                        <td class="num">@UiText.Number(m.Assigned)</td><td class="num">@UiText.Number(m.Installed)</td><td class="num">@UiText.Number(m.Returned)</td>
+                                        <td class="num @(m.PendingReturn > 0 ? "" : m.PendingReturn < 0 ? "tk-neg" : "")">@UiText.Number(m.PendingReturn)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </SectionCard>
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    private List<BuildingOverview>? _overview;
+    private int _projectId;
+    private string? _search;
+    private List<BuildingRecord> _units = [];
+    private List<BuildingRecord> _infra = [];
+    private List<BuildingRecord> _levels = [];
+    private List<BuildingMaterialRow> _materials = [];
+
+    private decimal AverageProgress => _overview is { Count: > 0 } ? _overview.Average(o => o.Project.ReportedProgress ?? 0) : 0;
+
+    private IEnumerable<BuildingRecord> FilteredUnits => string.IsNullOrWhiteSpace(_search)
+        ? _units
+        : _units.Where(u => u.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) || (u.Level ?? "").Equals(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _overview = await Buildings.OverviewAsync();
+        if (_overview.Count > 0)
+        {
+            await OnProjectAsync((_overview.FirstOrDefault(o => o.Units > 0) ?? _overview[0]).Project.Id);
+        }
+    }
+
+    private async Task OnProjectAsync(int id)
+    {
+        _projectId = id;
+        _units = await Buildings.RecordsAsync(id, BuildingRecordKind.Unit);
+        _infra = await Buildings.RecordsAsync(id, BuildingRecordKind.Infrastructure);
+        _levels = await Buildings.RecordsAsync(id, BuildingRecordKind.Level);
+        _materials = await Buildings.MaterialsAsync(id);
+    }
+
+    private static string Pct(decimal? value) => Math.Clamp(value ?? 0, 0, 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static StatusChip.Kind StatusKind(ProjectStatus status) => UiText.ProjectStatusKind(status);
+
+    private static Dictionary<string, string> Details(BuildingRecord record)
+    {
+        if (string.IsNullOrWhiteSpace(record.DetailJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(record.DetailJson) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private RenderFragment DetailView(BuildingRecord record) => builder =>
+    {
+        var details = Details(record);
+        if (details.Count == 0)
+        {
+            builder.AddContent(0, "—");
+            return;
+        }
+
+        builder.OpenElement(1, "details");
+        builder.OpenElement(2, "summary");
+        builder.AddContent(3, $"{details.Count} datos");
+        builder.CloseElement();
+        builder.AddContent(4, DetailBlock(record));
+        builder.CloseElement();
+    };
+
+    private RenderFragment DetailBlock(BuildingRecord record) => builder =>
+    {
+        var details = Details(record);
+        builder.OpenElement(1, "dl");
+        builder.AddAttribute(2, "class", "tk-detail-json");
+        var i = 3;
+        foreach (var (key, value) in details)
+        {
+            builder.OpenElement(i++, "dt");
+            builder.AddContent(i++, key);
+            builder.CloseElement();
+            builder.OpenElement(i++, "dd");
+            builder.AddContent(i++, value);
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+}
