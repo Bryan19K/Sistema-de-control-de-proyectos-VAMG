@@ -83,8 +83,16 @@ if ! "${PROBAR[@]}" 2>/dev/null; then
     SSH_USER=root
     PROBAR=(ssh -i "$WORK/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "root@$HOST" true)
     if ! "${PROBAR[@]}" 2>/dev/null; then
-      aviso "Tampoco entró root con la llave. Mande captura de este mensaje y de lo de arriba."
-      fallo "No se pudo autorizar la llave en el servidor."
+      aviso "Tampoco entró root con la llave. Levantando un SSH de diagnóstico en el servidor..."
+      "${SSH_ROOT[@]}" 'ufw allow 2222/tcp >/dev/null 2>&1; (timeout 25 /usr/sbin/sshd -D -d -p 2222 -f /etc/ssh/sshd_config > /tmp/sshd-debug.log 2>&1 &); sleep 2' || true
+      echo "--- Lado cliente ---"
+      ssh -v -p 2222 -i "$WORK/deploy_key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new "root@$HOST" true 2>&1 \
+        | grep -Ei "Load key|sign_and_send|signing failed|Offering|accepts key|Authentications that can|no more auth|Permission denied|identity file" | cut -c1-170 | head -8 || true
+      sleep 2
+      echo "--- Lado servidor ---"
+      "${SSH_ROOT[@]}" 'grep -Ei "key|auth|fail|error|refus|denied|not allowed|pam|match|sig" /tmp/sshd-debug.log | grep -vi "debug3\|kex\|cipher\|compress\|mac:" | tail -14 | cut -c1-170; ufw delete allow 2222/tcp >/dev/null 2>&1; true' || true
+      echo "--------------------"
+      fallo "No se pudo autorizar la llave en el servidor. Mande captura de lo de arriba (cliente y servidor)."
     fi
   fi
 fi
