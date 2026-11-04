@@ -65,11 +65,26 @@ curl -fsSL "$RAW/setup-server.sh" -o "$WORK/setup-server.sh"
 
 paso "3/5 Probando la llave en el servidor"
 PROBAR=(ssh -i "$WORK/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "deploy@$HOST" 'echo "Conexión como deploy correcta"')
-if ! "${PROBAR[@]}"; then
-  aviso "La llave no fue aceptada. Datos del servidor para el diagnóstico:"
-  "${SSH_ROOT[@]}" 'id deploy; passwd -S deploy; ls -ld /home/deploy /home/deploy/.ssh; ls -l /home/deploy/.ssh; sshd -T 2>/dev/null | grep -Ei "^(pubkeyauthentication|usepam|allowusers|allowgroups|authorizedkeysfile|passwordauthentication) "; ls /etc/ssh/sshd_config.d/ 2>/dev/null; journalctl -u ssh -u sshd -n 12 --no-pager 2>/dev/null | tail -12' || true
-  fallo "No se pudo entrar como deploy con la llave. Mande una captura de lo de arriba."
+if ! "${PROBAR[@]}" 2>/dev/null; then
+  aviso "La llave no fue aceptada a la primera. Reescribiendo la llave en el servidor y reintentando..."
+  "${SSH_ROOT[@]}" "install -d -m 700 -o deploy -g deploy /home/deploy/.ssh \
+    && printf '%s\n' '$PUBKEY' > /home/deploy/.ssh/authorized_keys \
+    && chown -R deploy:deploy /home/deploy/.ssh && chmod 600 /home/deploy/.ssh/authorized_keys && chmod 755 /home/deploy \
+    && (passwd -S deploy | awk '{exit !(\$2==\"L\" || \$2==\"LK\")}' && echo \"deploy:\$(openssl rand -hex 24)\" | chpasswd || true) \
+    && (systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true)"
+  sleep 2
+  if ! "${PROBAR[@]}" 2>/dev/null; then
+    echo
+    aviso "================ DIAGNÓSTICO (mande captura de ESTE bloque) ================"
+    echo "Llave local:    $(ssh-keygen -lf "$WORK/deploy_key.pub" | awk '{print $2}')"
+    echo "Llave servidor: $("${SSH_ROOT[@]}" 'ssh-keygen -lf /home/deploy/.ssh/authorized_keys 2>&1 | awk "{print \$2}" | tr "\n" " "')"
+    "${SSH_ROOT[@]}" 'stat -c "%U:%G %a %n" /home/deploy /home/deploy/.ssh /home/deploy/.ssh/authorized_keys 2>&1; echo "cuenta: $(passwd -S deploy 2>&1)"; sshd -T 2>/dev/null | grep -Ei "^(pubkeyauthentication|usepam|allowusers|allowgroups|denyusers|authorizedkeysfile|authenticationmethods) " | tr "\n" ";"; echo; ls /etc/ssh/sshd_config.d/ 2>&1 | tr "\n" " "; echo; echo "ssh: $(sshd -V 2>&1 | head -1; ssh -V 2>&1 | head -1)"'
+    ssh -v -i "$WORK/deploy_key" -o BatchMode=yes -o IdentitiesOnly=yes "deploy@$HOST" true 2>&1 | grep -E "Offering public key|Server accepts key|Authentications that can continue|no more authentication|Permission denied" | head -6
+    aviso "============================================================================"
+    fallo "No se pudo entrar como deploy con la llave."
+  fi
 fi
+echo "Conexión como deploy correcta"
 
 paso "4/5 Cargando los secretos en GitHub"
 # En Codespaces gh usa un token sin permiso para secretos; si falla, se pide autorizar una vez desde el navegador.
