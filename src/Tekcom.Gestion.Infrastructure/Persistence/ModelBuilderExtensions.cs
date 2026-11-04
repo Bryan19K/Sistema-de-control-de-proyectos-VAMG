@@ -52,4 +52,39 @@ public static class ModelBuilderExtensions
 
         return builder;
     }
+
+    /// <summary>
+    /// Nada se borra físicamente, así que no hay borrados en cascada: evita rutas de cascada
+    /// múltiples en SQL Server y protege los datos. Solo aplica a entidades del dominio.
+    /// </summary>
+    public static ModelBuilder UseRestrictDeleteBehavior(this ModelBuilder builder)
+    {
+        foreach (var entityType in builder.Model.GetEntityTypes()
+                     .Where(t => typeof(IAuditableEntity).IsAssignableFrom(t.ClrType)))
+        {
+            foreach (var foreignKey in entityType.GetForeignKeys())
+            {
+                foreignKey.DeleteBehavior = DeleteBehavior.Restrict;
+            }
+        }
+
+        return builder;
+    }
+
+    /// <summary>Cantidades con 3 decimales (metros, unidades) en todas las entidades del dominio.</summary>
+    public static ModelBuilder UseDecimalPrecision(this ModelBuilder builder)
+    {
+        foreach (var entityType in builder.Model.GetEntityTypes()
+                     .Where(t => typeof(IAuditableEntity).IsAssignableFrom(t.ClrType)))
+        {
+            foreach (var property in entityType.GetProperties()
+                         .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
+            {
+                property.SetPrecision(18);
+                property.SetScale(3);
+            }
+        }
+
+        return builder;
+    }
 }

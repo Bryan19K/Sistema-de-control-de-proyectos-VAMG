@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Tekcom.Gestion.Application.Common.Interfaces;
+using Tekcom.Gestion.Application.Import;
+using Tekcom.Gestion.Application.Services;
 using Tekcom.Gestion.Infrastructure.Identity;
 using Tekcom.Gestion.Infrastructure.Persistence;
 using Tekcom.Gestion.Infrastructure.Persistence.Interceptors;
@@ -25,12 +27,35 @@ public static class DependencyInjection
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddScoped<AuditableEntityInterceptor>();
 
-        services.AddDbContext<ApplicationDbContext>((provider, options) =>
+        var useSqlite = string.Equals(configuration["Database:Provider"], "Sqlite", StringComparison.OrdinalIgnoreCase);
+
+        void ConfigureDb(IServiceProvider provider, DbContextOptionsBuilder options)
         {
-            options.UseSqlServer(connectionString, sql =>
-                sql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName));
+            if (useSqlite)
+            {
+                // Solo para desarrollo y pruebas locales sin SQL Server.
+                options.UseSqlite(connectionString);
+            }
+            else
+            {
+                options.UseSqlServer(connectionString, sql =>
+                    sql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName));
+            }
+
             options.AddInterceptors(provider.GetRequiredService<AuditableEntityInterceptor>());
-        });
+        }
+
+        // Blazor Server: cada operación usa su propio contexto (fábrica); Identity usa el contexto del scope.
+        services.AddDbContextFactory<ApplicationDbContext>(ConfigureDb, ServiceLifetime.Scoped);
+        services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
+
+        services.AddScoped<IReferenceDataService, ReferenceDataService>();
+        services.AddScoped<IProjectService, ProjectService>();
+        services.AddScoped<IQuantityService, QuantityService>();
+        services.AddScoped<ISiteService, SiteService>();
+        services.AddScoped<IMaterialService, MaterialService>();
+        services.AddScoped<IUserAdminService, UserAdminService>();
+        services.AddScoped<IExcelImportService, Import.ExcelImportService>();
 
         services.Configure<SeedAdminOptions>(configuration.GetSection(SeedAdminOptions.SectionName));
 

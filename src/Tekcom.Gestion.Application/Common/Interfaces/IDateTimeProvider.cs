@@ -7,4 +7,7 @@ namespace Tekcom.Gestion.Application.Common.Interfaces;
 public interface IDateTimeProvider
 {
     DateTimeOffset UtcNow { get; }
+
+    /// <summary>Fecha de hoy en la zona horaria de El Salvador.</summary>
+    DateOnly Today { get; }
 }

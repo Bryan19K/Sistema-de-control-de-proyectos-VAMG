@@ -12,4 +12,5 @@ public sealed class FakeCurrentUser(string? userName = "bryan@tekcom.com") : ICu
 public sealed class FakeDateTime(DateTimeOffset now) : IDateTimeProvider
 {
     public DateTimeOffset UtcNow { get; set; } = now;
+    public DateOnly Today => DateOnly.FromDateTime(UtcNow.UtcDateTime);
 }

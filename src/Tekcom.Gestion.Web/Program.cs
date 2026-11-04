@@ -77,20 +77,11 @@ app.MapRazorComponents<App>()
 // Endpoints adicionales que necesitan las páginas de /Account.
 app.MapAdditionalIdentityEndpoints();
 
-// Base de datos: aplica migraciones pendientes y crea roles + administrador.
+// Base de datos: aplica migraciones pendientes, siembra datos base, roles y administrador.
 // Se puede desactivar con Database:ApplyMigrationsOnStartup=false (p. ej. si las migraciones se aplican desde CI).
 if (app.Configuration.GetValue("Database:ApplyMigrationsOnStartup", defaultValue: true))
 {
-    await InitializeDatabaseAsync(app);
+    await DatabaseInitializer.InitializeAsync(app.Services);
 }
 
 app.Run();
-
-static async Task InitializeDatabaseAsync(WebApplication app)
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
-
-    await IdentitySeeder.SeedAsync(app.Services);
-}
