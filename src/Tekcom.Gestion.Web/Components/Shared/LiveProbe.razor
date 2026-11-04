@@ -1,0 +1,10 @@
+@* Marca invisible para el diagnóstico de App.razor: si la página debe ser interactiva y si la conexión en vivo ya está activa. *@
+@using Microsoft.AspNetCore.Http
+<span data-tk-expect="@(Expect ? "1" : "0")" data-tk-live="@(RendererInfo.IsInteractive ? "1" : "0")" hidden></span>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    // En el circuito HttpContext es nulo (ya es interactivo); en el prerender se usa la misma regla que App.razor.
+    private bool Expect => HttpContext is null || HttpContext.AcceptsInteractiveRouting();
+}

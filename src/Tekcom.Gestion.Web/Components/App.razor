@@ -18,6 +18,37 @@
 <body>
     <Routes @rendermode="PageRenderMode" />
     <ReconnectModal />
+    <script>
+        // Diagnóstico de la conexión en vivo: si a los 10 s la página interactiva sigue sin circuito, muestra un aviso
+        // con los errores de la consola, para poder diagnosticar desde el celular sin herramientas de desarrollo.
+        (function () {
+            var errors = [];
+            function push(kind, args) {
+                try {
+                    var text = Array.prototype.map.call(args, function (x) { return x && x.message ? x.message : String(x); }).join(' ');
+                    errors.push(kind + ': ' + text.slice(0, 240));
+                    if (errors.length > 6) { errors.shift(); }
+                } catch (_) { }
+            }
+            var ce = console.error, cw = console.warn;
+            console.error = function () { push('error', arguments); ce.apply(console, arguments); };
+            console.warn = function () { push('aviso', arguments); cw.apply(console, arguments); };
+            window.addEventListener('error', function (ev) { push('error', [ev.message || ev.error]); });
+            window.addEventListener('unhandledrejection', function (ev) { push('rechazo', [ev.reason]); });
+            window.__tkErrors = errors;
+            setTimeout(function () {
+                if (document.querySelector('[data-tk-live="1"]')) { return; }
+                if (!document.querySelector('[data-tk-expect="1"]')) { return; }
+                var box = document.createElement('div');
+                box.id = 'tk-diag';
+                var ua = (navigator.userAgent.match(/(Chrome|CriOS|Firefox|Safari)\/[\d.]+/) || [''])[0];
+                box.innerHTML = '<strong>Sin conexión en vivo con el servidor</strong><br>' +
+                    (errors.length ? errors.map(function (x) { return x.replace(/</g, '&lt;'); }).join('<br>') : '(la consola no registró errores)') +
+                    '<br><span>' + location.protocol + ' · ' + ua + ' · blazor=' + (typeof Blazor !== 'undefined') + '</span>';
+                document.body.appendChild(box);
+            }, 10000);
+        })();
+    </script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
     <script src="@Assets["Components/Account/Shared/PasskeySubmit.razor.js"]" type="module"></script>

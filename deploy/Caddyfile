@@ -1,4 +1,11 @@
 # Caddy obtiene y renueva solo el certificado HTTPS (Let's Encrypt) del dominio indicado en .env.
+{
+	# Solo HTTP/1.1 y HTTP/2: HTTP/3 (QUIC) da problemas con las conexiones en vivo en algunas redes móviles.
+	servers {
+		protocols h1 h2
+	}
+}
+
 {$DOMAIN} {
 	encode zstd gzip
 	reverse_proxy web:8080

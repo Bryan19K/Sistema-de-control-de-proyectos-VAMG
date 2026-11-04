@@ -846,3 +846,10 @@ code {
 .tk-task-docs__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tk-task-docs__link { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
 .tk-task-docs__link .mud-select { flex: 1; min-width: 220px; }
+
+#tk-diag {
+    position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 9999;
+    background: #fff7e6; color: #5b3a00; border: 1px solid #e8742c; border-radius: 10px;
+    padding: 10px 14px; font-size: 0.8rem; line-height: 1.35; word-break: break-word; box-shadow: 0 6px 20px rgba(0,0,0,.15);
+}
+#tk-diag span { color: #7a6a52; font-size: 0.72rem; }
