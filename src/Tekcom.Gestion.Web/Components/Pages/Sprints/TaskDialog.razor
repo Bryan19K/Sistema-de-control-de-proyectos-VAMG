@@ -5,9 +5,12 @@
 @using Tekcom.Gestion.Domain.Entities
 @using Tekcom.Gestion.Domain.Enums
 @using Tekcom.Gestion.Web.Services
+@using Tekcom.Gestion.Web.Components.Pages.Documentos
 @inject ITaskService Tasks
 @inject ISiteService Sites
 @inject IMaterialService Materials
+@inject IDocumentService Documents
+@inject IDialogService Dialogs
 @inject IDateTimeProvider Clock
 @inject ISnackbar Snackbar
 
@@ -116,6 +119,39 @@
                     <div class="mt-2"><InputFile OnChange="OnFileAsync" /></div>
                     <MudText Typo="Typo.caption" Class="tk-muted">Máximo 20 MB por archivo.</MudText>
                 </MudTabPanel>
+                <MudTabPanel Text="@($"Documentos ({_documents.Count})")">
+                    <div class="tk-task-docs">
+                        @foreach (var d in _documents)
+                        {
+                            var doc = d;
+                            <div class="tk-task-docs__row">
+                                <StatusChip Status="@(doc.Kind == DocumentKind.Atp ? StatusChip.Kind.EnTiempo : StatusChip.Kind.Neutral)" Text="@SpanishNames.Of(doc.Kind)" />
+                                <a href="archivos/documentos/@doc.Id" target="_blank" rel="noopener">@doc.Title</a>
+                                @if (doc.IsSigned) { <StatusChip Status="StatusChip.Kind.Ok" Text="Firmado" /> }
+                                @if (doc.Site is not null) { <span class="tk-muted tk-code-sm">Nodo @doc.Site.Code</span> }
+                                <span class="tk-muted tk-code-sm">@UiText.ShortDate(doc.DocumentDate)</span>
+                                <MudIconButton Icon="@Icons.Material.Outlined.LinkOff" Size="Size.Small" OnClick="() => UnlinkDocumentAsync(doc)" title="Desvincular de la tarea" aria-label="Desvincular" />
+                            </div>
+                        }
+                        @if (_documents.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Class="tk-muted">Esta tarea no tiene documentos vinculados (ATP, CAES, minutas firmadas, fotos).</MudText>
+                        }
+                    </div>
+                    <div class="tk-task-docs__link">
+                        <MudButton Variant="Variant.Outlined" OnClick="UploadDocumentAsync">Subir documento</MudButton>
+                        @if (_linkable.Count > 0)
+                        {
+                            <MudSelect T="int?" @bind-Value="_linkId" Placeholder="Vincular un documento existente" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                                @foreach (var d in _linkable)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)d.Id)">@SpanishNames.Of(d.Kind) · @d.Title@(d.Site is null ? string.Empty : $" · {d.Site.Code}")</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudButton Variant="Variant.Outlined" Disabled="@(_linkId is null)" OnClick="LinkDocumentAsync">Vincular</MudButton>
+                        }
+                    </div>
+                </MudTabPanel>
             </MudTabs>
         }
     </DialogContent>
@@ -145,6 +181,9 @@
     private List<TaskChecklistItem> _checklist = [];
     private List<TaskComment> _comments = [];
     private List<TaskAttachment> _attachments = [];
+    private List<ProjectDocument> _documents = [];
+    private List<ProjectDocument> _linkable = [];
+    private int? _linkId;
     private string? _newItem;
     private string? _newComment;
     private bool _changed;
@@ -168,6 +207,7 @@
                 _checklist = task.Checklist.OrderBy(i => i.SortOrder).ToList();
                 _comments = task.Comments.ToList();
                 _attachments = task.Attachments.ToList();
+                await LoadDocumentsAsync();
             }
         }
         else
@@ -187,8 +227,43 @@
         _checklist = task.Checklist.OrderBy(i => i.SortOrder).ToList();
         _comments = task.Comments.ToList();
         _attachments = task.Attachments.ToList();
+        await LoadDocumentsAsync();
         _changed = true;
     }
+
+    private async Task LoadDocumentsAsync()
+    {
+        _documents = await Documents.ListAsync(new DocumentFilter { ProjectId = ProjectId, TaskItemId = _model.Id });
+        var all = await Documents.ListAsync(new DocumentFilter { ProjectId = ProjectId });
+        _linkable = all.Where(d => d.TaskItemId is null).ToList();
+        _linkId = null;
+    }
+
+    private async Task UploadDocumentAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<DocumentDialog>("Subir documento",
+            new DialogParameters { ["ProjectId"] = ProjectId, ["SiteId"] = _model.SiteId, ["TaskId"] = _model.Id },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if ((await dialog.Result)?.Canceled == false)
+        {
+            await LoadDocumentsAsync();
+            _changed = true;
+        }
+    }
+
+    private Task LinkDocumentAsync() => Run(async () =>
+    {
+        var doc = _linkable.FirstOrDefault(d => d.Id == _linkId);
+        if (doc is null) { return; }
+        await Documents.UpdateAsync(doc.Id, doc.Title, doc.Kind, doc.DocumentDate, doc.IsSigned, doc.Notes, doc.SiteId, _model.Id);
+        await LoadDocumentsAsync();
+    });
+
+    private Task UnlinkDocumentAsync(ProjectDocument doc) => Run(async () =>
+    {
+        await Documents.UpdateAsync(doc.Id, doc.Title, doc.Kind, doc.DocumentDate, doc.IsSigned, doc.Notes, doc.SiteId, null);
+        await LoadDocumentsAsync();
+    });
 
     private async Task SaveAsync()
     {

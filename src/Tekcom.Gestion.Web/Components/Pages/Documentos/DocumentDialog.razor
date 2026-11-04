@@ -68,6 +68,7 @@
     [Parameter] public int ProjectId { get; set; }
     [Parameter] public ProjectDocument? Model { get; set; }
     [Parameter] public int? SiteId { get; set; }
+    [Parameter] public int? TaskId { get; set; }
 
     private IBrowserFile? _file;
     private string _title = string.Empty;
@@ -87,6 +88,7 @@
         _tasks = await Tasks.ListAsync(new TaskFilter { ProjectId = ProjectId });
         _date = Clock.Today;
         _siteId = SiteId;
+        _taskId = TaskId;
         if (Model is not null)
         {
             _title = Model.Title;
