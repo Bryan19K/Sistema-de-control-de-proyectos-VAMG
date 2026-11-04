@@ -3,7 +3,7 @@
 La aplicación corre en un VPS con **Docker**: PostgreSQL, la aplicación y **Caddy** (que consigue solo el
 certificado HTTPS). GitHub Actions publica cada cambio que llegue a `main`.
 
-- Dirección: `https://vps3795068.trouble-free.net`
+- Dirección: `https://162-35-14-225.sslip.io`
 - Todo se puede hacer desde el celular usando la terminal del Codespace.
 
 ## Camino rápido: todo con un solo comando
@@ -85,7 +85,7 @@ Opcional, cuando la llave ya funcione: bloquee la contraseña temporal con
 
 Haga el **merge del pull request a `main`** (o, desde la pestaña **Actions**, elija *Publicar en el VPS* y **Run workflow**). Verá el despliegue:
 compila, prueba, construye la imagen, la sube a `ghcr.io` y la instala en el servidor.
-Cuando termine en verde, abra `https://vps3795068.trouble-free.net` e inicie sesión con el administrador del paso 3.
+Cuando termine en verde, abra `https://162-35-14-225.sslip.io` e inicie sesión con el administrador del paso 3.
 
 La primera vez Caddy tarda unos segundos en conseguir el certificado. Desde entonces, cada merge a `main` se publica solo.
 
@@ -121,6 +121,7 @@ o descargar los respaldos de vez en cuando.
 
 - **El workflow falla en "Verificar secretos":** falta alguno de `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (paso 4).
 - **Falla el SSH desde Actions:** la llave no quedó autorizada; repita `ssh-copy-id` del paso 4.
+- **Dirección web:** sin dominio propio se usa `IP-con-guiones.sslip.io` (por ejemplo `162-35-14-225.sslip.io`), que apunta sola a la IP y da HTTPS gratis. El nombre `vpsNNNN.trouble-free.net` del panel de InterServer **no** tiene registro DNS público y no sirve. Con un dominio propio, cámbielo en `DOMAIN=` de `/opt/tekcom/.env` y haga `docker compose up -d`.
 - **El sitio no abre con HTTPS:** el dominio debe apuntar a la IP del VPS y los puertos 80 y 443 estar abiertos
   (también en el firewall del panel de InterServer, si tiene uno). Revise `docker compose logs caddy`.
 - **Datos locales de pruebas:** la base del servidor es independiente de cualquier base local.

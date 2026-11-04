@@ -24,10 +24,11 @@ docker compose pull web
 docker compose up -d --remove-orphans
 
 DOMAIN="$(grep '^DOMAIN=' .env | cut -d= -f2-)"
-echo "==> Esperando a que la aplicación responda (${DOMAIN})"
+echo "==> Esperando a que la aplicación responda"
+# Se consulta la aplicación por la red interna de Docker, para no depender de que el certificado HTTPS ya exista.
 for i in $(seq 1 40); do
-  if curl -fsSk --max-time 5 --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/healthz" >/dev/null 2>&1; then
-    echo "La aplicación respondió correctamente."
+  if docker compose exec -T caddy wget -q -O- -T 5 http://web:8080/healthz >/dev/null 2>&1; then
+    echo "La aplicación respondió correctamente. Dirección: https://${DOMAIN}"
     docker image prune -f >/dev/null 2>&1 || true
     exit 0
   fi

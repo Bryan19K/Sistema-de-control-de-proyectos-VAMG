@@ -14,7 +14,7 @@ REPO="Bryan19K/Sistema-de-control-de-proyectos-VAMG"
 REF="${REF:-claude/desarrollo-inicial-5m8ya1}"
 # SSH_HOST: a dónde se conecta (la IP no depende del DNS). DOMAIN: nombre para el HTTPS de la aplicación.
 HOST="${SSH_HOST:-162.35.14.225}"
-DOMAIN="${DOMAIN:-vps3795068.trouble-free.net}"
+DOMAIN="${DOMAIN:-$(echo "$HOST" | tr . -).sslip.io}"
 RAW="https://raw.githubusercontent.com/${REPO}/${REF}/deploy"
 
 paso() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }

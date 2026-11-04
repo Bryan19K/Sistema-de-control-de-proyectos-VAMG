@@ -7,14 +7,19 @@
 #     curl -fsSL https://raw.githubusercontent.com/Bryan19K/Sistema-de-control-de-proyectos-VAMG/main/deploy/setup-server.sh | bash
 #
 # Variables opcionales (se anteponen al comando):
-#   DOMAIN=vps3795068.trouble-free.net   dominio que apunta al servidor (HTTPS automático)
+#   DOMAIN=gestion.miempresa.com         dominio propio que apunte a la IP (por defecto: IP-con-guiones.sslip.io)
 #   SEED_ADMIN_EMAIL=correo@empresa.com  correo del primer administrador
 #   DEPLOY_PUBKEY="ssh-ed25519 AAAA..."  llave pública para el usuario deploy (si se omite, se crea una contraseña temporal)
 #
 # Es seguro volver a correrlo: no cambia contraseñas ni sobrescribe el archivo .env existente.
 set -euo pipefail
 
-DOMAIN="${DOMAIN:-vps3795068.trouble-free.net}"
+# Sin dominio propio se usa sslip.io: <ip-con-guiones>.sslip.io resuelve a esa IP y permite HTTPS gratis.
+# (El nombre vpsNNNN.trouble-free.net del panel no tiene registro DNS público, por eso no sirve.)
+if [ -z "${DOMAIN:-}" ]; then
+  PUBLIC_IP="$(curl -fsS --max-time 10 https://api.ipify.org || hostname -I | awk '{print $1}')"
+  DOMAIN="$(echo "$PUBLIC_IP" | tr . -).sslip.io"
+fi
 SEED_ADMIN_EMAIL="${SEED_ADMIN_EMAIL:-admin@tekcom.com}"
 APP_DIR=/opt/tekcom
 
