@@ -85,6 +85,12 @@ app.MapGet("/adjuntos/tareas/{id:int}", async (int id, Tekcom.Gestion.Applicatio
         : Results.File(found.Value.Content, found.Value.Attachment.ContentType, found.Value.Attachment.FileName);
 }).RequireAuthorization();
 
+// Plantilla de Excel para importar la proyección de diseño.
+app.MapGet("/plantillas/proyeccion.xlsx", (Tekcom.Gestion.Application.Import.IProjectionImportService importer) =>
+    Results.File(importer.BuildTemplate(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "plantilla-proyeccion.xlsx"))
+    .RequireAuthorization();
+
 // Endpoints adicionales que necesitan las páginas de /Account.
 app.MapAdditionalIdentityEndpoints();
 

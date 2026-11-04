@@ -7,8 +7,15 @@
     <KpiCard Label="Errores" Value="@Report.Errors.ToString()" Note="@(Report.Errors == 0 ? "todo se puede importar" : "esas filas no se importan")"
              Tone="Report.Errors == 0 ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Danger" />
     <KpiCard Label="Advertencias" Value="@Report.Warnings.ToString()" Note="se importa, pero conviene revisar" Tone="Report.Warnings == 0 ? KpiCard.NoteTone.Neutral : KpiCard.NoteTone.Warning" />
-    <KpiCard Label="Totales que coinciden" Value="@($"{Report.TotalChecks.Count(c => c.Matches)} de {Report.TotalChecks.Count}")"
-             Note="contra la fila TOTAL del Excel" Tone="Report.TotalsMatch ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Danger" />
+    @if (Report.TotalChecks.Count > 0)
+    {
+        <KpiCard Label="Totales que coinciden" Value="@($"{Report.TotalChecks.Count(c => c.Matches)} de {Report.TotalChecks.Count}")"
+                 Note="contra la fila TOTAL del Excel" Tone="Report.TotalsMatch ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Danger" />
+    }
+    else
+    {
+        <KpiCard Label="Versiones creadas" Value="@Report.Counts.ProjectionVersionsCreated.ToString()" Note="una por nodo que cambió" Tone="KpiCard.NoteTone.Info" />
+    }
 </div>
 
 @if (Report.Applied)

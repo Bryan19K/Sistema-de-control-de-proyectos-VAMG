@@ -122,3 +122,33 @@ public interface IExcelImportService
     /// <summary>Importa lo que no tiene errores y valida los totales contra el Excel.</summary>
     Task<ImportReport> ApplyAsync(ImportAnalysis analysis, ImportTarget target, CancellationToken ct = default);
 }
+
+public sealed class ProjectionRow
+{
+    public int Row { get; init; }
+    public required string NodeCode { get; init; }
+    public required string MaterialName { get; init; }
+    public decimal Quantity { get; init; }
+    public int SiteId { get; init; }
+    public int MaterialId { get; init; }
+}
+
+public sealed class ProjectionAnalysis
+{
+    public required int ProjectId { get; init; }
+    public required ImportReport Report { get; init; }
+    public required List<ProjectionRow> Rows { get; init; }
+}
+
+/// <summary>
+/// Importa la proyección de diseño desde un Excel con tres columnas: NODO, MATERIAL y CANTIDAD.
+/// Cada importación crea una versión nueva por nodo (solo si cambió), sin perder las anteriores.
+/// </summary>
+public interface IProjectionImportService
+{
+    Task<ProjectionAnalysis> AnalyzeAsync(int projectId, Stream file, string fileName, CancellationToken ct = default);
+    Task<ImportReport> ApplyAsync(ProjectionAnalysis analysis, CancellationToken ct = default);
+
+    /// <summary>Plantilla de Excel lista para llenar.</summary>
+    byte[] BuildTemplate();
+}

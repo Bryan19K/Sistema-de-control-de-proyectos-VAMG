@@ -1,5 +1,3 @@
-@page "/materiales"
-@attribute [Authorize]
 @using Tekcom.Gestion.Application.Services
 @using Tekcom.Gestion.Domain.Entities
 @using Tekcom.Gestion.Domain.Enums
@@ -8,18 +6,11 @@
 @inject IDialogService Dialogs
 @inject UserAccess Access
 
-<PageTitle>Materiales · TEK-COM</PageTitle>
-
-<PageHeader Title="Materiales" Subtitle="Catálogo de materiales con sus alias, largos y rol en el flujo del nodo">
-    <Actions>
-        @if (_canEdit)
-        {
-            <button type="button" class="tk-btn tk-btn--primary" @onclick="() => EditAsync(null)">+ Nuevo material</button>
-        }
-    </Actions>
-</PageHeader>
-
 <div class="tk-toolbar">
+    @if (_canEdit)
+    {
+        <button type="button" class="tk-btn tk-btn--primary" @onclick="() => EditAsync(null)">+ Nuevo material</button>
+    }
     <MudTextField @bind-Value="_search" Immediate="true" Placeholder="Buscar por nombre, alias o código"
                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                   Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:320px" OnDebounceIntervalElapsed="LoadAsync" DebounceInterval="250" />

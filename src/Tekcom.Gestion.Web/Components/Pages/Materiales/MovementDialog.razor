@@ -1,0 +1,207 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IInventoryService Inventory
+@inject ISiteService Sites
+@inject IReferenceDataService Reference
+@inject IMaterialService Materials
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+@inject UserAccess Access
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            @if (Kind is MovementKind.Delivery or MovementKind.Return or MovementKind.Installed)
+            {
+                <MudSelect T="int" @bind-Value="_siteId" Label="Nodo" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="LockedSiteId is not null">
+                    @foreach (var s in _sites)
+                    {
+                        <MudSelectItem T="int" Value="s.Id">@s.Code</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            @if (Kind is MovementKind.Delivery or MovementKind.Installed)
+            {
+                <MudSelect T="int?" @bind-Value="_contractorId" Label="Contratista / recibe" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           HelperText="Si lo deja vacío se usa la brigada del nodo.">
+                    @foreach (var c in _contractors)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)c.Id)">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+
+            <MudAutocomplete T="Material" Value="_material" Label="Material" SearchFunc="SearchMaterials" ToStringFunc="@(m => m?.Name ?? string.Empty)"
+                             Variant="Variant.Outlined" Margin="Margin.Dense" ResetValueOnEmptyText="true" Clearable="true" Disabled="LockedMaterialId is not null"
+                             OnClearButtonClick="() => _available = null" ValueChanged="OnMaterialChanged" />
+
+            @if (Kind == MovementKind.Adjustment)
+            {
+                <MudRadioGroup T="bool" @bind-Value="_increase">
+                    <MudRadio T="bool" Value="true">Suma al stock</MudRadio>
+                    <MudRadio T="bool" Value="false">Resta del stock</MudRadio>
+                </MudRadioGroup>
+            }
+
+            <MudNumericField T="decimal" Value="_quantity" ValueChanged="OnQuantityChanged" Label="Cantidad" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense"
+                             HelperText="@AvailableHelp" />
+
+            @if (BlockedBySock)
+            {
+                <div class="tk-alert tk-alert--danger">
+                    <MudIcon Icon="@Icons.Material.Filled.Warning" />
+                    <span>Stock insuficiente: hay @UiText.Number(_available ?? 0) disponibles. Registre un ingreso o ajuste la cantidad.</span>
+                </div>
+                @if (_isAdmin)
+                {
+                    <MudTextField @bind-Value="_justification" Label="Justificación para entregar sin stock (solo administrador)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  HelperText="Quedará registrada en la bitácora." />
+                }
+            }
+
+            <DatePick Label="Fecha" @bind-Value="_date" />
+
+            @if (Kind == MovementKind.Receipt)
+            {
+                <MudTextField @bind-Value="_batch" Label="Lote / entrega" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            }
+
+            @if (Kind == MovementKind.Adjustment)
+            {
+                <MudTextField @bind-Value="_notes" Label="Motivo del ajuste" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            }
+            else
+            {
+                <MudTextField @bind-Value="_reference" Label="Referencia (hoja de entrega, factura...)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="_notes" Label="Notas" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="@(_saving || (BlockedBySock && string.IsNullOrWhiteSpace(_justification)))">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    public enum MovementKind { Receipt, Delivery, Return, Adjustment, Installed }
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public MovementKind Kind { get; set; }
+    [Parameter] public int? LockedSiteId { get; set; }
+    [Parameter] public int? LockedMaterialId { get; set; }
+
+    private List<Site> _sites = [];
+    private List<Contractor> _contractors = [];
+    private List<Material> _all = [];
+    private Material? _material;
+    private int _siteId;
+    private int? _contractorId;
+    private decimal _quantity;
+    private decimal? _available;
+    private bool _increase = true;
+    private DateOnly? _date;
+    private string? _batch;
+    private string? _reference;
+    private string? _notes;
+    private string? _justification;
+    private bool _saving;
+    private bool _isAdmin;
+
+    private bool TracksStock => Kind != MovementKind.Installed;
+
+    private bool BlockedBySock => Kind == MovementKind.Delivery && _available is { } a && _quantity > a;
+
+    private string? AvailableHelp => TracksStock && _available is { } a && Kind != MovementKind.Receipt
+        ? $"Disponible en bodega: {UiText.Number(a)}" : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isAdmin = await Access.IsAdminAsync();
+        _date = Clock.Today;
+        _sites = (await Sites.ListAsync(ProjectId)).Select(s => s.Site).ToList();
+        _contractors = await Reference.ContractorsAsync();
+        _all = await Materials.ListAsync();
+        _siteId = LockedSiteId ?? _sites.FirstOrDefault()?.Id ?? 0;
+        if (LockedMaterialId is { } id)
+        {
+            _material = _all.FirstOrDefault(m => m.Id == id);
+            await RefreshAvailableAsync();
+        }
+    }
+
+    private Task<IEnumerable<Material>> SearchMaterials(string? text, CancellationToken ct)
+    {
+        var key = Tekcom.Gestion.Domain.Logic.NameNormalizer.Key(text);
+        var pool = _all.Where(m => Kind == MovementKind.Installed || m.TracksStock);
+        return Task.FromResult(pool
+            .Where(m => key.Length == 0
+                || Tekcom.Gestion.Domain.Logic.NameNormalizer.Key(m.Name).Contains(key)
+                || m.Aliases.Any(a => a.AliasKey.Contains(key)))
+            .Take(30));
+    }
+
+    private async Task OnMaterialChanged(Material? material)
+    {
+        _material = material;
+        await RefreshAvailableAsync();
+    }
+
+    private async Task RefreshAvailableAsync()
+    {
+        _available = _material is null || !TracksStock ? null : await Inventory.AvailableAsync(ProjectId, _material.Id);
+    }
+
+    private void OnQuantityChanged(decimal value) => _quantity = value;
+
+    private async Task SaveAsync()
+    {
+        if (_material is null)
+        {
+            Snackbar.Add("Seleccione un material.", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+        var date = _date ?? Clock.Today;
+        try
+        {
+            switch (Kind)
+            {
+                case MovementKind.Receipt:
+                    await Inventory.ReceiptAsync(ProjectId, _material.Id, _quantity, date, _batch, _reference, _notes);
+                    break;
+                case MovementKind.Delivery:
+                    await Inventory.DeliveryAsync(ProjectId, _siteId, _material.Id, _quantity, date, _contractorId, _reference, _notes,
+                        BlockedBySock ? _justification : null);
+                    break;
+                case MovementKind.Return:
+                    await Inventory.ReturnAsync(ProjectId, _siteId, _material.Id, _quantity, date, _reference, _notes);
+                    break;
+                case MovementKind.Adjustment:
+                    await Inventory.AdjustmentAsync(ProjectId, _material.Id, _quantity, _increase, date, _notes ?? string.Empty);
+                    break;
+                case MovementKind.Installed:
+                    await Inventory.InstalledAsync(ProjectId, _siteId, _material.Id, _quantity, date, _contractorId, _notes);
+                    break;
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            await RefreshAvailableAsync();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

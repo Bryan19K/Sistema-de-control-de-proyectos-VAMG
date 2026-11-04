@@ -1,0 +1,62 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Web.Services
+@inject ILiquidationService Liquidation
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudSelect T="int" Value="_materialId" ValueChanged="OnMaterialChanged" Label="Material pendiente" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var r in Rows)
+                {
+                    <MudSelectItem T="int" Value="r.Quantity.Material.Id">@r.Quantity.Material.Name (pendiente @UiText.Number(r.Unresolved))</MudSelectItem>
+                }
+            </MudSelect>
+            <MudNumericField T="decimal" @bind-Value="_quantity" Label="Cantidad a justificar" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_reason" Label="Motivo" Lines="2" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          HelperText="Ej.: material dañado en la instalación, merma de corte, pérdida reportada por la brigada." />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar justificación</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int SiteId { get; set; }
+    [Parameter] public List<LiquidationRow> Rows { get; set; } = [];
+    [Parameter] public int? MaterialId { get; set; }
+
+    private int _materialId;
+    private decimal _quantity;
+    private string? _reason;
+
+    protected override void OnInitialized()
+    {
+        _materialId = MaterialId ?? Rows.FirstOrDefault()?.Quantity.Material.Id ?? 0;
+        _quantity = Rows.FirstOrDefault(r => r.Quantity.Material.Id == _materialId)?.Unresolved ?? 0;
+    }
+
+    private void OnMaterialChanged(int id)
+    {
+        _materialId = id;
+        _quantity = Rows.FirstOrDefault(r => r.Quantity.Material.Id == id)?.Unresolved ?? 0;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Liquidation.AddJustificationAsync(SiteId, _materialId, _quantity, _reason ?? string.Empty);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

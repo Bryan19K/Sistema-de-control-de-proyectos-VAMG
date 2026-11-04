@@ -1,0 +1,248 @@
+@page "/nodos/{Id:int}/liquidacion"
+@attribute [Authorize]
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Components.Pages.Materiales
+@using Tekcom.Gestion.Web.Services
+@inject ILiquidationService Liquidation
+@inject IProjectionService Projections
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject UserAccess Access
+
+<PageTitle>Liquidación · TEK-COM</PageTitle>
+
+@if (_view is null)
+{
+    @if (_loading) { <MudProgressLinear Indeterminate="true" /> }
+    else
+    {
+        <EmptyState Title="El nodo no existe" Icon="@Icons.Material.Outlined.SearchOff"><a href="nodos" class="tk-btn tk-btn--outline mt-4">Volver a nodos</a></EmptyState>
+    }
+}
+else
+{
+    <PageHeader Title="@($"Liquidación · Nodo {_view.Site.Code}")"
+                Subtitle="@($"{_projectionText} · Contratista: {_view.Site.Contractor?.Name ?? "—"}{(_view.IsClosed ? $" · Cerrada el {UiText.Date(_view.Liquidation.ClosedOn)}" : string.Empty)}")">
+        <Actions>
+            <a href="nodos/@Id" class="tk-btn tk-btn--outline">Volver al nodo</a>
+            <a href="materiales" class="tk-btn tk-btn--outline">Importar proyección</a>
+            @if (_canManage && !_view.IsClosed)
+            {
+                <button type="button" class="tk-btn tk-btn--outline" @onclick="ReturnAsync">+ Devolución</button>
+            }
+            <a href="@($"exportar?reporte=liquidacion&nodo={Id}")" class="tk-btn tk-btn--navy">Generar acta</a>
+        </Actions>
+    </PageHeader>
+
+    <div class="tk-kpi-grid">
+        <KpiCard Label="Materiales del nodo" Value="@_view.Rows.Count.ToString()" Note="@($"{_view.WithVariation} con variación")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Sobrante total" Value="@UiText.Number(_view.TotalSurplus)" Note="unidades" Tone="KpiCard.NoteTone.Warning" />
+        <KpiCard Label="Pendiente por devolver" Value="@UiText.Number(_view.TotalPending)"
+                 Note="@(_view.TotalUnresolved > 0 ? "bloquea el cierre" : (_view.TotalPending > 0 ? "justificado" : "sin pendientes"))"
+                 Tone="_view.TotalUnresolved > 0 ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Success" />
+        <KpiCard Label="Precisión de diseño" Value="@($"{_view.DesignAccuracy:0}%")" Note="instalado vs. proyectado" Tone="KpiCard.NoteTone.Success" />
+    </div>
+
+    <SectionCard Title="Comparación por material" Class="mb-6">
+        <HeaderActions><MudSwitch T="bool" @bind-Value="_onlyDifferent" Label="Solo con diferencia" Color="Color.Primary" /></HeaderActions>
+        <ChildContent>
+            @if (Rows.Count == 0)
+            {
+                <EmptyState Title="Sin materiales para comparar" Icon="@Icons.Material.Outlined.FactCheck"
+                            Description="Aparecerán cuando el nodo tenga proyección, entregas o instalado." />
+            }
+            else
+            {
+                <div class="tk-table-wrap">
+                    <table class="tk-table tk-table--compact">
+                        <thead>
+                            <tr><th>Material</th><th>Proyectado</th><th>Entregado</th><th>Instalado</th><th>Sobrante</th><th>Devuelto</th><th>Pendiente</th><th>Justificado</th><th>Var. diseño</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in Rows)
+                            {
+                                var q = r.Quantity;
+                                <tr>
+                                    <td>@q.Material.Name</td>
+                                    <td class="num">@UiText.Number(q.Projected)</td>
+                                    <td class="num @(q.Projected > 0 && q.Delivered > q.Projected ? "text-warning" : "")">@UiText.Number(q.Delivered)</td>
+                                    <td class="num @(q.Projected > 0 && q.Installed > q.Projected ? "text-danger" : "")">@UiText.Number(q.Installed)</td>
+                                    <td class="num">@UiText.Number(Math.Max(0, q.Surplus))</td>
+                                    <td class="num">@UiText.Number(q.Returned)</td>
+                                    <td class="num @(r.Unresolved > 0 ? "text-danger" : "")">@UiText.Number(Math.Max(0, q.PendingReturn))</td>
+                                    <td class="num">@(r.Justified > 0 ? UiText.Number(r.Justified) : "—")</td>
+                                    <td class="num @(q.Projected == 0 ? "muted" : q.Variation > 0 ? "text-danger" : q.Variation < 0 ? "text-success" : "")">
+                                        @(q.Projected == 0 ? "—" : $"{(q.Variation > 0 ? "+" : "")}{q.VariationPercent:0.#}%")
+                                    </td>
+                                    <td class="tk-actions-cell">
+                                        @if (_canManage && !_view.IsClosed && r.Unresolved > 0)
+                                        {
+                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => JustifyAsync(q.Material.Id)">Justificar</MudButton>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (_view.BlockingMessage is not null)
+            {
+                <div class="tk-alert tk-alert--danger mt-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Warning" />
+                    <span>@_view.BlockingMessage</span>
+                </div>
+            }
+            else if (_view.IsClosed)
+            {
+                <div class="tk-alert tk-alert--info mt-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Lock" />
+                    <span>Liquidación cerrada por @_view.Liquidation.ClosedBy. No se aceptan movimientos de este nodo hasta que un administrador la reabra.</span>
+                </div>
+            }
+        </ChildContent>
+    </SectionCard>
+
+    <div class="tk-two-col">
+        <SectionCard Title="Justificaciones">
+            @if (_view.Justifications.Count == 0)
+            {
+                <EmptyState Title="Sin justificaciones" Icon="@Icons.Material.Outlined.Rule" Description="Se usan para el material pendiente de devolver que no regresará (merma, daño, pérdida)." />
+            }
+            else
+            {
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead><tr><th>Material</th><th>Cantidad</th><th>Motivo</th><th>Registró</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var j in _view.Justifications)
+                            {
+                                var local = j;
+                                <tr>
+                                    <td>@local.Material?.Name</td>
+                                    <td class="num">@UiText.Number(local.Quantity)</td>
+                                    <td>@local.Reason</td>
+                                    <td class="tk-code-sm">@local.CreatedBy</td>
+                                    <td class="tk-actions-cell">@if (_canManage && !_view.IsClosed) { <MudIconButton Icon="@Icons.Material.Outlined.Close" Size="Size.Small" OnClick="() => RemoveJustificationAsync(local.Id)" aria-label="Quitar" /> }</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </SectionCard>
+
+        <SectionCard Title="Cierre de la liquidación">
+            <MudTextField T="string" @bind-Value="_observations" Label="Observaciones" Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_view.IsClosed || !_canManage" />
+            <div class="tk-toolbar mt-4">
+                @if (_canManage && !_view.IsClosed)
+                {
+                    <button type="button" class="tk-btn tk-btn--outline" @onclick="SaveObservationsAsync">Guardar observaciones</button>
+                    <button type="button" class="tk-btn tk-btn--primary" @onclick="CloseAsync">Cerrar liquidación</button>
+                }
+                else if (_isAdmin && _view.IsClosed)
+                {
+                    <button type="button" class="tk-btn tk-btn--outline" @onclick="ReopenAsync">Reabrir liquidación</button>
+                }
+            </div>
+            @if (!_view.IsClosed && _view.TotalUnresolved > 0)
+            {
+                <p class="tk-muted">No se puede cerrar mientras haya material pendiente de devolver sin justificar.</p>
+            }
+        </SectionCard>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private LiquidationView? _view;
+    private bool _loading = true;
+    private bool _canManage;
+    private bool _isAdmin;
+    private bool _onlyDifferent = true;
+    private string? _observations;
+    private string _projectionText = "Sin proyección de diseño";
+
+    private List<LiquidationRow> Rows => _view is null ? [] : _view.Rows
+        .Where(r => !_onlyDifferent
+            || (r.Quantity.Projected > 0 && r.Quantity.Variation != 0)
+            || r.Quantity.PendingReturn > 0 || r.Quantity.Surplus > 0)
+        .ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _canManage = await Access.CanManageWarehouseAsync();
+        _isAdmin = await Access.IsAdminAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _view = await Liquidation.GetAsync(Id);
+            _observations = _view.Liquidation.Observations;
+            var versions = await Projections.VersionsAsync(Id);
+            _projectionText = versions.Count == 0
+                ? "Sin proyección de diseño"
+                : $"Proyección de diseño v{versions[0].Projection.Version} ({UiText.Date(versions[0].Projection.Date)})";
+        }
+        catch (BusinessRuleException)
+        {
+            _view = null;
+        }
+
+        _loading = false;
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            await LoadAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ReturnAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<MovementDialog>("Nueva devolución",
+            new DialogParameters { ["ProjectId"] = _view!.Site.ProjectId, ["Kind"] = MovementDialog.MovementKind.Return, ["LockedSiteId"] = Id },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task JustifyAsync(int materialId)
+    {
+        var dialog = await Dialogs.ShowAsync<JustificationDialog>("Justificar material pendiente",
+            new DialogParameters { ["SiteId"] = Id, ["Rows"] = _view!.Rows.Where(r => r.Unresolved > 0).ToList(), ["MaterialId"] = materialId },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private Task RemoveJustificationAsync(int id) => RunAsync(() => Liquidation.RemoveJustificationAsync(id));
+    private Task SaveObservationsAsync() => RunAsync(() => Liquidation.SaveObservationsAsync(Id, _observations));
+    private Task CloseAsync() => RunAsync(async () =>
+    {
+        await Liquidation.SaveObservationsAsync(Id, _observations);
+        await Liquidation.CloseAsync(Id);
+        Snackbar.Add("Liquidación cerrada.", Severity.Success);
+    });
+    private Task ReopenAsync() => RunAsync(() => Liquidation.ReopenAsync(Id));
+}

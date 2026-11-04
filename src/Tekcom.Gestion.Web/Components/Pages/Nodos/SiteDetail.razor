@@ -6,9 +6,12 @@
 @using Tekcom.Gestion.Domain.Entities
 @using Tekcom.Gestion.Domain.Enums
 @using Tekcom.Gestion.Web.Services
+@using Tekcom.Gestion.Web.Components.Pages.Materiales
 @inject ISiteService Sites
 @inject IQuantityService Quantities
 @inject IProjectService Projects
+@inject IProjectionService Projections
+@inject IMeasurementService Measurements
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 @inject ProjectSelection Selection
@@ -151,43 +154,140 @@ else
     </div>
 
     <SectionCard Title="Cantidades por material" Class="mt-6">
-        @if (_materials.Count == 0)
-        {
-            <EmptyState Title="Sin cantidades registradas" Icon="@Icons.Material.Outlined.Inventory2"
-                        Description="Importe el Excel de control o cargue la proyección de diseño para ver lo proyectado e instalado de este nodo." />
-        }
-        else
-        {
-            <div class="tk-table-wrap">
-                <table class="tk-table">
-                    <thead>
-                        <tr><th>Material</th><th>UM</th><th>Proyectado (diseño)</th><th>Ajustes</th><th>Proyectado vigente</th><th>Instalado</th><th>Pendiente</th><th>Variación</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var group in _materials.GroupBy(m => m.Material.Category))
-                        {
-                            <tr><td colspan="8" class="strong" style="background:#fafbfd">@UiText.CategoryName(group.Key)</td></tr>
-                            @foreach (var m in group)
+        <HeaderActions>
+            <a href="nodos/@Id/liquidacion" class="tk-btn tk-btn--outline">Liquidación</a>
+            @if (_canEdit)
+            {
+                <button type="button" class="tk-btn tk-btn--outline" @onclick="AdjustAsync">Ajustar proyectado</button>
+                <button type="button" class="tk-btn tk-btn--primary" @onclick="InstalledAsync">+ Instalado</button>
+            }
+        </HeaderActions>
+        <ChildContent>
+            @if (_materials.Count == 0)
+            {
+                <EmptyState Title="Sin cantidades registradas" Icon="@Icons.Material.Outlined.Inventory2"
+                            Description="Importe el Excel de control, cargue la proyección de diseño o registre lo instalado para ver las cantidades de este nodo." />
+            }
+            else
+            {
+                <div class="tk-table-wrap">
+                    <table class="tk-table tk-table--compact">
+                        <thead>
+                            <tr><th>Material</th><th>UM</th><th>Proyectado (diseño)</th><th>Ajustes</th><th>Proyectado vigente</th><th>Entregado</th><th>Instalado</th><th>Pendiente</th><th>Variación</th><th>Alerta</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var group in _materials.GroupBy(m => m.Material.Category))
+                            {
+                                <tr><td colspan="10" class="strong" style="background:#fafbfd">@UiText.CategoryName(group.Key)</td></tr>
+                                @foreach (var m in group)
+                                {
+                                    <tr>
+                                        <td>@m.Material.Name</td>
+                                        <td>@m.Material.Unit</td>
+                                        <td class="num">@UiText.Number(m.DesignProjected)</td>
+                                        <td class="num @(m.Adjustments != 0 ? "text-warning" : "")">@(m.Adjustments > 0 ? "+" : "")@UiText.Number(m.Adjustments)</td>
+                                        <td class="num strong">@UiText.Number(m.Projected)</td>
+                                        <td class="num">@(m.Material.TracksStock ? UiText.Number(m.Delivered) : "—")</td>
+                                        <td class="num">@UiText.Number(m.Installed)</td>
+                                        <td class="num @(m.Projected - m.Installed > 0 ? "text-danger" : "")">@(m.Projected == 0 ? "—" : UiText.Number(m.Projected - m.Installed))</td>
+                                        <td class="num @(m.Projected == 0 ? "muted" : m.Variation > 0 ? "text-danger" : m.Variation < 0 ? "text-success" : "")">
+                                            @(m.Projected == 0 ? "—" : $"{(m.Variation > 0 ? "+" : "")}{m.VariationPercent:0.#}%")
+                                        </td>
+                                        <td>
+                                            @if (m.Projected > 0 && m.Installed > m.Projected)
+                                            {
+                                                <StatusChip Status="StatusChip.Kind.Atrasado" Text="Instalado > proyectado" />
+                                            }
+                                            else if (m.Material.TracksStock && m.Projected > 0 && m.Delivered > m.Projected)
+                                            {
+                                                <StatusChip Status="StatusChip.Kind.Bajo" Text="Entregado > proyectado" />
+                                            }
+                                            else if (m.Material.TracksStock && m.Installed > m.Delivered)
+                                            {
+                                                <StatusChip Status="StatusChip.Kind.Dia" Text="Instalado > entregado" />
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </ChildContent>
+    </SectionCard>
+
+    <div class="tk-two-col mt-6">
+        <SectionCard Title="Mediciones de FATs">
+            <HeaderActions>
+                @if (_measureSummary.Measured > 0)
+                {
+                    <span class="tk-muted">@_measureSummary.Measured medidas · @_measureSummary.Acceptable aceptables · @_measureSummary.NotAcceptable no aceptables</span>
+                }
+                @if (_canEdit)
+                {
+                    <button type="button" class="tk-btn tk-btn--primary" @onclick="MeasureAsync">+ Medición</button>
+                }
+            </HeaderActions>
+            <ChildContent>
+                @if (_measurements.Count == 0)
+                {
+                    <EmptyState Title="Sin mediciones" Icon="@Icons.Material.Outlined.Speed"
+                                Description="Registre la potencia (dBm) de cada FAT para saber si llega la señal correcta." />
+                }
+                else
+                {
+                    <div class="tk-table-wrap">
+                        <table class="tk-table tk-table--compact">
+                            <thead><tr><th>FAT</th><th>Fecha</th><th>dBm</th><th>Resultado</th><th>Notas</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var m in _measurements.Take(60))
+                                {
+                                    var local = m;
+                                    <tr>
+                                        <td>@local.FatCode</td>
+                                        <td class="nowrap">@UiText.ShortDate(local.Date)</td>
+                                        <td class="num">@local.PowerDbm.ToString("0.##")</td>
+                                        <td>@if (local.IsAcceptable) { <StatusChip Status="StatusChip.Kind.Ok" Text="Aceptable" /> } else { <StatusChip Status="StatusChip.Kind.Atrasado" Text="No aceptable" /> }</td>
+                                        <td>@local.Notes</td>
+                                        <td class="tk-actions-cell">@if (_canEdit) { <MudIconButton Icon="@Icons.Material.Outlined.Close" Size="Size.Small" OnClick="() => RemoveMeasurementAsync(local.Id)" aria-label="Quitar medición" /> }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </ChildContent>
+        </SectionCard>
+
+        <SectionCard Title="Ajustes de la proyección">
+            @if (_adjustments.Count == 0)
+            {
+                <EmptyState Title="Sin ajustes" Icon="@Icons.Material.Outlined.Tune"
+                            Description="Los cambios de cantidad respecto al diseño (por ejemplo, cruces americanos) quedan aquí con su motivo." />
+            }
+            else
+            {
+                <div class="tk-table-wrap">
+                    <table class="tk-table tk-table--compact">
+                        <thead><tr><th>Fecha</th><th>Material</th><th>Ajuste</th><th>Motivo</th><th>Registró</th></tr></thead>
+                        <tbody>
+                            @foreach (var a in _adjustments)
                             {
                                 <tr>
-                                    <td>@m.Material.Name</td>
-                                    <td>@m.Material.Unit</td>
-                                    <td class="num">@UiText.Number(m.DesignProjected)</td>
-                                    <td class="num @(m.Adjustments != 0 ? "text-warning" : "")">@(m.Adjustments > 0 ? "+" : "")@UiText.Number(m.Adjustments)</td>
-                                    <td class="num strong">@UiText.Number(m.Projected)</td>
-                                    <td class="num">@UiText.Number(m.Installed)</td>
-                                    <td class="num @(m.Projected - m.Installed > 0 ? "text-danger" : "")">@(m.Projected == 0 ? "—" : UiText.Number(m.Projected - m.Installed))</td>
-                                    <td class="num @(m.Projected == 0 ? "muted" : m.Variation > 0 ? "text-danger" : m.Variation < 0 ? "text-success" : "")">
-                                        @(m.Projected == 0 ? "—" : $"{(m.Variation > 0 ? "+" : "")}{m.VariationPercent:0.#}%")
-                                    </td>
+                                    <td class="nowrap">@UiText.ShortDate(a.Date)</td>
+                                    <td>@a.Material?.Name</td>
+                                    <td class="num @(a.Delta > 0 ? "text-success" : "text-danger")">@(a.Delta > 0 ? "+" : "")@UiText.Number(a.Delta)</td>
+                                    <td>@a.Reason</td>
+                                    <td class="tk-code-sm">@a.CreatedBy</td>
                                 </tr>
                             }
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </SectionCard>
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </SectionCard>
+    </div>
 }
 
 @code {
@@ -197,6 +297,9 @@ else
     private Project? _project;
     private List<SiteStage> _stages = [];
     private List<MaterialQuantity> _materials = [];
+    private List<FatMeasurement> _measurements = [];
+    private List<ProjectionAdjustment> _adjustments = [];
+    private MeasurementSummary _measureSummary = new(0, 0, 0);
     private bool _loading = true;
     private bool _canEdit;
 
@@ -216,6 +319,9 @@ else
             _project = await Projects.GetAsync(_summary.Site.ProjectId);
             Selection.Select(_summary.Site.ProjectId);
             _materials = await Quantities.GetSiteMaterialsAsync(Id);
+            _measurements = await Measurements.ListAsync(Id);
+            _measureSummary = await Measurements.SummaryAsync(Id);
+            _adjustments = await Projections.AdjustmentsAsync(Id);
         }
 
         _loading = false;
@@ -260,4 +366,40 @@ else
             await LoadAsync();
         }
     }
+
+    private async Task InstalledAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<MovementDialog>("Registrar instalado",
+            new DialogParameters { ["ProjectId"] = _summary!.Site.ProjectId, ["Kind"] = MovementDialog.MovementKind.Installed, ["LockedSiteId"] = Id },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task AdjustAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<AdjustProjectionDialog>("Ajustar la cantidad proyectada",
+            new DialogParameters { ["SiteId"] = Id, ["DefaultMaterial"] = "Cruce americano" },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task MeasureAsync()
+    {
+        var auto = _project?.MinAcceptableDbm is not null && _project.MaxAcceptableDbm is not null;
+        var dialog = await Dialogs.ShowAsync<MeasurementDialog>("Registrar medición de FAT",
+            new DialogParameters { ["SiteId"] = Id, ["AutoGrade"] = auto, ["Range"] = auto ? $"{_project!.MinAcceptableDbm:0.##} a {_project.MaxAcceptableDbm:0.##}" : null },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private Task RemoveMeasurementAsync(int id) => RunAsync(() => Measurements.RemoveAsync(id));
 }

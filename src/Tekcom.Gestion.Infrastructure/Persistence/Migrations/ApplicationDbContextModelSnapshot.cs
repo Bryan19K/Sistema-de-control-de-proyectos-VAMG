@@ -381,6 +381,70 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.ToTable("DesignProjectionLines");
                 });
 
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.FatMeasurement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("FatCode")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<bool>("IsAcceptable")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("PowerDbm")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SiteId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SiteId", "FatCode");
+
+                    b.ToTable("FatMeasurements");
+                });
+
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.FeederEntry", b =>
                 {
                     b.Property<int>("Id")
@@ -592,6 +656,121 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProjectId", "MaterialId", "Type");
 
                     b.ToTable("InventoryMovements");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.Liquidation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ClosedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateOnly?>("ClosedOn")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Observations")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SiteId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SiteId");
+
+                    b.ToTable("Liquidations");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.LiquidationJustification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LiquidationId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaterialId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LiquidationId");
+
+                    b.HasIndex("MaterialId");
+
+                    b.ToTable("LiquidationJustifications");
                 });
 
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.Material", b =>
@@ -1729,6 +1908,17 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Navigation("Material");
                 });
 
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.FatMeasurement", b =>
+                {
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Site");
+                });
+
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.FeederEntry", b =>
                 {
                     b.HasOne("Tekcom.Gestion.Domain.Entities.FeederLine", "FeederLine")
@@ -1789,6 +1979,36 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.Liquidation", b =>
+                {
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.LiquidationJustification", b =>
+                {
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Liquidation", "Liquidation")
+                        .WithMany("Justifications")
+                        .HasForeignKey("LiquidationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Tekcom.Gestion.Domain.Entities.Material", "Material")
+                        .WithMany()
+                        .HasForeignKey("MaterialId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Liquidation");
+
+                    b.Navigation("Material");
                 });
 
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.MaterialAlias", b =>
@@ -1978,6 +2198,11 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.FeederLine", b =>
                 {
                     b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.Liquidation", b =>
+                {
+                    b.Navigation("Justifications");
                 });
 
             modelBuilder.Entity("Tekcom.Gestion.Domain.Entities.Material", b =>

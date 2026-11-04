@@ -1,0 +1,135 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IInventoryService Inventory
+@inject ProjectSelection Selection
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject UserAccess Access
+
+@if (_projectId == 0)
+{
+    <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.FolderOpen" />
+}
+else
+{
+    <div class="tk-toolbar">
+        <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
+        <MudSelect T="MovementType?" Value="_type" ValueChanged="OnTypeChanged" Clearable="true" Placeholder="Todos los tipos" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:200px">
+            @foreach (var t in Enum.GetValues<MovementType>())
+            {
+                <MudSelectItem T="MovementType?" Value="@((MovementType?)t)">@TypeName(t)</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSwitch T="bool" Value="_includeVoided" ValueChanged="OnVoidedChanged" Label="Mostrar anulados" Color="Color.Primary" />
+    </div>
+
+    <SectionCard Title="Bitácora de movimientos">
+        <HeaderActions><span class="tk-muted">Nada se borra: los movimientos se anulan con motivo.</span></HeaderActions>
+        <ChildContent>
+            @if (_movements.Count == 0)
+            {
+                <EmptyState Title="No hay movimientos" Icon="@Icons.Material.Outlined.History" />
+            }
+            else
+            {
+                <div class="tk-table-wrap">
+                    <table class="tk-table tk-table--compact">
+                        <thead><tr><th>Fecha</th><th>Tipo</th><th>Material</th><th>Cantidad</th><th>Nodo</th><th>Contratista</th><th>Referencia</th><th>Registró</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var m in _movements)
+                            {
+                                var local = m;
+                                <tr style="@(local.IsVoided ? "opacity:.55; text-decoration:line-through" : "")">
+                                    <td class="nowrap">@UiText.ShortDate(local.Date)</td>
+                                    <td>@TypeName(local.Type)@(local.IsOpeningBalance ? " (saldo inicial)" : "")</td>
+                                    <td>@local.Material?.Name</td>
+                                    <td class="num">@(local.Type == MovementType.Adjustment && !local.IsIncrease ? "-" : "")@UiText.Number(local.Quantity)</td>
+                                    <td>@(local.Site?.Code ?? "—")</td>
+                                    <td>@(local.Contractor?.Name ?? "—")</td>
+                                    <td>@(local.Reference ?? local.Batch ?? local.Notes ?? "—")@if (local.NegativeStockJustification is not null) { <div class="tk-code-sm text-danger">Sin stock: @local.NegativeStockJustification</div> }</td>
+                                    <td class="tk-code-sm">@local.CreatedBy<br />@local.CreatedAt.ToLocalTime().ToString("dd/MM/yy HH:mm")</td>
+                                    <td class="tk-actions-cell">
+                                        @if (local.IsVoided)
+                                        {
+                                            <span title="@local.VoidReason · @local.VoidedBy" class="tk-code-sm">Anulado</span>
+                                        }
+                                        else if (_canManage)
+                                        {
+                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => VoidAsync(local)">Anular</MudButton>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </ChildContent>
+    </SectionCard>
+}
+
+@code {
+    private List<InventoryMovement> _movements = [];
+    private int _projectId;
+    private MovementType? _type;
+    private bool _includeVoided = true;
+    private bool _canManage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canManage = await Access.CanManageWarehouseAsync();
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        await LoadAsync();
+    }
+
+    private static string TypeName(MovementType type) => type switch
+    {
+        MovementType.Receipt => "Ingreso",
+        MovementType.Delivery => "Entrega",
+        MovementType.Return => "Devolución",
+        MovementType.Adjustment => "Ajuste",
+        MovementType.Installed => "Instalado",
+        _ => type.ToString(),
+    };
+
+    private async Task OnProjectChanged(int id) { _projectId = id; await LoadAsync(); }
+    private async Task OnTypeChanged(MovementType? type) { _type = type; await LoadAsync(); }
+    private async Task OnVoidedChanged(bool value) { _includeVoided = value; await LoadAsync(); }
+
+    private async Task LoadAsync()
+    {
+        if (_projectId > 0)
+        {
+            _movements = await Inventory.MovementsAsync(new MovementFilter { ProjectId = _projectId, Type = _type, IncludeVoided = _includeVoided });
+        }
+    }
+
+    private async Task VoidAsync(InventoryMovement movement)
+    {
+        var reason = await Dialogs.ShowMessageBoxAsync(
+            new MessageBoxOptions { Title = "Anular movimiento", Message = "Se anulará este movimiento y dejará de contar en el stock. Escriba el motivo en el siguiente paso.", YesText = "Continuar", CancelText = "Cancelar" });
+        if (reason != true)
+        {
+            return;
+        }
+
+        var dialog = await Dialogs.ShowAsync<VoidReasonDialog>("Motivo de la anulación", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: string text })
+        {
+            try
+            {
+                await Inventory.VoidAsync(movement.Id, text);
+                await LoadAsync();
+            }
+            catch (BusinessRuleException ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+}

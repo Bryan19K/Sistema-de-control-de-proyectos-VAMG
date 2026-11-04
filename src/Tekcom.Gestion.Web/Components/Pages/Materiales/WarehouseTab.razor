@@ -1,0 +1,139 @@
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IInventoryService Inventory
+@inject ProjectSelection Selection
+@inject IDialogService Dialogs
+@inject UserAccess Access
+
+@if (_projectId == 0)
+{
+    <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.FolderOpen" Description="Cree un proyecto para controlar su bodega." />
+}
+else
+{
+    <div class="tk-toolbar">
+        <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
+        <span class="grow"></span>
+        @if (_canManage)
+        {
+            <button type="button" class="tk-btn tk-btn--outline" @onclick="() => OpenAsync(MovementDialog.MovementKind.Receipt)">+ Ingreso</button>
+            <button type="button" class="tk-btn tk-btn--primary" @onclick="() => OpenAsync(MovementDialog.MovementKind.Delivery)">+ Entrega a contratista</button>
+            <button type="button" class="tk-btn tk-btn--outline" @onclick="() => OpenAsync(MovementDialog.MovementKind.Return)">+ Devolución</button>
+            <button type="button" class="tk-btn tk-btn--outline" @onclick="() => OpenAsync(MovementDialog.MovementKind.Adjustment)">+ Ajuste</button>
+        }
+    </div>
+
+    <div class="tk-kpi-grid">
+        <KpiCard Label="Materiales en bodega" Value="@_rows.Count.ToString()" Note="con movimientos o proyectados" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Faltantes" Value="@_rows.Count(r => r.Status == StockStatus.Shortage).ToString()" Note="falta recibir para cubrir el diseño"
+                 Tone="_rows.Any(r => r.Status == StockStatus.Shortage) ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Neutral" />
+        <KpiCard Label="Stock bajo" Value="@_rows.Count(r => r.Status == StockStatus.Low).ToString()" Note="en o por debajo del mínimo"
+                 Tone="_rows.Any(r => r.Status == StockStatus.Low) ? KpiCard.NoteTone.Warning : KpiCard.NoteTone.Neutral" />
+        <KpiCard Label="Stock negativo" Value="@_rows.Count(r => r.Status == StockStatus.Negative).ToString()" Note="requiere revisión"
+                 Tone="_rows.Any(r => r.Status == StockStatus.Negative) ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Success" />
+    </div>
+
+    <SectionCard Title="Stock por material">
+        <HeaderActions><MudTextField @bind-Value="_search" Immediate="true" Placeholder="Buscar" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Variant="Variant.Outlined" Margin="Margin.Dense" /></HeaderActions>
+        <ChildContent>
+            @if (_loading)
+            {
+                <MudProgressLinear Indeterminate="true" />
+            }
+            else if (Filtered.Count == 0)
+            {
+                <EmptyState Title="Sin movimientos de bodega" Icon="@Icons.Material.Outlined.Warehouse"
+                            Description="Registre el primer ingreso para empezar a controlar el stock." />
+            }
+            else
+            {
+                <div class="tk-table-wrap">
+                    <table class="tk-table tk-table--compact">
+                        <thead><tr><th>Material</th><th>UM</th><th>Proyectado</th><th>Recibido</th><th>Entregado</th><th>Devuelto</th><th>Ajustes</th><th>Stock</th><th>Estado</th></tr></thead>
+                        <tbody>
+                            @foreach (var r in Filtered)
+                            {
+                                <tr>
+                                    <td>@r.Material.Name@if (r.Material.Aliases.Count > 0) { <span class="muted"> (@string.Join(", ", r.Material.Aliases.Select(a => a.Alias).Take(1)))</span> }</td>
+                                    <td>@r.Material.Unit</td>
+                                    <td class="num">@UiText.Number(r.ProjectedTotal)</td>
+                                    <td class="num">@UiText.Number(r.Received)</td>
+                                    <td class="num">@UiText.Number(r.Delivered)</td>
+                                    <td class="num">@UiText.Number(r.Returned)</td>
+                                    <td class="num">@(r.AdjustmentNet > 0 ? "+" : "")@UiText.Number(r.AdjustmentNet)</td>
+                                    <td class="num strong @(r.Stock <= 0 ? "text-danger" : r.Status == StockStatus.Low ? "text-warning" : "")">@UiText.Number(r.Stock)</td>
+                                    <td>
+                                        @switch (r.Status)
+                                        {
+                                            case StockStatus.Negative: <StatusChip Status="StatusChip.Kind.Falta" Text="Revisar" /> break;
+                                            case StockStatus.Shortage: <StatusChip Status="StatusChip.Kind.Falta" Text="@($"Faltan {UiText.Number(r.Shortage)}")" /> break;
+                                            case StockStatus.Low: <StatusChip Status="StatusChip.Kind.Bajo" /> break;
+                                            default: <StatusChip Status="StatusChip.Kind.Ok" /> break;
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </ChildContent>
+    </SectionCard>
+}
+
+@code {
+    private List<StockRow> _rows = [];
+    private int _projectId;
+    private bool _loading = true;
+    private bool _canManage;
+    private string? _search;
+
+    private List<StockRow> Filtered => string.IsNullOrWhiteSpace(_search)
+        ? _rows
+        : _rows.Where(r => r.Material.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || r.Material.Aliases.Any(a => a.Alias.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canManage = await Access.CanManageWarehouseAsync();
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        await LoadAsync();
+    }
+
+    private async Task OnProjectChanged(int id)
+    {
+        _projectId = id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        if (_projectId > 0)
+        {
+            _rows = await Inventory.StockAsync(_projectId);
+        }
+
+        _loading = false;
+    }
+
+    private async Task OpenAsync(MovementDialog.MovementKind kind)
+    {
+        var title = kind switch
+        {
+            MovementDialog.MovementKind.Receipt => "Nuevo ingreso a bodega",
+            MovementDialog.MovementKind.Delivery => "Nueva entrega a contratista",
+            MovementDialog.MovementKind.Return => "Nueva devolución",
+            _ => "Nuevo ajuste de stock",
+        };
+        var dialog = await Dialogs.ShowAsync<MovementDialog>(title,
+            new DialogParameters { ["ProjectId"] = _projectId, ["Kind"] = kind },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+}

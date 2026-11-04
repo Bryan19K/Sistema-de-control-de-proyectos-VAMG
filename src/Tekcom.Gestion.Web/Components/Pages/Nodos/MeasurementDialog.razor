@@ -1,0 +1,116 @@
+@using System.Globalization
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Services
+@inject IMeasurementService Measurements
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudRadioGroup T="bool" @bind-Value="_bulk">
+                <MudRadio T="bool" Value="false">Una FAT</MudRadio>
+                <MudRadio T="bool" Value="true">Varias FATs (pegar lista)</MudRadio>
+            </MudRadioGroup>
+
+            @if (AutoGrade)
+            {
+                <div class="tk-alert tk-alert--info">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" />
+                    <span>El proyecto define el rango aceptable (@Range dBm): cada medición se califica sola.</span>
+                </div>
+            }
+
+            @if (!_bulk)
+            {
+                <MudTextField @bind-Value="_code" Label="Código de la FAT" Required="true" Placeholder="SON19-F001" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudNumericField T="decimal" @bind-Value="_dbm" Label="Potencia (dBm)" Format="0.##" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Valor negativo, por ejemplo -18.5" />
+                @if (!AutoGrade)
+                {
+                    <MudSwitch T="bool" @bind-Value="_acceptable" Label="La potencia es aceptable" Color="Color.Success" />
+                }
+            }
+            else
+            {
+                <MudTextField @bind-Value="_text" Label="Una FAT por línea: código; dBm" Lines="8" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Placeholder="SON19-F001; -18.5&#10;SON19-F002; -19.2"
+                              HelperText="@(AutoGrade ? "Se califican solas con el rango del proyecto." : "Sin rango definido: agregue ; si o ; no al final de cada línea (ej. SON19-F001; -18.5; si).")" />
+            }
+
+            <DatePick Label="Fecha de la medición" @bind-Value="_date" />
+            <MudTextField @bind-Value="_notes" Label="Notas" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int SiteId { get; set; }
+    [Parameter] public bool AutoGrade { get; set; }
+    [Parameter] public string? Range { get; set; }
+
+    private bool _bulk;
+    private string? _code;
+    private decimal _dbm = -18;
+    private bool _acceptable = true;
+    private string? _text;
+    private string? _notes;
+    private DateOnly? _date;
+
+    protected override void OnInitialized() => _date = Clock.Today;
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var date = _date ?? Clock.Today;
+            if (!_bulk)
+            {
+                await Measurements.AddAsync(SiteId, _code ?? string.Empty, date, _dbm, AutoGrade ? null : _acceptable, _notes);
+            }
+            else
+            {
+                var lines = (_text ?? string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (lines.Length == 0)
+                {
+                    throw new BusinessRuleException("Pegue al menos una línea.");
+                }
+
+                // Se valida todo antes de guardar nada.
+                var parsed = new List<(string Code, decimal Dbm, bool? Ok)>();
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    var parts = lines[i].Split([';', '\t'], StringSplitOptions.TrimEntries);
+                    if (parts.Length < 2 || !decimal.TryParse(parts[1].Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var dbm))
+                    {
+                        throw new BusinessRuleException($"Línea {i + 1}: use el formato  código; dBm  (ej. SON19-F001; -18.5).");
+                    }
+
+                    bool? ok = parts.Length >= 3 ? parts[2].Trim().ToLowerInvariant() is "si" or "sí" or "s" or "1" or "true" : null;
+                    if (!AutoGrade && ok is null)
+                    {
+                        throw new BusinessRuleException($"Línea {i + 1}: agregue ; si o ; no (el proyecto no define el rango de dBm).");
+                    }
+
+                    parsed.Add((parts[0], dbm, ok));
+                }
+
+                foreach (var (code, dbm, ok) in parsed)
+                {
+                    await Measurements.AddAsync(SiteId, code, date, dbm, ok, _notes);
+                }
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

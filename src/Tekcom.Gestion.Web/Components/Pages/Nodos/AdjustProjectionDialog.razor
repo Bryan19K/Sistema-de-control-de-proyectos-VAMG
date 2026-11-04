@@ -1,0 +1,83 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Logic
+@inject IProjectionService Projections
+@inject IMaterialService Materials
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudText Typo="Typo.body2" Class="tk-muted">
+                Las cantidades proyectadas suelen cambiar durante la obra (por ejemplo, los cruces americanos). El ajuste suma o resta
+                al proyectado vigente y queda registrado con su motivo; la proyección original no se modifica.
+            </MudText>
+            <MudAutocomplete T="Material" Value="_material" ValueChanged="m => _material = m" Label="Material" SearchFunc="Search" ToStringFunc="@(m => m?.Name ?? string.Empty)"
+                             Variant="Variant.Outlined" Margin="Margin.Dense" ResetValueOnEmptyText="true" Clearable="true" />
+            <MudRadioGroup T="bool" @bind-Value="_increase">
+                <MudRadio T="bool" Value="true">Suma al proyectado</MudRadio>
+                <MudRadio T="bool" Value="false">Resta del proyectado</MudRadio>
+            </MudRadioGroup>
+            <MudNumericField T="decimal" @bind-Value="_quantity" Label="Cantidad" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_reason" Label="Motivo" Lines="2" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          HelperText="Ej.: se agregaron 2 cruces americanos por cambio en campo." />
+            <DatePick Label="Fecha" @bind-Value="_date" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar ajuste</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int SiteId { get; set; }
+    [Parameter] public string? DefaultMaterial { get; set; }
+
+    private List<Material> _all = [];
+    private Material? _material;
+    private bool _increase = true;
+    private decimal _quantity;
+    private string? _reason;
+    private DateOnly? _date;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _all = await Materials.ListAsync();
+        _date = Clock.Today;
+        if (DefaultMaterial is not null)
+        {
+            _material = await Materials.ResolveAsync(DefaultMaterial);
+        }
+    }
+
+    private Task<IEnumerable<Material>> Search(string? text, CancellationToken ct)
+    {
+        var key = NameNormalizer.Key(text);
+        return Task.FromResult(_all.Where(m => key.Length == 0 || NameNormalizer.Key(m.Name).Contains(key)
+            || m.Aliases.Any(a => a.AliasKey.Contains(key))).Take(30));
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_material is null)
+        {
+            Snackbar.Add("Seleccione un material.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            await Projections.AdjustAsync(SiteId, _material.Id, _increase ? _quantity : -_quantity, _reason ?? string.Empty, _date ?? Clock.Today);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

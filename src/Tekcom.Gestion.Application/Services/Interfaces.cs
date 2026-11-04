@@ -51,6 +51,9 @@ public interface IQuantityService
 
     /// <summary>Proyectado e instalado por grupo (cables, FATs, fusiones, cruces) para cada nodo del proyecto.</summary>
     Task<Dictionary<int, Dictionary<QuantityGroup, QuantityPair>>> GetGroupTotalsBySiteAsync(int projectId, CancellationToken ct = default);
+
+    /// <summary>Total proyectado de cada material en todo el proyecto (diseño ± ajustes de todos los nodos).</summary>
+    Task<Dictionary<int, decimal>> GetProjectedByMaterialAsync(int projectId, CancellationToken ct = default);
 }
 
 public interface IMaterialService
@@ -146,4 +149,66 @@ public interface ITaskService
     Task<TaskAttachment> AddAttachmentAsync(int taskId, string fileName, string contentType, Stream content, CancellationToken ct = default);
     Task<(TaskAttachment Attachment, Stream Content)?> OpenAttachmentAsync(int attachmentId, CancellationToken ct = default);
     Task RemoveAttachmentAsync(int attachmentId, CancellationToken ct = default);
+}
+
+public interface IInventoryService
+{
+    /// <summary>Stock calculado de cada material que pasa por bodega, con faltantes y estado.</summary>
+    Task<List<StockRow>> StockAsync(int projectId, CancellationToken ct = default);
+
+    Task<decimal> AvailableAsync(int projectId, int materialId, CancellationToken ct = default);
+
+    Task<InventoryMovement> ReceiptAsync(int projectId, int materialId, decimal quantity, DateOnly date, string? batch, string? reference, string? notes, CancellationToken ct = default);
+
+    /// <summary>Entrega a contratista. Se rechaza si no hay stock, salvo justificación explícita.</summary>
+    Task<InventoryMovement> DeliveryAsync(int projectId, int siteId, int materialId, decimal quantity, DateOnly date, int? contractorId,
+        string? reference, string? notes, string? negativeStockJustification = null, CancellationToken ct = default);
+
+    Task<InventoryMovement> ReturnAsync(int projectId, int siteId, int materialId, decimal quantity, DateOnly date, string? reference, string? notes, CancellationToken ct = default);
+
+    Task<InventoryMovement> AdjustmentAsync(int projectId, int materialId, decimal quantity, bool increase, DateOnly date, string reason, CancellationToken ct = default);
+
+    /// <summary>Instalado en un nodo en un día (alimenta el avance y la liquidación).</summary>
+    Task<InventoryMovement> InstalledAsync(int projectId, int siteId, int materialId, decimal quantity, DateOnly date, int? contractorId, string? notes, CancellationToken ct = default);
+
+    /// <summary>Anula un movimiento con motivo. Nada se borra.</summary>
+    Task VoidAsync(int movementId, string reason, CancellationToken ct = default);
+
+    Task<List<InventoryMovement>> MovementsAsync(MovementFilter filter, CancellationToken ct = default);
+}
+
+public sealed record ProjectionVersionInfo(DesignProjection Projection, int Lines);
+
+public interface IProjectionService
+{
+    Task<List<ProjectionVersionInfo>> VersionsAsync(int siteId, CancellationToken ct = default);
+    Task<List<ProjectionAdjustment>> AdjustmentsAsync(int siteId, CancellationToken ct = default);
+
+    /// <summary>Ajusta (suma o resta) la cantidad proyectada de un material en un nodo, siempre con motivo.</summary>
+    Task<ProjectionAdjustment> AdjustAsync(int siteId, int materialId, decimal delta, string reason, DateOnly date, CancellationToken ct = default);
+}
+
+public interface ILiquidationService
+{
+    Task<LiquidationView> GetAsync(int siteId, CancellationToken ct = default);
+    Task AddJustificationAsync(int siteId, int materialId, decimal quantity, string reason, CancellationToken ct = default);
+    Task RemoveJustificationAsync(int justificationId, CancellationToken ct = default);
+    Task SaveObservationsAsync(int siteId, string? observations, CancellationToken ct = default);
+
+    /// <summary>Cierra la liquidación; se rechaza si queda material pendiente sin justificar.</summary>
+    Task CloseAsync(int siteId, CancellationToken ct = default);
+    Task ReopenAsync(int siteId, CancellationToken ct = default);
+    Task<bool> IsClosedAsync(int siteId, CancellationToken ct = default);
+}
+
+public interface IMeasurementService
+{
+    Task<List<FatMeasurement>> ListAsync(int siteId, CancellationToken ct = default);
+
+    /// <summary>Registra una medición. Si el proyecto define el rango de dBm, el resultado se califica solo.</summary>
+    Task<FatMeasurement> AddAsync(int siteId, string fatCode, DateOnly date, decimal powerDbm, bool? isAcceptable, string? notes, CancellationToken ct = default);
+    Task RemoveAsync(int measurementId, CancellationToken ct = default);
+
+    /// <summary>Cuenta cada FAT una sola vez, con su última medición.</summary>
+    Task<MeasurementSummary> SummaryAsync(int siteId, CancellationToken ct = default);
 }

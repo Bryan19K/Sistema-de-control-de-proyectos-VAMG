@@ -149,4 +149,34 @@ public sealed class QuantityService(IDbContextFactory<ApplicationDbContext> fact
 
         return result;
     }
+
+    public async Task<Dictionary<int, decimal>> GetProjectedByMaterialAsync(int projectId, CancellationToken ct = default)
+    {
+        await using var db = factory.CreateDbContext();
+
+        var projections = await db.DesignProjections.AsNoTracking()
+            .Where(p => p.ProjectId == projectId)
+            .Include(p => p.Lines)
+            .ToListAsync(ct);
+        var latest = projections
+            .GroupBy(p => p.SiteId)
+            .Select(g => g.OrderByDescending(p => p.Version).First());
+
+        var result = new Dictionary<int, decimal>();
+        foreach (var line in latest.SelectMany(p => p.Lines))
+        {
+            result[line.MaterialId] = result.GetValueOrDefault(line.MaterialId) + line.Quantity;
+        }
+
+        var adjustments = await db.ProjectionAdjustments.AsNoTracking()
+            .Where(a => a.ProjectId == projectId)
+            .Select(a => new { a.MaterialId, a.Delta })
+            .ToListAsync(ct);
+        foreach (var adjustment in adjustments)
+        {
+            result[adjustment.MaterialId] = result.GetValueOrDefault(adjustment.MaterialId) + adjustment.Delta;
+        }
+
+        return result;
+    }
 }

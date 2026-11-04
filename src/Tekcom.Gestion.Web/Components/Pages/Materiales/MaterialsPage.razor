@@ -1,0 +1,13 @@
+@page "/materiales"
+@attribute [Authorize]
+
+<PageTitle>Materiales · TEK-COM</PageTitle>
+
+<PageHeader Title="Materiales" Subtitle="Catálogo, bodega con stock calculado, bitácora de movimientos y proyección de diseño" />
+
+<MudTabs Elevation="0" Rounded="true" Color="Color.Primary" ApplyEffectsToContainer="true" TabPanelsClass="pt-4">
+    <MudTabPanel Text="Bodega"><WarehouseTab /></MudTabPanel>
+    <MudTabPanel Text="Catálogo"><CatalogTab /></MudTabPanel>
+    <MudTabPanel Text="Movimientos"><MovementsTab /></MudTabPanel>
+    <MudTabPanel Text="Proyección de diseño"><ProjectionTab /></MudTabPanel>
+</MudTabs>

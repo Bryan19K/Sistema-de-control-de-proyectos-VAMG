@@ -1,0 +1,162 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Import
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Web.Services
+@using Tekcom.Gestion.Web.Components.Pages.Importar
+@inject IProjectionImportService Importer
+@inject IProjectionService Projections
+@inject ISiteService Sites
+@inject ProjectSelection Selection
+@inject ISnackbar Snackbar
+@inject UserAccess Access
+
+@if (_projectId == 0)
+{
+    <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.FolderOpen" />
+}
+else
+{
+    <div class="tk-toolbar">
+        <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
+    </div>
+
+    @if (_canEdit)
+    {
+        <SectionCard Title="Importar proyección de diseño" Class="mb-6">
+            <p class="mb-3">
+                Suba un Excel con tres columnas: <strong>NODO</strong>, <strong>MATERIAL</strong> y <strong>CANTIDAD</strong>.
+                Cada importación crea una <strong>versión nueva</strong> de la proyección de cada nodo que cambió, sin perder las anteriores.
+            </p>
+            <div class="tk-toolbar">
+                <a href="plantillas/proyeccion.xlsx" class="tk-btn tk-btn--outline" download>Descargar plantilla</a>
+                <InputFile OnChange="OnFileAsync" accept=".xlsx" disabled="@_busy" />
+            </div>
+            @if (_busy) { <MudProgressLinear Indeterminate="true" /> }
+        </SectionCard>
+
+        @if (_result is not null)
+        {
+            <ImportReportView Report="_result" />
+        }
+        else if (_analysis is not null)
+        {
+            <ImportReportView Report="_analysis.Report" />
+            <div class="tk-toolbar">
+                <button type="button" class="tk-btn tk-btn--primary" @onclick="ApplyAsync" disabled="@(_busy || _analysis.Rows.Count == 0)">Importar @_analysis.Rows.Count filas válidas</button>
+                <span class="tk-muted">Las filas con error no se importan.</span>
+            </div>
+        }
+    }
+
+    <SectionCard Title="Proyección vigente por nodo" Class="mt-6">
+        @if (_versions.Count == 0)
+        {
+            <EmptyState Title="Sin proyección cargada" Icon="@Icons.Material.Outlined.DesignServices"
+                        Description="Importe la proyección de diseño o cargue el Excel de control para ver las versiones de cada nodo." />
+        }
+        else
+        {
+            <div class="tk-table-wrap">
+                <table class="tk-table">
+                    <thead><tr><th>Nodo</th><th>Versión vigente</th><th>Fecha</th><th>Origen</th><th>Materiales</th><th>Versiones</th></tr></thead>
+                    <tbody>
+                        @foreach (var v in _versions)
+                        {
+                            <tr>
+                                <td><a class="tk-row-link" href="nodos/@v.SiteId">@v.Code</a></td>
+                                <td>v@(v.Latest.Projection.Version)</td>
+                                <td>@UiText.Date(v.Latest.Projection.Date)</td>
+                                <td>@(v.Latest.Projection.Source ?? "—")</td>
+                                <td class="num">@v.Latest.Lines</td>
+                                <td class="num">@v.Count</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </SectionCard>
+}
+
+@code {
+    private sealed record VersionRow(int SiteId, string Code, ProjectionVersionInfo Latest, int Count);
+
+    private int _projectId;
+    private bool _canEdit;
+    private bool _busy;
+    private ProjectionAnalysis? _analysis;
+    private ImportReport? _result;
+    private List<VersionRow> _versions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        await LoadAsync();
+    }
+
+    private async Task OnProjectChanged(int id)
+    {
+        _projectId = id;
+        _analysis = null;
+        _result = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _versions = [];
+        if (_projectId == 0)
+        {
+            return;
+        }
+
+        foreach (var s in await Sites.ListAsync(_projectId))
+        {
+            var versions = await Projections.VersionsAsync(s.Site.Id);
+            if (versions.Count > 0)
+            {
+                _versions.Add(new VersionRow(s.Site.Id, s.Site.Code, versions[0], versions.Count));
+            }
+        }
+    }
+
+    private async Task OnFileAsync(InputFileChangeEventArgs args)
+    {
+        _result = null;
+        _analysis = null;
+        _busy = true;
+        try
+        {
+            await using var stream = args.File.OpenReadStream(maxAllowedSize: 25 * 1024 * 1024);
+            _analysis = await Importer.AnalyzeAsync(_projectId, stream, args.File.Name);
+        }
+        catch (IOException)
+        {
+            Snackbar.Add("No se pudo leer el archivo. Verifique que no supere 25 MB.", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        _busy = true;
+        try
+        {
+            _result = await Importer.ApplyAsync(_analysis!);
+            await LoadAsync();
+            Snackbar.Add("Proyección importada.", Severity.Success);
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

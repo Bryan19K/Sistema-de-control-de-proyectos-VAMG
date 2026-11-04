@@ -151,3 +151,17 @@ public enum TaskItemStatus
     InReview = 2,
     Done = 3,
 }
+
+public enum LiquidationStatus
+{
+    Open = 0,
+    Closed = 1,
+}
+
+public enum StockStatus
+{
+    Ok = 0,
+    Low = 1,
+    Shortage = 2,
+    Negative = 3,
+}

@@ -32,6 +32,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<FeederLine> FeederLines => Set<FeederLine>();
     public DbSet<FeederEntry> FeederEntries => Set<FeederEntry>();
 
+    // Liquidación y mediciones
+    public DbSet<Liquidation> Liquidations => Set<Liquidation>();
+    public DbSet<LiquidationJustification> LiquidationJustifications => Set<LiquidationJustification>();
+    public DbSet<FatMeasurement> FatMeasurements => Set<FatMeasurement>();
+
     // Sprints y tareas
     public DbSet<Sprint> Sprints => Set<Sprint>();
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
