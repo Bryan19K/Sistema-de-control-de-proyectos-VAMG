@@ -62,4 +62,35 @@ public sealed class FeederService(IDbContextFactory<ApplicationDbContext> factor
         });
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<List<FeederEntry>> EntriesAsync(int projectId, FeederItemKind kind, CancellationToken ct = default)
+    {
+        await using var db = factory.CreateDbContext();
+        return await db.FeederEntries.AsNoTracking()
+            .Where(e => e.FeederLine!.ProjectId == projectId && e.FeederLine.Kind == kind)
+            .OrderByDescending(e => e.Date).ThenByDescending(e => e.Id).ToListAsync(ct);
+    }
+
+    public async Task UpdateEntryAsync(int entryId, DateOnly date, decimal quantity, string? notes, CancellationToken ct = default)
+    {
+        if (quantity <= 0)
+        {
+            throw new BusinessRuleException("La cantidad instalada debe ser mayor que cero.");
+        }
+
+        await using var db = factory.CreateDbContext();
+        var entry = await db.FeederEntries.FirstOrDefaultAsync(e => e.Id == entryId, ct) ?? throw new BusinessRuleException("El registro no existe.");
+        entry.Date = date;
+        entry.Quantity = quantity;
+        entry.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task RemoveEntryAsync(int entryId, CancellationToken ct = default)
+    {
+        await using var db = factory.CreateDbContext();
+        var entry = await db.FeederEntries.FirstOrDefaultAsync(e => e.Id == entryId, ct) ?? throw new BusinessRuleException("El registro no existe.");
+        db.FeederEntries.Remove(entry);
+        await db.SaveChangesAsync(ct);
+    }
 }

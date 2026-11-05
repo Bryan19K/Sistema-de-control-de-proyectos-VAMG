@@ -121,9 +121,13 @@ else
         </MudTabPanel>
 
         <MudTabPanel Text="Infraestructura">
+            @if (_admin)
+            {
+                <div class="tk-toolbar"><button type="button" class="tk-btn tk-btn--primary" @onclick="() => RecordAsync(BuildingRecordKind.Infrastructure, null)">+ Infraestructura</button></div>
+            }
             @foreach (var record in _infra)
             {
-                <SectionCard Title="@($"Infraestructura · {@record.Status ?? "—"} · {record.ProgressPercent ?? 0:0.#}%")" Class="mb-4">
+                <SectionCard Title="@($"{record.Name} · {record.Status ?? "—"} · {record.ProgressPercent ?? 0:0.#}%")" Class="mb-4">
                     @DetailBlock(record)
                     @if (!string.IsNullOrWhiteSpace(record.Notes)) { <p class="tk-muted">@record.Notes</p> }
                     @if (_admin) { <button type="button" class="tk-btn tk-btn--outline mt-2" @onclick="() => RecordAsync(BuildingRecordKind.Infrastructure, record)">Editar avance y estado</button> }
@@ -136,6 +140,10 @@ else
         </MudTabPanel>
 
         <MudTabPanel Text="@($"Niveles ({_levels.Count})")">
+            @if (_admin)
+            {
+                <div class="tk-toolbar"><button type="button" class="tk-btn tk-btn--primary" @onclick="() => RecordAsync(BuildingRecordKind.Level, null)">+ Nivel</button></div>
+            }
             <SectionCard>
                 <div class="tk-table-wrap">
                     <table class="tk-table">

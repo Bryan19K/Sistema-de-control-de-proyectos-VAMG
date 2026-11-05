@@ -94,7 +94,7 @@ else
                 {
                     <div class="tk-table-wrap">
                         <table class="tk-table">
-                            <thead><tr><th>Tipo</th><th>Proyectado</th><th>Instalado</th><th>Avance</th></tr></thead>
+                            <thead><tr><th>Tipo</th><th>Proyectado</th><th>Instalado</th><th>Avance</th><th></th></tr></thead>
                             <tbody>
                                 @foreach (var f in _feeder)
                                 {
@@ -105,6 +105,9 @@ else
                                         <td class="tk-bar-cell">
                                             <PaceBar Progress="(int)Math.Round(f.Percent)" Elapsed="(int)Math.Round(f.Percent)" ShowLabel="false" />
                                             <div class="tk-pace__label">@f.Percent.ToString("0.#")%</div>
+                                        </td>
+                                        <td class="tk-actions-cell">
+                                            <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditFeederAsync(f.Line.Kind)" aria-label="Editar proyectado y registros" />
                                         </td>
                                     </tr>
                                 }
@@ -195,6 +198,15 @@ else
         {
             await LoadAsync();
         }
+    }
+
+    private async Task EditFeederAsync(FeederItemKind kind)
+    {
+        var dialog = await Dialogs.ShowAsync<FeederEntriesDialog>($"Feeder · {FeederLabels.Name(kind)}",
+            new DialogParameters { ["ProjectId"] = Id, ["Kind"] = kind },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        await dialog.Result;
+        _feeder = await Feeder.GetAsync(Id);
     }
 
     private async Task FeederAsync(bool planning)

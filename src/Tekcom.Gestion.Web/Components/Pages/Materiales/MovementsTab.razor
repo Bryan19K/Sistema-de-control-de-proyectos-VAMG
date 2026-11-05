@@ -59,6 +59,7 @@ else
                                         }
                                         else if (_canManage)
                                         {
+                                            <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditAsync(local)" aria-label="Editar movimiento" />
                                             <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => VoidAsync(local)">Anular</MudButton>
                                         }
                                     </td>
@@ -105,6 +106,16 @@ else
         if (_projectId > 0)
         {
             _movements = await Inventory.MovementsAsync(new MovementFilter { ProjectId = _projectId, Type = _type, IncludeVoided = _includeVoided });
+        }
+    }
+
+    private async Task EditAsync(InventoryMovement movement)
+    {
+        var dialog = await Dialogs.ShowAsync<MovementEditDialog>("Editar movimiento",
+            new DialogParameters { ["Model"] = movement }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
         }
     }
 

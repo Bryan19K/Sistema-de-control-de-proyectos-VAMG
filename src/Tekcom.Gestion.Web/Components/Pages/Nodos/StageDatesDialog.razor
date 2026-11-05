@@ -1,0 +1,52 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject ISiteService Sites
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6"><DatePick Label="Inicio planificado" @bind-Value="_plannedStart" /></MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Fin planificado" @bind-Value="_plannedEnd" /></MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Inicio real" @bind-Value="_actualStart" /></MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Fin real" @bind-Value="_actualEnd" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int SiteId { get; set; }
+    [Parameter] public SiteStage Stage { get; set; } = default!;
+
+    private DateOnly? _plannedStart;
+    private DateOnly? _plannedEnd;
+    private DateOnly? _actualStart;
+    private DateOnly? _actualEnd;
+
+    protected override void OnInitialized()
+    {
+        _plannedStart = Stage.PlannedStart;
+        _plannedEnd = Stage.PlannedEnd;
+        _actualStart = Stage.ActualStart;
+        _actualEnd = Stage.ActualEnd;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Sites.SetStageDatesAsync(SiteId, Stage.Code, _plannedStart, _plannedEnd, _actualStart, _actualEnd);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

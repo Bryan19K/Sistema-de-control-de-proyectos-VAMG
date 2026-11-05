@@ -171,4 +171,50 @@ public class EditableDataTests
         definition.Phases.SelectMany(p => p.Activities).Should().Contain(a => a.Milestone);
         (await ctx.PlanTemplates.CountAsync(t => t.IsSystem)).Should().BeGreaterThanOrEqualTo(3, "las plantillas estándar siguen existiendo");
     }
+
+    [Fact]
+    public async Task La_verificacion_de_carga_sin_datos_dice_que_faltan_los_seis_excel()
+    {
+        using var db = await TestDb.CreateAsync();
+        var result = await new LoadVerificationService(db).VerifyAsync();
+
+        result.Files.Should().HaveCount(6);
+        result.AllLoaded.Should().BeFalse();
+        result.Missing.Should().HaveCount(6);
+        result.Files.SelectMany(f => f.Checks).Should().Contain(c => c.State == Application.Models.LoadCheckState.Missing);
+    }
+
+    [Fact]
+    public async Task Editar_proyectado_entregado_y_un_movimiento_se_refleja_y_respeta_el_stock()
+    {
+        using var env = await SetupAsync();
+        var projection = new ProjectionService(env.Db);
+        await projection.SetProjectedTotalAsync(env.Site.Id, env.Cable.Id, 25, "Venía mal del diseño", env.Today);
+        (await new QuantityService(env.Db).GetSiteMaterialsAsync(env.Site.Id)).Single(m => m.Material.Id == env.Cable.Id).Projected.Should().Be(25);
+
+        await env.Inventory.ReceiptAsync(env.Project.Id, env.Cable.Id, 20, env.Today, null, null, null);
+        await env.Inventory.SetDeliveredTotalAsync(env.Project.Id, env.Site.Id, env.Cable.Id, 12, env.Today, null);
+        (await env.Inventory.AvailableAsync(env.Project.Id, env.Cable.Id)).Should().Be(8);
+        await env.Inventory.SetDeliveredTotalAsync(env.Project.Id, env.Site.Id, env.Cable.Id, 5, env.Today, "Se entregó de menos");
+        (await env.Inventory.AvailableAsync(env.Project.Id, env.Cable.Id)).Should().Be(15);
+
+        var receipt = (await env.Inventory.MovementsAsync(new Tekcom.Gestion.Application.Models.MovementFilter { ProjectId = env.Project.Id, Type = MovementType.Receipt })).Single();
+        var tooLow = () => env.Inventory.UpdateMovementAsync(receipt.Id, 2, env.Today, null, null, null, null);
+        await tooLow.Should().ThrowAsync<BusinessRuleException>().WithMessage("*negativo*");
+        var edited = await env.Inventory.UpdateMovementAsync(receipt.Id, 30, env.Today.AddDays(-1), null, "Factura 55", "Lote B", "Corregido");
+        edited.Quantity.Should().Be(30);
+        (await env.Inventory.AvailableAsync(env.Project.Id, env.Cable.Id)).Should().Be(25);
+    }
+
+    [Fact]
+    public async Task Las_fechas_de_una_etapa_se_editan_y_se_validan()
+    {
+        using var env = await SetupAsync();
+        await env.Sites.SetStageDatesAsync(env.Site.Id, StageCode.FcCable, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 5), new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 4));
+        var stage = (await env.Sites.StagesAsync(env.Site.Id)).Single(s => s.Code == StageCode.FcCable);
+        stage.ActualEnd.Should().Be(new DateOnly(2026, 11, 4));
+
+        var invalid = () => env.Sites.SetStageDatesAsync(env.Site.Id, StageCode.FcCable, null, null, new DateOnly(2026, 11, 5), new DateOnly(2026, 11, 1));
+        await invalid.Should().ThrowAsync<BusinessRuleException>();
+    }
 }
