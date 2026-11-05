@@ -42,6 +42,9 @@ public interface ISiteService
     Task SetFeederStatusAsync(int siteId, FeederStatus status, CancellationToken ct = default);
     Task SetCaesAsync(int siteId, bool supervised, CancellationToken ct = default);
     Task SetLogsUpToDateAsync(int siteId, bool upToDate, CancellationToken ct = default);
+
+    /// <summary>Fechas planificadas y reales de una etapa del nodo.</summary>
+    Task SetStageDatesAsync(int siteId, StageCode code, DateOnly? plannedStart, DateOnly? plannedEnd, DateOnly? actualStart, DateOnly? actualEnd, CancellationToken ct = default);
 }
 
 public interface IQuantityService
@@ -98,6 +101,10 @@ public interface IFeederService
     Task SavePlannedAsync(int projectId, FeederItemKind kind, decimal planned, CancellationToken ct = default);
 
     Task AddEntryAsync(int projectId, FeederItemKind kind, DateOnly date, decimal quantity, string? notes, CancellationToken ct = default);
+
+    Task<List<FeederEntry>> EntriesAsync(int projectId, FeederItemKind kind, CancellationToken ct = default);
+    Task UpdateEntryAsync(int entryId, DateOnly date, decimal quantity, string? notes, CancellationToken ct = default);
+    Task RemoveEntryAsync(int entryId, CancellationToken ct = default);
 }
 
 public sealed record SprintSummary(Sprint Sprint, int Total, int Done, PaceResult Pace)
@@ -183,6 +190,13 @@ public interface IInventoryService
     /// </summary>
     Task<decimal> SetInstalledTotalAsync(int projectId, int siteId, int materialId, decimal newTotal, DateOnly date, string? reason, CancellationToken ct = default);
 
+    /// <summary>Deja lo entregado de un material en un nodo en el total indicado (sube con entregas nuevas; baja anulando las más recientes con motivo).</summary>
+    Task<decimal> SetDeliveredTotalAsync(int projectId, int siteId, int materialId, decimal newTotal, DateOnly date, string? reason, CancellationToken ct = default);
+
+    /// <summary>Corrige cantidad, fecha, brigada, referencia, lote y notas de un movimiento. El stock no puede quedar en negativo.</summary>
+    Task<InventoryMovement> UpdateMovementAsync(int movementId, decimal quantity, DateOnly date, int? contractorId, string? reference, string? batch,
+        string? notes, CancellationToken ct = default);
+
     /// <summary>Anula un movimiento con motivo. Nada se borra.</summary>
     Task VoidAsync(int movementId, string reason, CancellationToken ct = default);
 
@@ -198,6 +212,9 @@ public interface IProjectionService
 
     /// <summary>Ajusta (suma o resta) la cantidad proyectada de un material en un nodo, siempre con motivo.</summary>
     Task<ProjectionAdjustment> AdjustAsync(int siteId, int materialId, decimal delta, string reason, DateOnly date, CancellationToken ct = default);
+
+    /// <summary>Deja la cantidad proyectada vigente de un material en el total indicado (registra el ajuste con su motivo).</summary>
+    Task<decimal> SetProjectedTotalAsync(int siteId, int materialId, decimal newTotal, string reason, DateOnly date, CancellationToken ct = default);
 }
 
 public interface ILiquidationService
@@ -220,6 +237,7 @@ public interface IMeasurementService
     /// <summary>Registra una medición. Si el proyecto define el rango de dBm, el resultado se califica solo.</summary>
     Task<FatMeasurement> AddAsync(int siteId, string fatCode, DateOnly date, decimal powerDbm, bool? isAcceptable, string? notes, CancellationToken ct = default);
     Task RemoveAsync(int measurementId, CancellationToken ct = default);
+    Task<FatMeasurement> UpdateAsync(int measurementId, string fatCode, DateOnly date, decimal powerDbm, bool? isAcceptable, string? notes, CancellationToken ct = default);
 
     /// <summary>Cuenta cada FAT una sola vez, con su última medición.</summary>
     Task<MeasurementSummary> SummaryAsync(int siteId, CancellationToken ct = default);
@@ -390,4 +408,10 @@ public interface IContractorDirectoryService
 
     Task<ContractorPerson> SavePersonAsync(ContractorPerson person, CancellationToken ct = default);
     Task RemovePersonAsync(int personId, CancellationToken ct = default);
+}
+
+public interface ILoadVerificationService
+{
+    /// <summary>Revisa que todo lo que traían los Excel de TEK-COM esté cargado en el sistema y lo compara con las cifras de cada archivo.</summary>
+    Task<LoadVerification> VerifyAsync(CancellationToken ct = default);
 }

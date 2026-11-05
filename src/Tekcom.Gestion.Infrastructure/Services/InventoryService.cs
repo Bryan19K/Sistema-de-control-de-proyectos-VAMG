@@ -241,6 +241,125 @@ public sealed class InventoryService(
         return newTotal;
     }
 
+    public async Task<decimal> SetDeliveredTotalAsync(int projectId, int siteId, int materialId, decimal newTotal, DateOnly date, string? reason,
+        CancellationToken ct = default)
+    {
+        if (newTotal < 0)
+        {
+            throw new BusinessRuleException("Lo entregado no puede ser negativo.");
+        }
+
+        List<InventoryMovement> current;
+        await using (var read = factory.CreateDbContext())
+        {
+            current = await read.InventoryMovements.AsNoTracking()
+                .Where(m => m.ProjectId == projectId && m.SiteId == siteId && m.MaterialId == materialId && !m.IsVoided && m.Type == MovementType.Delivery)
+                .OrderByDescending(m => m.Date).ThenByDescending(m => m.Id).ToListAsync(ct);
+        }
+
+        var total = current.Sum(m => m.Quantity);
+        var delta = newTotal - total;
+        if (delta == 0)
+        {
+            return total;
+        }
+
+        if (delta > 0)
+        {
+            // Con motivo escrito se permite dejar el stock en negativo (queda registrado como justificación).
+            await DeliveryAsync(projectId, siteId, materialId, delta, date, current.FirstOrDefault()?.ContractorId, null,
+                string.IsNullOrWhiteSpace(reason) ? "Ajuste del total entregado" : reason.Trim(),
+                string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(), ct);
+            return newTotal;
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new BusinessRuleException("Para bajar lo entregado escriba el motivo.");
+        }
+
+        var toRemove = -delta;
+        foreach (var movement in current)
+        {
+            if (toRemove <= 0)
+            {
+                break;
+            }
+
+            if (movement.Quantity <= toRemove)
+            {
+                await VoidAsync(movement.Id, $"Corrección del total entregado: {reason.Trim()}", ct);
+                toRemove -= movement.Quantity;
+            }
+            else
+            {
+                var keep = movement.Quantity - toRemove;
+                await VoidAsync(movement.Id, $"Corrección del total entregado: {reason.Trim()}", ct);
+                await DeliveryAsync(projectId, siteId, materialId, keep, movement.Date, movement.ContractorId, movement.Reference,
+                    $"Queda tras corregir: {reason.Trim()}", null, ct);
+                toRemove = 0;
+            }
+        }
+
+        return newTotal;
+    }
+
+    public async Task<InventoryMovement> UpdateMovementAsync(int movementId, decimal quantity, DateOnly date, int? contractorId, string? reference,
+        string? batch, string? notes, CancellationToken ct = default)
+    {
+        if (quantity <= 0)
+        {
+            throw new BusinessRuleException("La cantidad debe ser mayor que cero.");
+        }
+
+        await using var db = factory.CreateDbContext();
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var movement = await db.InventoryMovements.Include(m => m.Material).FirstOrDefaultAsync(m => m.Id == movementId, ct)
+            ?? throw new BusinessRuleException("El movimiento no existe.");
+        if (movement.IsVoided)
+        {
+            throw new BusinessRuleException("El movimiento está anulado: no se puede editar.");
+        }
+
+        if (movement.SiteId is { } siteId
+            && await db.Liquidations.AnyAsync(l => l.SiteId == siteId && l.Status == LiquidationStatus.Closed, ct))
+        {
+            throw new BusinessRuleException("El nodo está liquidado: reabra la liquidación para editar movimientos.");
+        }
+
+        decimal Effect(decimal q) => movement.Type switch
+        {
+            MovementType.Receipt or MovementType.Return => q,
+            MovementType.Delivery => -q,
+            MovementType.Adjustment => movement.IsIncrease ? q : -q,
+            _ => 0,
+        };
+
+        var change = Effect(quantity) - Effect(movement.Quantity);
+        if (change < 0 && movement.Material!.TracksStock)
+        {
+            var available = await AvailableAsync(db, movement.ProjectId, movement.MaterialId, ct);
+            if (available + change < 0)
+            {
+                throw new BusinessRuleException($"No se puede: el stock quedaría en negativo (hay {available:0.###} disponibles).");
+            }
+        }
+
+        movement.Quantity = quantity;
+        movement.Date = date;
+        if (movement.Type is MovementType.Delivery or MovementType.Installed or MovementType.Return)
+        {
+            movement.ContractorId = contractorId;
+        }
+
+        movement.Reference = Clean(reference);
+        movement.Batch = Clean(batch);
+        movement.Notes = Clean(notes);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return movement;
+    }
+
     public async Task VoidAsync(int movementId, string reason, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(reason))

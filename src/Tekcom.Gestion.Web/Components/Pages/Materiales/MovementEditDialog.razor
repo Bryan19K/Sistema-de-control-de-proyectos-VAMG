@@ -1,0 +1,82 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IInventoryService Inventory
+@inject IReferenceDataService Reference
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <p class="mb-3"><strong>@Model.Material?.Name</strong> · @TypeName(Model.Type)@(Model.Site is null ? "" : $" · nodo {Model.Site.Code}")</p>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6"><MudNumericField Format="0.##" Immediate="true" T="decimal" @bind-Value="_quantity" Min="0" Label="Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Fecha" @bind-Value="_date" /></MudItem>
+            @if (Model.Type is MovementType.Delivery or MovementType.Installed or MovementType.Return)
+            {
+                <MudItem xs="12">
+                    <MudSelect T="int?" @bind-Value="_contractorId" Label="Brigada / contratista" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var c in _contractors)
+                        {
+                            <MudSelectItem T="int?" Value="c.Id">@c.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_reference" Label="Referencia" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_batch" Label="Lote / origen" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public InventoryMovement Model { get; set; } = default!;
+
+    private decimal _quantity;
+    private DateOnly? _date;
+    private int? _contractorId;
+    private string? _reference;
+    private string? _batch;
+    private string? _notes;
+    private List<Contractor> _contractors = [];
+
+    private static string TypeName(MovementType type) => type switch
+    {
+        MovementType.Receipt => "Ingreso",
+        MovementType.Delivery => "Entrega",
+        MovementType.Return => "Devolución",
+        MovementType.Adjustment => "Ajuste",
+        _ => "Instalado",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _contractors = await Reference.ContractorsAsync(includeInactive: true);
+        _quantity = Model.Quantity;
+        _date = Model.Date;
+        _contractorId = Model.ContractorId;
+        _reference = Model.Reference;
+        _batch = Model.Batch;
+        _notes = Model.Notes;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Inventory.UpdateMovementAsync(Model.Id, _quantity, _date ?? Model.Date, _contractorId, _reference, _batch, _notes);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

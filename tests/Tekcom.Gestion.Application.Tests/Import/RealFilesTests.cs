@@ -199,4 +199,35 @@ public class RealFilesTests(ITestOutputHelper output)
         (await ctx.ContractorPeople.CountAsync()).Should().Be(before);
         (await ctx.Contractors.CountAsync()).Should().Be(beforeContractors);
     }
+
+    [Fact]
+    public async Task La_verificacion_de_carga_confirma_que_los_seis_excel_reales_quedaron_cargados()
+    {
+        var files = new[] { "FTTH_2026_62", "CONTROL_DE_PROYECTOS", "NEXT-WAVE", "GASTOS", "PRECIARIO", "BASE_DE_DATOS_CONTRATISTAS" };
+        var data = files.Select(Read).ToList();
+        if (data.Any(d => d is null)) { return; }
+
+        using var db = await TestDb.CreateAsync();
+        var coordinator = Coordinator(db);
+        var verification = new LoadVerificationService(db);
+        (await verification.VerifyAsync()).AllLoaded.Should().BeFalse();
+
+        int? projectId = null;
+        for (var i = 0; i < files.Length; i++)
+        {
+            var packs = await coordinator.AnalyzeAsync(data[i]!, files[i]);
+            var target = i == 0 ? new ImportTarget(null, "2601-2607", "Construcción de FTTH - Sonsonate") : new ImportTarget(projectId, null, null);
+            await coordinator.ApplyAsync(packs, target);
+            if (i == 0)
+            {
+                await using var ctx = db.CreateDbContext();
+                projectId = (await ctx.Projects.SingleAsync()).Id;
+            }
+        }
+
+        var result = await verification.VerifyAsync();
+        foreach (var check in result.Files.SelectMany(f => f.Checks)) { output.WriteLine($"[{check.State}] {check.File} · {check.Name}: Excel {check.Expected} / sistema {check.Actual}"); }
+        result.AllLoaded.Should().BeTrue(string.Join(", ", result.Missing));
+        result.Differences.Should().Be(0, "recién cargados, todas las cifras coinciden con los Excel");
+    }
 }

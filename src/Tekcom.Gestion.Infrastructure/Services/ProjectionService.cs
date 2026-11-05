@@ -59,4 +59,27 @@ public sealed class ProjectionService(IDbContextFactory<ApplicationDbContext> fa
         await db.SaveChangesAsync(ct);
         return adjustment;
     }
+
+    public async Task<decimal> SetProjectedTotalAsync(int siteId, int materialId, decimal newTotal, string reason, DateOnly date, CancellationToken ct = default)
+    {
+        if (newTotal < 0)
+        {
+            throw new BusinessRuleException("Lo proyectado no puede ser negativo.");
+        }
+
+        await using var db = factory.CreateDbContext();
+        var latest = await db.DesignProjections.AsNoTracking().Include(p => p.Lines)
+            .Where(p => p.SiteId == siteId).OrderByDescending(p => p.Version).FirstOrDefaultAsync(ct);
+        var design = latest?.Lines.Where(l => l.MaterialId == materialId).Sum(l => l.Quantity) ?? 0;
+        var adjustments = await db.ProjectionAdjustments.AsNoTracking()
+            .Where(a => a.SiteId == siteId && a.MaterialId == materialId).SumAsync(a => a.Delta, ct);
+        var delta = newTotal - (design + adjustments);
+        if (delta == 0)
+        {
+            return newTotal;
+        }
+
+        await AdjustAsync(siteId, materialId, delta, string.IsNullOrWhiteSpace(reason) ? "Corrección de lo proyectado" : reason, date, ct);
+        return newTotal;
+    }
 }

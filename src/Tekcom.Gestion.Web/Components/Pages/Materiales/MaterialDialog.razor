@@ -33,6 +33,9 @@
             <MudItem xs="12" sm="6"><MudNumericField T="decimal" @bind-Value="_model.MinimumStock" Label="Stock mínimo" Min="0" HelperText="Avisa cuando el stock baja de aquí" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
             <MudItem xs="12" sm="6"><MudCheckBox T="bool" @bind-Value="_model.TracksStock" Label="Pasa por bodega (controla stock)" /></MudItem>
             <MudItem xs="12" sm="6"><MudCheckBox T="bool" @bind-Value="_model.IsActive" Label="Activo" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Model" Label="Modelo del fabricante" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudCheckBox T="bool" @bind-Value="_model.HasSerial" Label="Se recibe con número de serie" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_model.Description" Label="Descripción técnica" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_model.Notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
         </MudGrid>
 
@@ -85,6 +88,7 @@
                 Id = Model.Id, Name = Model.Name, Code = Model.Code, Unit = Model.Unit, Category = Model.Category,
                 Group = Model.Group, LengthMeters = Model.LengthMeters, TracksStock = Model.TracksStock,
                 MinimumStock = Model.MinimumStock, IsActive = Model.IsActive, Notes = Model.Notes,
+                Model = Model.Model, Description = Model.Description, HasSerial = Model.HasSerial,
             };
             _aliases = Model.Aliases.ToList();
         }

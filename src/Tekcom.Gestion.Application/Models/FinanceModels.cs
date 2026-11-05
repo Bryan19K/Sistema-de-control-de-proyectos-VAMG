@@ -50,3 +50,27 @@ public sealed record ContractorView(Contractor Contractor, int People, int Cover
 }
 
 public sealed record PersonView(ContractorPerson Person, string ContractorName, Tekcom.Gestion.Domain.Logic.CoverageState State);
+
+public enum LoadCheckState
+{
+    /// <summary>Coincide con lo que traía el Excel.</summary>
+    Ok = 0,
+
+    /// <summary>No hay nada cargado de este dato: falta subir el Excel.</summary>
+    Missing = 1,
+
+    /// <summary>Hay datos pero la cifra no coincide con el Excel (suele ser por ediciones hechas en el sistema).</summary>
+    Different = 2,
+}
+
+public sealed record LoadCheck(string File, string Name, string Expected, string Actual, LoadCheckState State);
+
+public sealed record LoadFileStatus(string File, string Description, bool Loaded, int Differences, IReadOnlyList<LoadCheck> Checks);
+
+public sealed class LoadVerification
+{
+    public List<LoadFileStatus> Files { get; init; } = [];
+    public bool AllLoaded => Files.All(f => f.Loaded);
+    public IEnumerable<string> Missing => Files.Where(f => !f.Loaded).Select(f => f.File);
+    public int Differences => Files.Sum(f => f.Differences);
+}

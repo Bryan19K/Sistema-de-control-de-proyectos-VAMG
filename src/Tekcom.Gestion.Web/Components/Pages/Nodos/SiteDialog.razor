@@ -28,6 +28,8 @@
             </MudItem>
             <MudItem xs="12" sm="6"><DatePick Label="Fecha de inicio" @bind-Value="_model.PlannedStart" /></MudItem>
             <MudItem xs="12" sm="6"><DatePick Label="Fecha final" @bind-Value="_model.PlannedEnd" /></MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Inicio real" @bind-Value="_model.ActualStart" /></MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Final real" @bind-Value="_model.ActualEnd" /></MudItem>
             <MudItem xs="12" sm="6"><MudNumericField T="double?" @bind-Value="_model.Latitude" Label="Latitud" Format="0.######" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
             <MudItem xs="12" sm="6"><MudNumericField T="double?" @bind-Value="_model.Longitude" Label="Longitud" Format="0.######" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_model.Notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>

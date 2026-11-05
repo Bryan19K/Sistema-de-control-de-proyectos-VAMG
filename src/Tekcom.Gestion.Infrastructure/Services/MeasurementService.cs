@@ -18,6 +18,45 @@ public sealed class MeasurementService(IDbContextFactory<ApplicationDbContext> f
             .ToListAsync(ct);
     }
 
+    public async Task<FatMeasurement> UpdateAsync(int measurementId, string fatCode, DateOnly date, decimal powerDbm, bool? isAcceptable, string? notes,
+        CancellationToken ct = default)
+    {
+        await using var db = factory.CreateDbContext();
+        var measurement = await db.FatMeasurements.FirstOrDefaultAsync(m => m.Id == measurementId, ct)
+            ?? throw new BusinessRuleException("La medición no existe.");
+        var siteId = measurement.SiteId;
+        fatCode = (fatCode ?? string.Empty).Trim().ToUpperInvariant();
+        if (fatCode.Length == 0)
+        {
+            throw new BusinessRuleException("El código de la FAT es obligatorio.");
+        }
+
+        if (powerDbm is > 10 or < -60)
+        {
+            throw new BusinessRuleException("La potencia debe estar entre -60 y 10 dBm.");
+        }
+
+        var site = await db.Sites.AsNoTracking().FirstAsync(s => s.Id == siteId, ct);
+        var project = await db.Projects.AsNoTracking().FirstAsync(p => p.Id == site.ProjectId, ct);
+        bool acceptable;
+        if (project.MinAcceptableDbm is { } min && project.MaxAcceptableDbm is { } max)
+        {
+            acceptable = powerDbm >= min && powerDbm <= max;
+        }
+        else
+        {
+            acceptable = isAcceptable ?? throw new BusinessRuleException("Indique si la medición es aceptable.");
+        }
+
+        measurement.FatCode = fatCode;
+        measurement.Date = date;
+        measurement.PowerDbm = powerDbm;
+        measurement.IsAcceptable = acceptable;
+        measurement.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        await db.SaveChangesAsync(ct);
+        return measurement;
+    }
+
     public async Task<FatMeasurement> AddAsync(int siteId, string fatCode, DateOnly date, decimal powerDbm, bool? isAcceptable,
         string? notes, CancellationToken ct = default)
     {

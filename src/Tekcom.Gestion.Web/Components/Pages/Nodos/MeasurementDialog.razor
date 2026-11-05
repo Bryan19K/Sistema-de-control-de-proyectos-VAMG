@@ -9,10 +9,13 @@
 <MudDialog>
     <DialogContent>
         <MudStack Spacing="2">
-            <MudRadioGroup T="bool" @bind-Value="_bulk">
-                <MudRadio T="bool" Value="false">Una FAT</MudRadio>
-                <MudRadio T="bool" Value="true">Varias FATs (pegar lista)</MudRadio>
-            </MudRadioGroup>
+            @if (Model is null)
+            {
+                <MudRadioGroup T="bool" @bind-Value="_bulk">
+                    <MudRadio T="bool" Value="false">Una FAT</MudRadio>
+                    <MudRadio T="bool" Value="true">Varias FATs (pegar lista)</MudRadio>
+                </MudRadioGroup>
+            }
 
             @if (AutoGrade)
             {
@@ -53,6 +56,7 @@
     [Parameter] public int SiteId { get; set; }
     [Parameter] public bool AutoGrade { get; set; }
     [Parameter] public string? Range { get; set; }
+    [Parameter] public Tekcom.Gestion.Domain.Entities.FatMeasurement? Model { get; set; }
 
     private bool _bulk;
     private string? _code;
@@ -62,14 +66,28 @@
     private string? _notes;
     private DateOnly? _date;
 
-    protected override void OnInitialized() => _date = Clock.Today;
+    protected override void OnInitialized()
+    {
+        _date = Model?.Date ?? Clock.Today;
+        if (Model is not null)
+        {
+            _code = Model.FatCode;
+            _dbm = Model.PowerDbm;
+            _acceptable = Model.IsAcceptable;
+            _notes = Model.Notes;
+        }
+    }
 
     private async Task SaveAsync()
     {
         try
         {
             var date = _date ?? Clock.Today;
-            if (!_bulk)
+            if (Model is not null)
+            {
+                await Measurements.UpdateAsync(Model.Id, _code ?? string.Empty, date, _dbm, AutoGrade ? null : _acceptable, _notes);
+            }
+            else if (!_bulk)
             {
                 await Measurements.AddAsync(SiteId, _code ?? string.Empty, date, _dbm, AutoGrade ? null : _acceptable, _notes);
             }

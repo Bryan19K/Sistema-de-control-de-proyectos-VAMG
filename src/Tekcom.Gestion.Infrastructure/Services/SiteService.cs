@@ -178,6 +178,32 @@ public sealed class SiteService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task SetStageDatesAsync(int siteId, StageCode code, DateOnly? plannedStart, DateOnly? plannedEnd, DateOnly? actualStart, DateOnly? actualEnd,
+        CancellationToken ct = default)
+    {
+        if (plannedStart is not null && plannedEnd is not null && plannedEnd < plannedStart)
+        {
+            throw new BusinessRuleException("La fecha final planificada no puede ser anterior a la inicial.");
+        }
+
+        if (actualStart is not null && actualEnd is not null && actualEnd < actualStart)
+        {
+            throw new BusinessRuleException("La fecha final real no puede ser anterior a la inicial.");
+        }
+
+        await using var db = factory.CreateDbContext();
+        var site = await db.Sites.FirstOrDefaultAsync(s => s.Id == siteId, ct) ?? throw new BusinessRuleException("El nodo no existe.");
+        var project = await db.Projects.AsNoTracking().FirstAsync(p => p.Id == site.ProjectId, ct);
+        await EnsureStagesAsync(db, site, project.ProjectTypeId, ct);
+        var stage = await db.SiteStages.FirstOrDefaultAsync(st => st.SiteId == siteId && st.Code == code, ct)
+            ?? throw new BusinessRuleException("La etapa no existe para este tipo de proyecto.");
+        stage.PlannedStart = plannedStart;
+        stage.PlannedEnd = plannedEnd;
+        stage.ActualStart = actualStart;
+        stage.ActualEnd = actualEnd;
+        await db.SaveChangesAsync(ct);
+    }
+
     public Task SetOdnFinalizedAsync(int siteId, bool finalized, CancellationToken ct = default) =>
         UpdateAsync(siteId, s =>
         {

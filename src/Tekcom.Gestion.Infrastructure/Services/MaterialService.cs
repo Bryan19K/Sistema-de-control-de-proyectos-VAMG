@@ -86,6 +86,9 @@ public sealed class MaterialService(IDbContextFactory<ApplicationDbContext> fact
         entity.MinimumStock = material.MinimumStock;
         entity.IsActive = material.IsActive;
         entity.Notes = string.IsNullOrWhiteSpace(material.Notes) ? null : material.Notes.Trim();
+        entity.Model = string.IsNullOrWhiteSpace(material.Model) ? null : material.Model.Trim();
+        entity.Description = string.IsNullOrWhiteSpace(material.Description) ? null : material.Description.Trim();
+        entity.HasSerial = material.HasSerial;
 
         await db.SaveChangesAsync(ct);
         return entity;

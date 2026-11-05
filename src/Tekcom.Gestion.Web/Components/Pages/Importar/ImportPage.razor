@@ -2,10 +2,12 @@
 @attribute [Authorize(Roles = AppRoles.Admin)]
 @using Tekcom.Gestion.Application.Common
 @using Tekcom.Gestion.Application.Import
+@using Tekcom.Gestion.Application.Models
 @using Tekcom.Gestion.Application.Services
 @using Tekcom.Gestion.Domain.Entities
 @using Tekcom.Gestion.Web.Services
 @inject IDataImportCoordinator Importer
+@inject ILoadVerificationService Verification
 @inject ImportStaging Staging
 @inject AuthenticationStateProvider Authentication
 @inject IProjectService Projects
@@ -16,6 +18,74 @@
 <PageTitle>Importar Excel · TEK-COM</PageTitle>
 
 <PageHeader Title="Importar Excel" Subtitle="Suba cualquiera de los Excel de TEK-COM: el sistema detecta qué trae y lo carga sin duplicar" />
+
+<SectionCard Title="Verificación de la carga" Class="mb-6">
+    <HeaderActions>
+        <button type="button" class="tk-btn tk-btn--outline" @onclick="VerifyAsync" disabled="@_verifying">Verificar de nuevo</button>
+    </HeaderActions>
+    <ChildContent>
+        @if (_verification is null)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else
+        {
+            @if (_verification.AllLoaded)
+            {
+                <div class="tk-alert tk-alert--info mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" />
+                    <span><strong>Todos los Excel están cargados.</strong>
+                        @(_verification.Differences == 0 ? "Las cifras coinciden con las de cada archivo." : $"{_verification.Differences} cifra(s) difieren de las del Excel: suele ser porque ya las editó en el sistema.")</span>
+                </div>
+            }
+            else
+            {
+                <div class="tk-alert tk-alert--warning mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.Warning" />
+                    <span><strong>Faltan por cargar:</strong> @string.Join(", ", _verification.Missing)</span>
+                </div>
+            }
+
+            <div class="tk-table-wrap">
+                <table class="tk-table tk-table--compact">
+                    <thead><tr><th>Excel</th><th>Qué trae</th><th>Estado</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var file in _verification.Files)
+                        {
+                            <tr>
+                                <td>@file.File</td>
+                                <td>@file.Description</td>
+                                <td>
+                                    @if (!file.Loaded) { <StatusChip Status="StatusChip.Kind.Atrasado" Text="Falta" /> }
+                                    else if (file.Differences > 0) { <StatusChip Status="StatusChip.Kind.Bajo" Text="@($"Cargado · {file.Differences} difiere")" /> }
+                                    else { <StatusChip Status="StatusChip.Kind.Ok" Text="Cargado" /> }
+                                </td>
+                                <td>
+                                    <details>
+                                        <summary>Ver cifras</summary>
+                                        <table class="tk-table tk-table--compact">
+                                            <thead><tr><th>Dato</th><th class="num">Excel</th><th class="num">Sistema</th><th></th></tr></thead>
+                                            <tbody>
+                                                @foreach (var check in file.Checks)
+                                                {
+                                                    <tr>
+                                                        <td>@check.Name</td><td class="num">@check.Expected</td><td class="num">@check.Actual</td>
+                                                        <td>@if (check.State == LoadCheckState.Ok) { <StatusChip Status="StatusChip.Kind.Ok" Text="Coincide" /> } else if (check.State == LoadCheckState.Missing) { <StatusChip Status="StatusChip.Kind.Atrasado" Text="Falta" /> } else { <StatusChip Status="StatusChip.Kind.Bajo" Text="Difiere" /> }</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </details>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="tk-muted mt-2">"Difiere" no es un error: todo se puede editar en el sistema, así que las cifras cambian. Si no editó nada y falta algo, vuelva a subir ese Excel.</p>
+        }
+    </ChildContent>
+</SectionCard>
 
 <SectionCard Title="1. Elija el archivo" Class="mb-6">
     <p class="mb-3">
@@ -146,7 +216,27 @@ else if (_packs.Count > 0)
     private bool HasFtth => _packs.Any(p => p.Kind == PackKind.FtthControl);
     private bool NeedsTarget => HasFtth || _packs.Any(p => p.NeedsProject);
 
-    protected override async Task OnInitializedAsync() => _projects = await Projects.ListAsync();
+    private LoadVerification? _verification;
+    private bool _verifying;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _projects = await Projects.ListAsync();
+        await VerifyAsync();
+    }
+
+    private async Task VerifyAsync()
+    {
+        _verifying = true;
+        try
+        {
+            _verification = await Verification.VerifyAsync();
+        }
+        finally
+        {
+            _verifying = false;
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -189,6 +279,7 @@ else if (_packs.Count > 0)
             _done = await Importer.ApplyAsync(_packs, target);
             _staged.Done = _done;
             _projects = await Projects.ListAsync();
+            await VerifyAsync();
             Snackbar.Add("Importación terminada.", Severity.Success);
         }
         catch (BusinessRuleException ex)

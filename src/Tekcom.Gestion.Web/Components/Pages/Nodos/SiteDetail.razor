@@ -95,7 +95,7 @@ else
                                         }
                                     </td>
                                     <td>@UiText.Date(local.ActualStart)</td>
-                                    <td>@UiText.Date(local.ActualEnd)</td>
+                                    <td>@UiText.Date(local.ActualEnd) @if (_canEdit) { <MudIconButton Icon="@Icons.Material.Outlined.EditCalendar" Size="Size.Small" OnClick="() => EditStageDatesAsync(local)" aria-label="Editar fechas de la etapa" /> }</td>
                                     <td>
                                         @if (_canEdit)
                                         {
@@ -214,7 +214,7 @@ else
                                         <td class="tk-actions-cell">
                                             @if (_canEdit)
                                             {
-                                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditInstalledAsync(m)" aria-label="Corregir instalado" />
+                                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditInstalledAsync(m)" aria-label="Corregir cantidades" />
                                             }
                                         </td>
                                     </tr>
@@ -260,7 +260,7 @@ else
                                         <td class="num">@local.PowerDbm.ToString("0.##")</td>
                                         <td>@if (local.IsAcceptable) { <StatusChip Status="StatusChip.Kind.Ok" Text="Aceptable" /> } else { <StatusChip Status="StatusChip.Kind.Atrasado" Text="No aceptable" /> }</td>
                                         <td>@local.Notes</td>
-                                        <td class="tk-actions-cell">@if (_canEdit) { <MudIconButton Icon="@Icons.Material.Outlined.Close" Size="Size.Small" OnClick="() => RemoveMeasurementAsync(local.Id)" aria-label="Quitar medición" /> }</td>
+                                        <td class="tk-actions-cell">@if (_canEdit) { <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditMeasurementAsync(local)" aria-label="Editar medición" /><MudIconButton Icon="@Icons.Material.Outlined.Close" Size="Size.Small" OnClick="() => RemoveMeasurementAsync(local.Id)" aria-label="Quitar medición" /> }</td>
                                     </tr>
                                 }
                             </tbody>
@@ -390,13 +390,14 @@ else
 
     private async Task EditInstalledAsync(MaterialQuantity quantity)
     {
-        var dialog = await Dialogs.ShowAsync<SetInstalledDialog>("Corregir lo instalado",
+        var dialog = await Dialogs.ShowAsync<EditQuantitiesDialog>("Corregir cantidades del material",
             new DialogParameters
             {
                 ["ProjectId"] = _summary!.Site.ProjectId, ["SiteId"] = Id, ["MaterialId"] = quantity.Material.Id,
-                ["MaterialName"] = quantity.Material.Name, ["Unit"] = quantity.Material.Unit, ["Current"] = quantity.Installed,
+                ["MaterialName"] = quantity.Material.Name, ["Unit"] = quantity.Material.Unit, ["TracksStock"] = quantity.Material.TracksStock,
+                ["Projected"] = quantity.Projected, ["Delivered"] = quantity.Delivered, ["Installed"] = quantity.Installed,
             },
-            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
         if (!(await dialog.Result)!.Canceled)
         {
             await LoadAsync();
@@ -420,6 +421,28 @@ else
         var dialog = await Dialogs.ShowAsync<MeasurementDialog>("Registrar medición de FAT",
             new DialogParameters { ["SiteId"] = Id, ["AutoGrade"] = auto, ["Range"] = auto ? $"{_project!.MinAcceptableDbm:0.##} a {_project.MaxAcceptableDbm:0.##}" : null },
             new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task EditMeasurementAsync(FatMeasurement measurement)
+    {
+        var auto = _project?.MinAcceptableDbm is not null && _project.MaxAcceptableDbm is not null;
+        var dialog = await Dialogs.ShowAsync<MeasurementDialog>("Editar medición",
+            new DialogParameters { ["SiteId"] = Id, ["Model"] = measurement, ["AutoGrade"] = auto, ["Range"] = auto ? $"{_project!.MinAcceptableDbm:0.##} a {_project.MaxAcceptableDbm:0.##}" : null },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task EditStageDatesAsync(SiteStage stage)
+    {
+        var dialog = await Dialogs.ShowAsync<StageDatesDialog>($"Fechas de {stage.Definition?.Name}",
+            new DialogParameters { ["SiteId"] = Id, ["Stage"] = stage }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         if (!(await dialog.Result)!.Canceled)
         {
             await LoadAsync();

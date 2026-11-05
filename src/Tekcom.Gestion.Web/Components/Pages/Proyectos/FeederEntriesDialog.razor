@@ -1,0 +1,86 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@using Tekcom.Gestion.Web.Components.Shared
+@inject IFeederService Feeder
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudNumericField Format="0.##" Immediate="true" T="decimal" @bind-Value="_planned" Min="0" Label="@($"Cantidad proyectada ({FeederLabels.Unit(Kind)})")"
+                         Variant="Variant.Outlined" Margin="Margin.Dense" />
+        <div class="tk-toolbar mt-2"><button type="button" class="tk-btn tk-btn--primary" @onclick="SavePlannedAsync">Guardar proyectado</button></div>
+
+        <h3 class="tk-h3 mt-4 mb-2">Registros de instalación</h3>
+        @if (_entries.Count == 0)
+        {
+            <p class="tk-muted">Todavía no hay instalaciones registradas.</p>
+        }
+        else
+        {
+            <div class="tk-table-wrap">
+                <table class="tk-table tk-table--compact">
+                    <thead><tr><th>Fecha</th><th class="num">Cantidad</th><th>Notas</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var e in _entries)
+                        {
+                            var entry = e;
+                            <tr>
+                                <td><DatePick Label="" Value="entry.Date" ValueChanged="d => entry.Date = d ?? entry.Date" /></td>
+                                <td class="num"><MudNumericField Format="0.##" T="decimal" @bind-Value="entry.Quantity" Min="0" Variant="Variant.Text" Margin="Margin.Dense" Style="max-width:120px" /></td>
+                                <td><MudTextField T="string" @bind-Value="entry.Notes" Variant="Variant.Text" Margin="Margin.Dense" /></td>
+                                <td class="tk-actions-cell">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Save" Size="Size.Small" OnClick="() => SaveEntryAsync(entry)" aria-label="Guardar registro" />
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => RemoveEntryAsync(entry)" aria-label="Quitar registro" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="() => MudDialog.Close(DialogResult.Ok(true))">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public FeederItemKind Kind { get; set; }
+
+    private decimal _planned;
+    private List<FeederEntry> _entries = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var line = (await Feeder.GetAsync(ProjectId)).FirstOrDefault(f => f.Line.Kind == Kind);
+        _planned = line?.Planned ?? 0;
+        _entries = await Feeder.EntriesAsync(ProjectId, Kind);
+    }
+
+    private async Task RunAsync(Func<Task> action, string ok)
+    {
+        try
+        {
+            await action();
+            _entries = await Feeder.EntriesAsync(ProjectId, Kind);
+            Snackbar.Add(ok, Severity.Success);
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private Task SavePlannedAsync() => RunAsync(() => Feeder.SavePlannedAsync(ProjectId, Kind, _planned), "Proyectado guardado.");
+
+    private Task SaveEntryAsync(FeederEntry entry) =>
+        RunAsync(() => Feeder.UpdateEntryAsync(entry.Id, entry.Date, entry.Quantity, entry.Notes), "Registro guardado.");
+
+    private Task RemoveEntryAsync(FeederEntry entry) =>
+        RunAsync(() => Feeder.RemoveEntryAsync(entry.Id), "Registro quitado.");
+}
