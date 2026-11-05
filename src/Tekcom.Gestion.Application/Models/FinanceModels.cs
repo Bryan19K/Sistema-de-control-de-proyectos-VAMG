@@ -43,3 +43,10 @@ public sealed record BuildingMaterialRow(string Material, string Unit, decimal A
     /// <summary>Lo asignado que no se instaló ni se devolvió.</summary>
     public decimal PendingReturn => Assigned - Installed - Returned;
 }
+
+public sealed record ContractorView(Contractor Contractor, int People, int Covered, int Pending, int Expired, int ExpiringSoon)
+{
+    public int NeedAttention => Pending + Expired + ExpiringSoon;
+}
+
+public sealed record PersonView(ContractorPerson Person, string ContractorName, Tekcom.Gestion.Domain.Logic.CoverageState State);

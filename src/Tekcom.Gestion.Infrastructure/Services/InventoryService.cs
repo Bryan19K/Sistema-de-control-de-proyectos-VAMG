@@ -163,6 +163,84 @@ public sealed class InventoryService(
         }, ct);
     }
 
+    public async Task<decimal> SetInstalledTotalAsync(int projectId, int siteId, int materialId, decimal newTotal, DateOnly date,
+        string? reason, CancellationToken ct = default)
+    {
+        if (newTotal < 0)
+        {
+            throw new BusinessRuleException("Lo instalado no puede ser negativo.");
+        }
+
+        await using var db = factory.CreateDbContext();
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var site = await RequireOpenSiteAsync(db, projectId, siteId, ct);
+        var current = await db.InventoryMovements
+            .Where(m => m.ProjectId == projectId && m.SiteId == siteId && m.MaterialId == materialId && !m.IsVoided && m.Type == MovementType.Installed)
+            .OrderByDescending(m => m.Date).ThenByDescending(m => m.Id)
+            .ToListAsync(ct);
+        var total = current.Sum(m => m.Quantity);
+        var delta = newTotal - total;
+        if (delta == 0)
+        {
+            return total;
+        }
+
+        if (delta > 0)
+        {
+            await ValidateAsync(db, projectId, materialId, delta, requireStock: false, ct);
+            db.InventoryMovements.Add(new InventoryMovement
+            {
+                ProjectId = projectId, Type = MovementType.Installed, MaterialId = materialId, Quantity = delta, Date = date,
+                SiteId = siteId, ContractorId = site.ContractorId, Notes = Clean(reason) ?? "Ajuste del total instalado",
+            });
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new BusinessRuleException("Para bajar lo instalado escriba el motivo.");
+            }
+
+            var toRemove = -delta;
+            foreach (var movement in current)
+            {
+                if (toRemove <= 0)
+                {
+                    break;
+                }
+
+                var note = $"Corrección del total instalado: {reason.Trim()}";
+                if (movement.Quantity <= toRemove)
+                {
+                    toRemove -= movement.Quantity;
+                    movement.IsVoided = true;
+                    movement.VoidReason = note;
+                    movement.VoidedAt = DateTimeOffset.UtcNow;
+                    movement.VoidedBy = "Corrección de instalado";
+                }
+                else
+                {
+                    // Se anula el registro completo y se vuelve a anotar lo que sí quedó instalado.
+                    var keep = movement.Quantity - toRemove;
+                    movement.IsVoided = true;
+                    movement.VoidReason = note;
+                    movement.VoidedAt = DateTimeOffset.UtcNow;
+                    movement.VoidedBy = "Corrección de instalado";
+                    db.InventoryMovements.Add(new InventoryMovement
+                    {
+                        ProjectId = projectId, Type = MovementType.Installed, MaterialId = materialId, Quantity = keep, Date = movement.Date,
+                        SiteId = siteId, ContractorId = movement.ContractorId, Notes = $"Queda tras corregir: {reason.Trim()}",
+                    });
+                    toRemove = 0;
+                }
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return newTotal;
+    }
+
     public async Task VoidAsync(int movementId, string reason, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(reason))

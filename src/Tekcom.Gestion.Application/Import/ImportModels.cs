@@ -169,6 +169,7 @@ public enum PackKind
     NextWaveMaterials = 3,
     Expenses = 4,
     PriceList = 5,
+    Contractors = 6,
 }
 
 /// <summary>Un bloque de datos detectado dentro de un Excel, ya leído y validado, listo para confirmar.</summary>

@@ -1,0 +1,89 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Services
+@inject IFinanceService Finance
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudSelect T="ExpenseKind" @bind-Value="_m.Kind" Label="Tipo de gasto" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="ExpenseKind" Value="ExpenseKind.Purchase">Compra con proveedor</MudSelectItem>
+                    <MudSelectItem T="ExpenseKind" Value="ExpenseKind.PettyCash">Caja chica</MudSelectItem>
+                    <MudSelectItem T="ExpenseKind" Value="ExpenseKind.Travel">Viáticos</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Fecha" @bind-Value="_date" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_m.Description" Label="Concepto o descripción" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            @if (_m.Kind == ExpenseKind.Purchase)
+            {
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Category" Label="Tipo" Placeholder="TRANSPORTE, MATERIAL, EQUIPO…" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Supplier" Label="Proveedor" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="4"><MudNumericField Format="0.##" T="decimal?" @bind-Value="_m.Subtotal" Label="Subtotal (sin IVA)" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="4"><MudNumericField Format="0.##" T="decimal?" @bind-Value="_m.Vat" Label="IVA" HelperText="Vacío = 13% del subtotal" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="4"><MudTextField Value="@UiText.Money(Total)" Label="Total con IVA" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Status" Label="Estado" Placeholder="PAGADO, PENDIENTE…" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.PaidBy" Label="Comprado por" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            }
+            else
+            {
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" @bind-Value="_m.FundId" Label="Fondo" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var f in _funds.Where(f => f.Kind == _m.Kind))
+                        {
+                            <MudSelectItem T="int?" Value="f.Id">@f.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6"><MudNumericField Format="0.##" T="decimal" @bind-Value="_m.Total" Label="Monto" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.InvoiceNumber" Label="Número de factura" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Supplier" Label="Comercio" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            }
+            <MudItem xs="12"><MudTextField @bind-Value="_m.CostCenter" Label="Centro de costos" Placeholder="2601-2607" HelperText="Si coincide con el código de un proyecto, se enlaza a él" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ExpenseEntry? Model { get; set; }
+    [Parameter] public ExpenseKind DefaultKind { get; set; } = ExpenseKind.Purchase;
+
+    private ExpenseEntry _m = new();
+    private DateOnly? _date;
+    private List<ExpenseFund> _funds = [];
+
+    private decimal Total => _m.Subtotal is { } s ? s + (_m.Vat ?? Math.Round(s * 0.13m, 4)) : _m.Total;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _funds = await Finance.FundsAsync();
+        _m = Model is null ? new ExpenseEntry { Kind = DefaultKind } : new ExpenseEntry
+        {
+            Id = Model.Id, Kind = Model.Kind, FundId = Model.FundId, Date = Model.Date, Description = Model.Description, Category = Model.Category,
+            Supplier = Model.Supplier, InvoiceNumber = Model.InvoiceNumber, Unit = Model.Unit, Quantity = Model.Quantity, UnitCost = Model.UnitCost,
+            Subtotal = Model.Subtotal, Vat = Model.Vat, Total = Model.Total, Status = Model.Status, PaidBy = Model.PaidBy, CostCenter = Model.CostCenter,
+        };
+        _date = Model?.Date ?? DateOnly.FromDateTime(DateTime.Today);
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _m.Date = _date ?? default;
+            await Finance.SaveExpenseAsync(_m);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

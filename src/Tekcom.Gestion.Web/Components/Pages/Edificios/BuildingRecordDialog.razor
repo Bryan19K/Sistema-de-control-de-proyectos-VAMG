@@ -1,0 +1,62 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IBuildingService Buildings
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_m.Level" Label="Nivel" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="8"><MudTextField @bind-Value="_m.Name" Label="@NameLabel" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudNumericField Format="0.##" T="decimal?" @bind-Value="_m.ProgressPercent" Label="Avance (%)" Min="0" Max="100" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Status" Label="Estado" Placeholder="Finalizado, En proceso, Pendiente…" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_m.Notes" Label="Observaciones" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        @if (_m.Id != 0)
+        {
+            <MudButton Color="Color.Error" OnClick="DeleteAsync">Quitar</MudButton>
+        }
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public BuildingRecordKind Kind { get; set; }
+    [Parameter] public BuildingRecord? Model { get; set; }
+
+    private BuildingRecord _m = new();
+
+    private string NameLabel => Kind switch
+    {
+        BuildingRecordKind.Unit => "Apartamento",
+        BuildingRecordKind.Level => "Nivel (nombre)",
+        _ => "Rubro",
+    };
+
+    protected override void OnInitialized()
+    {
+        _m = Model is null ? new BuildingRecord { ProjectId = ProjectId, Kind = Kind } : new BuildingRecord
+        {
+            Id = Model.Id, ProjectId = Model.ProjectId, Kind = Model.Kind, Level = Model.Level, Name = Model.Name,
+            ProgressPercent = Model.ProgressPercent, Status = Model.Status, Notes = Model.Notes,
+        };
+    }
+
+    private async Task SaveAsync()
+    {
+        try { await Buildings.SaveRecordAsync(_m); MudDialog.Close(DialogResult.Ok(true)); }
+        catch (BusinessRuleException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task DeleteAsync()
+    {
+        try { await Buildings.DeleteRecordAsync(_m.Id); MudDialog.Close(DialogResult.Ok(true)); }
+        catch (BusinessRuleException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+}

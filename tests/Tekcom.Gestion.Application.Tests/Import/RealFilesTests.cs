@@ -32,7 +32,7 @@ public class RealFilesTests(ITestOutputHelper output)
     internal static DataImportCoordinator Coordinator(TestDb db)
     {
         var ftth = new ExcelImportService(db, new QuantityService(db), db.Clock);
-        return new DataImportCoordinator(ftth, new IDataPackImporter[] { new WarehouseImportService(db), new NextWaveControlImportService(db), new NextWaveMaterialsImportService(db), new ExpensesImportService(db), new PriceListImportService(db) });
+        return new DataImportCoordinator(ftth, new IDataPackImporter[] { new WarehouseImportService(db), new NextWaveControlImportService(db), new NextWaveMaterialsImportService(db), new ExpensesImportService(db), new PriceListImportService(db), new ContractorsImportService(db) });
     }
 
     private void Print(ImportReport report)
@@ -165,5 +165,38 @@ public class RealFilesTests(ITestOutputHelper output)
         (await ctx.Materials.CountAsync(m => m.Code != null && m.Code.StartsWith("NW-"))).Should().BeGreaterThan(20);
         await coordinator.ApplyAsync(await coordinator.AnalyzeAsync(price, "preciario.xlsx"), new ImportTarget(projectId, null, null));
         (await ctx.ContractOrders.CountAsync()).Should().Be(24);
+    }
+
+    [Fact]
+    public async Task Contratistas_cargan_sin_optical_y_marcan_los_pendientes()
+    {
+        var ftth = Read("FTTH_2026_62");
+        var data = Read("BASE_DE_DATOS_CONTRATISTAS");
+        if (data is null) { return; }
+
+        async Task<TestDb> CreateAsync() => await TestDb.CreateAsync();
+        var tdb = await CreateAsync();
+        var coordinator = Coordinator(tdb);
+        if (ftth is not null)
+        {
+            await coordinator.ApplyAsync(await coordinator.AnalyzeAsync(ftth, "ftth.xlsx"), new ImportTarget(null, "2601-2607", "FTTH"));
+        }
+
+        var packs = await coordinator.AnalyzeAsync(data, "contratistas.xlsx");
+        foreach (var p in packs) { output.WriteLine($"== {p.Title}"); Print(p.Report); }
+        var applied = await coordinator.ApplyAsync(packs, new ImportTarget(null, null, null));
+        foreach (var p in applied) { output.WriteLine("-- aplicado"); Print(p.Report); }
+
+        await using var ctx = tdb.CreateDbContext();
+        var contractors = await ctx.Contractors.ToListAsync();
+        foreach (var c in contractors) { output.WriteLine($"{c.Name} | {c.Stage} | activo {c.IsActive} | {c.Nrc}"); }
+        contractors.Where(c => c.Name.Contains("Optical", StringComparison.OrdinalIgnoreCase)).Should().OnlyContain(c => !c.IsActive);
+        (await ctx.ContractorPeople.CountAsync()).Should().Be(54);
+        (await ctx.ContractorPeople.Include(p => p.Contractor).AnyAsync(p => p.Contractor!.Name.Contains("Optical"))).Should().BeFalse();
+        var before = await ctx.ContractorPeople.CountAsync();
+        var beforeContractors = contractors.Count;
+        await coordinator.ApplyAsync(await coordinator.AnalyzeAsync(data, "contratistas.xlsx"), new ImportTarget(null, null, null));
+        (await ctx.ContractorPeople.CountAsync()).Should().Be(before);
+        (await ctx.Contractors.CountAsync()).Should().Be(beforeContractors);
     }
 }

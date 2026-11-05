@@ -287,6 +287,11 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
                 funds.Add(fund);
             }
 
+            if (fund.Id != 0)
+            {
+                continue;
+            }
+
             fund.Name = item.Name;
             fund.Kind = item.Kind;
             fund.AssignedAmount = item.Assigned;
@@ -299,17 +304,16 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
         {
             var project = item.CostCenter is null ? null : projects.FirstOrDefault(p => string.Equals(p.Code, item.CostCenter, StringComparison.OrdinalIgnoreCase));
             var fundId = item.FundKey is null ? (int?)null : funds.First(f => f.SourceKey == item.FundKey).Id;
-            if (!existing.TryGetValue(item.Key, out var entry))
-            {
-                entry = new ExpenseEntry { SourceKey = item.Key };
-                db.ExpenseEntries.Add(entry);
-                existing[item.Key] = entry;
-                created++;
-            }
-            else
+            if (existing.ContainsKey(item.Key))
             {
                 updated++;
+                continue;
             }
+
+            var entry = new ExpenseEntry { SourceKey = item.Key };
+            db.ExpenseEntries.Add(entry);
+            existing[item.Key] = entry;
+            created++;
 
             entry.Kind = item.Kind;
             entry.FundId = fundId;
@@ -352,7 +356,7 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
 
         var linked = saved.Count(e => e.ProjectId is not null);
         report.Summary.Add(new("Gastos nuevos", created.ToString(CultureInfo.InvariantCulture)));
-        report.Summary.Add(new("Gastos actualizados", updated.ToString(CultureInfo.InvariantCulture)));
+        report.Summary.Add(new("Gastos que ya estaban (no se tocan)", updated.ToString(CultureInfo.InvariantCulture)));
         report.Summary.Add(new("Enlazados a un proyecto por centro de costos", $"{linked} de {saved.Count}"));
         report.Applied = true;
         return report;

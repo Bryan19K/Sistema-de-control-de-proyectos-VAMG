@@ -1,0 +1,260 @@
+@page "/cronograma-nodos"
+@attribute [Authorize]
+@using System.Globalization
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject ISiteService Sites
+@inject IInventoryService Inventory
+@inject IProjectService ProjectService
+@inject IReferenceDataService Reference
+@inject IDateTimeProvider Clock
+@inject IDialogService Dialogs
+@inject ProjectSelection Selection
+@inject UserAccess Access
+
+<PageTitle>Cronograma de nodos · TEK-COM</PageTitle>
+
+<PageHeader Title="Cronograma de nodos" Subtitle="Un Gantt con todos los nodos: lo planeado, el avance por piezas instaladas y la trazabilidad de cada uno">
+    <Actions>
+        <a href="nodos" class="tk-btn tk-btn--outline">Lista de nodos</a>
+        <a href="plan-de-trabajo" class="tk-btn tk-btn--outline">Plan de trabajo</a>
+    </Actions>
+</PageHeader>
+
+<div class="tk-toolbar">
+    <ProjectPicker Value="_projectId" Changed="OnProjectAsync" />
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_dated.Count == 0 && _undated.Count == 0)
+{
+    <SectionCard><EmptyState Title="Este proyecto no tiene nodos" Icon="@Icons.Material.Outlined.CellTower" Description="Cree los nodos o importe el Excel de control." /></SectionCard>
+}
+else
+{
+    <div class="tk-kpi-grid">
+        <KpiCard Label="Nodos" Value="@((_dated.Count + _undated.Count).ToString())" Note="@($"{_undated.Count} sin fechas")" Tone="@(_undated.Count == 0 ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Warning)" />
+        <KpiCard Label="Avance global promedio" Value="@($"{Average:0.#}%")" Note="por piezas instaladas" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Terminados" Value="@_all.Count(s => s.GlobalPercent >= 100).ToString()" Note="100% de lo proyectado" Tone="KpiCard.NoteTone.Success" />
+        <KpiCard Label="Atrasados" Value="@_all.Count(s => s.Pace.Status == PaceStatus.Behind).ToString()" Note="menos avance que tiempo" Tone="@(_all.Any(s => s.Pace.Status == PaceStatus.Behind) ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Success)" />
+    </div>
+
+    @if (_dated.Count > 0)
+    {
+        <div class="tk-card tk-gantt" style="--tk-gantt-cols:@_weeks">
+            <div class="tk-gantt__head">
+                <div>Nodo</div>
+                @for (var w = 0; w < _weeks; w++)
+                {
+                    <div title="@UiText.ShortDate(_axisStart.AddDays(w * 7))">S@(w + 1)</div>
+                }
+            </div>
+            @foreach (var s in _dated)
+            {
+                var summary = s;
+                <div class="tk-gantt__row tk-row-click" @onclick="() => ToggleAsync(summary)">
+                    <div class="tk-gantt__label">
+                        <strong>@summary.Site.Code</strong> <span class="tk-muted">· @(summary.Site.Contractor?.Name ?? "sin brigada")@(summary.Site.Contractor is { IsActive: false } ? " (ya no trabaja con TEK-COM)" : "")</span>
+                        <div class="tk-gantt__sub">@UiText.ShortDate(summary.Site.PlannedStart) – @UiText.ShortDate(summary.Site.PlannedEnd) · @summary.GlobalPercent.ToString("0.#")%</div>
+                    </div>
+                    <div class="tk-gantt__bars">
+                        @for (var w = 0; w < _weeks; w++) { <div class="tk-gantt__cell"></div> }
+                        <div class="tk-gantt__bar tk-gantt__bar--planned" style="left:@Left(summary.Site.PlannedStart!.Value)%; width:@Width(summary.Site.PlannedStart!.Value, summary.Site.PlannedEnd!.Value)%"></div>
+                        <div class="tk-gantt__bar tk-gantt__bar--@Tone(summary)" style="left:@Left(summary.Site.PlannedStart!.Value)%; width:@Fraction(Width(summary.Site.PlannedStart!.Value, summary.Site.PlannedEnd!.Value), summary.GlobalPercent)%"></div>
+                        <div class="tk-gantt__today" style="left:@TodayLeft%"></div>
+                    </div>
+                </div>
+                @if (_openId == summary.Site.Id)
+                {
+                    <div class="tk-gantt__detail">@Detail(summary)</div>
+                }
+            }
+        </div>
+        <p class="tk-muted mt-2">Toque un nodo para ver su trazabilidad: etapas, piezas y lo que se ha instalado día a día.</p>
+    }
+
+    @if (_undated.Count > 0)
+    {
+        <SectionCard Title="@($"Nodos sin fechas ({_undated.Count})")" Class="mt-4">
+            <p class="tk-muted mb-2">No aparecen en el Gantt hasta que tengan fecha de inicio y de final.</p>
+            <div class="tk-table-wrap">
+                <table class="tk-table tk-table--compact">
+                    <thead><tr><th>Nodo</th><th>Brigada</th><th>Avance global</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var s in _undated)
+                        {
+                            var summary = s;
+                            <tr>
+                                <td><a class="tk-row-link" href="nodos/@summary.Site.Id">@summary.Site.Code</a></td>
+                                <td>@(summary.Site.Contractor?.Name ?? "—")</td>
+                                <td>@summary.GlobalPercent.ToString("0.#")%</td>
+                                <td class="tk-actions-cell">@if (_canEdit) { <button type="button" class="tk-btn tk-btn--outline" @onclick="() => EditAsync(summary.Site)">Poner fechas</button> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </SectionCard>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private bool _canEdit;
+    private int _projectId;
+    private List<SiteSummary> _all = [];
+    private List<SiteSummary> _dated = [];
+    private List<SiteSummary> _undated = [];
+    private DateOnly _axisStart;
+    private int _weeks = 8;
+    private int? _openId;
+    private List<SiteStage> _stages = [];
+    private List<InventoryMovement> _installed = [];
+    private List<StageDefinition> _definitions = [];
+
+    private decimal Average => _all.Count == 0 ? 0 : _all.Average(s => s.GlobalPercent);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canEdit = await Access.CanEditAsync();
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        await LoadAsync();
+    }
+
+    private async Task OnProjectAsync(int id)
+    {
+        _projectId = id;
+        _openId = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        if (_projectId != 0)
+        {
+            _all = await Sites.ListAsync(_projectId);
+            _dated = _all.Where(s => s.Site.PlannedStart is not null && s.Site.PlannedEnd is not null)
+                .OrderBy(s => s.Site.PlannedStart).ThenBy(s => s.Site.Code).ToList();
+            _undated = _all.Where(s => s.Site.PlannedStart is null || s.Site.PlannedEnd is null).OrderBy(s => s.Site.Code).ToList();
+            var project = await ProjectService.GetAsync(_projectId);
+            _definitions = project is null ? [] : (await Reference.StageDefinitionsAsync(project.ProjectTypeId)).OrderBy(d => d.SortOrder).ToList();
+            ComputeAxis();
+        }
+
+        _loading = false;
+    }
+
+    private void ComputeAxis()
+    {
+        if (_dated.Count == 0) { return; }
+        var dates = _dated.SelectMany(s => new[] { s.Site.PlannedStart!.Value, s.Site.PlannedEnd!.Value }).ToList();
+        dates.Add(Clock.Today);
+        var min = dates.Min();
+        var max = dates.Max();
+        _axisStart = min.AddDays(-(((int)min.DayOfWeek + 6) % 7));
+        _weeks = Math.Max(4, (int)Math.Ceiling((max.DayNumber - _axisStart.DayNumber + 1) / 7.0));
+    }
+
+    private async Task ToggleAsync(SiteSummary summary)
+    {
+        if (_openId == summary.Site.Id)
+        {
+            _openId = null;
+            return;
+        }
+
+        _openId = summary.Site.Id;
+        _stages = await Sites.StagesAsync(summary.Site.Id);
+        _installed = await Inventory.MovementsAsync(new MovementFilter
+        {
+            ProjectId = _projectId, SiteId = summary.Site.Id, Type = MovementType.Installed, IncludeVoided = false, Take = 40,
+        });
+    }
+
+    private async Task EditAsync(Site site)
+    {
+        var dialog = await Dialogs.ShowAsync<SiteDialog>("Editar nodo",
+            new DialogParameters { ["ProjectId"] = site.ProjectId, ["Model"] = site },
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private double TotalDays => _weeks * 7.0;
+    private static string Pct(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+    private string Left(DateOnly date) => Pct((date.DayNumber - _axisStart.DayNumber) / TotalDays * 100);
+    private string Width(DateOnly start, DateOnly end) => Pct(Math.Max(1, end.DayNumber - start.DayNumber + 1) / TotalDays * 100);
+    private string TodayLeft => Pct((Clock.Today.DayNumber - _axisStart.DayNumber + 0.5) / TotalDays * 100);
+    private static string Fraction(string widthPct, decimal progress) =>
+        Pct(double.Parse(widthPct, CultureInfo.InvariantCulture) * (double)Math.Clamp(progress, 0, 100) / 100);
+
+    private static string Tone(SiteSummary s) =>
+        s.GlobalPercent >= 100 ? "success" : s.Pace.Status == PaceStatus.Behind ? "danger" : "info";
+
+    private RenderFragment Detail(SiteSummary summary) => @<div>
+        <div class="tk-two-col">
+            <div>
+                <h3 class="tk-h3 mb-2">Etapas del nodo</h3>
+                <table class="tk-table tk-table--compact">
+                    <thead><tr><th>Etapa</th><th>Estado</th><th>Inicio</th><th>Fin</th></tr></thead>
+                    <tbody>
+                        @foreach (var def in _definitions.Where(d => d.CountsForProgress))
+                        {
+                            var stage = _stages.FirstOrDefault(x => x.Code == def.Code);
+                            var status = stage?.Status ?? StageStatus.Pending;
+                            <tr>
+                                <td>@def.Name</td>
+                                <td><StatusChip Status="@(status == StageStatus.Finished ? StatusChip.Kind.Ok : status == StageStatus.InProgress ? StatusChip.Kind.Dia : StatusChip.Kind.Neutral)" Text="@UiText.StageStatusName(status)" /></td>
+                                <td>@UiText.ShortDate(stage?.ActualStart ?? stage?.PlannedStart)</td>
+                                <td>@UiText.ShortDate(stage?.ActualEnd ?? stage?.PlannedEnd)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                <h3 class="tk-h3 mb-2">Piezas instaladas</h3>
+                <table class="tk-table tk-table--compact">
+                    <thead><tr><th>Grupo</th><th class="num">Instalado</th><th class="num">Proyectado</th><th class="num">%</th></tr></thead>
+                    <tbody>
+                        @foreach (var q in summary.Quantities.Where(x => x.Value.Projected > 0 || x.Value.Installed > 0).OrderBy(x => x.Key))
+                        {
+                            <tr><td>@UiText.GroupName(q.Key)</td><td class="num">@UiText.Number(q.Value.Installed)</td><td class="num">@UiText.Number(q.Value.Projected)</td><td class="num">@q.Value.Percent.ToString("0.#")%</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <h3 class="tk-h3 mt-4 mb-2">Registro de lo instalado (más reciente primero)</h3>
+        @if (_installed.Count == 0)
+        {
+            <p class="tk-muted">Todavía no se ha registrado nada instalado en este nodo.</p>
+        }
+        else
+        {
+            <table class="tk-table tk-table--compact">
+                <thead><tr><th>Fecha</th><th>Material</th><th class="num">Cantidad</th><th>Brigada</th><th>Nota</th></tr></thead>
+                <tbody>
+                    @foreach (var m in _installed)
+                    {
+                        <tr><td>@UiText.ShortDate(m.Date)</td><td>@m.Material?.Name</td><td class="num">@UiText.Number(m.Quantity)</td><td>@(m.Contractor?.Name ?? "—")</td><td>@m.Notes</td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+        <div class="tk-toolbar mt-3">
+            <a href="nodos/@summary.Site.Id" class="tk-btn tk-btn--primary">Abrir el nodo y editar lo instalado</a>
+            @if (_canEdit) { <button type="button" class="tk-btn tk-btn--outline" @onclick="() => EditAsync(summary.Site)">Editar fechas y brigada</button> }
+        </div>
+    </div>;
+}

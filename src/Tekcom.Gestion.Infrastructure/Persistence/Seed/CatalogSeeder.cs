@@ -63,6 +63,18 @@ public static class CatalogSeeder
             });
             await db.SaveChangesAsync(ct);
         }
+
+        if (!await db.PlanTemplates.AnyAsync(t => t.Name == PlanTemplateDefinition.FtthCompleteName, ct))
+        {
+            db.PlanTemplates.Add(new PlanTemplate
+            {
+                Name = PlanTemplateDefinition.FtthCompleteName, IsSystem = true,
+                Description = "Cronograma de MS Project: autorización, carga laboral, feeder, ODN (con fusiones), certificación y cierre. " +
+                              $"Las tareas duran {PlanTemplateDefinition.DefaultTaskDays} días por defecto porque el cronograma no trae duraciones: ajústelas al aplicarla.",
+                DefinitionJson = PlanTemplateDefinition.FtthComplete().ToJson(),
+            });
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     public static async Task EnsureExportTemplatesAsync(ApplicationDbContext db, CancellationToken ct = default)

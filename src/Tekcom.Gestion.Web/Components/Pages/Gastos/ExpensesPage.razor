@@ -6,10 +6,18 @@
 @using Tekcom.Gestion.Web.Services
 @inject IFinanceService Finance
 @inject ProjectSelection Selection
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
 
 <PageTitle>Gastos · TEK-COM</PageTitle>
 
-<PageHeader Title="Gastos y precios" Subtitle="Compras, caja chica, viáticos, valor de las órdenes por nodo y precios target. Solo lo ve el administrador" />
+<PageHeader Title="Gastos y precios" Subtitle="Compras, caja chica, viáticos, valor de las órdenes por nodo y precios target. Solo lo ve el administrador">
+    <Actions>
+        <a href="importar" class="tk-btn tk-btn--outline">Importar Excel</a>
+        <button type="button" class="tk-btn tk-btn--outline" @onclick="() => FundAsync(null)">+ Fondo</button>
+        <button type="button" class="tk-btn tk-btn--primary" @onclick="() => ExpenseAsync(null, ExpenseKind.Purchase)">+ Gasto</button>
+    </Actions>
+</PageHeader>
 
 @if (_summary is null)
 {
@@ -67,7 +75,7 @@ else
             <SectionCard Title="Fondos de caja chica y viáticos" Class="mt-4">
                 <div class="tk-table-wrap">
                     <table class="tk-table">
-                        <thead><tr><th>Fondo</th><th class="num">Asignado</th><th class="num">Gastado</th><th class="num">Saldo</th><th>Registros</th><th>Estado</th></tr></thead>
+                        <thead><tr><th>Fondo</th><th class="num">Asignado</th><th class="num">Gastado</th><th class="num">Saldo</th><th>Registros</th><th>Estado</th><th></th></tr></thead>
                         <tbody>
                             @foreach (var f in _summary.Funds)
                             {
@@ -78,6 +86,10 @@ else
                                     <td class="num @(f.Overspent ? "tk-neg" : "")">@UiText.Money(f.Balance)</td>
                                     <td>@f.Entries</td>
                                     <td>@if (f.Overspent) { <StatusChip Status="StatusChip.Kind.Atrasado" Text="Se pasó del fondo" /> } else { <StatusChip Status="StatusChip.Kind.Ok" Text="Dentro del fondo" /> }</td>
+                                    <td class="tk-actions-cell">
+                                        <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => FundAsync(f.Fund)" aria-label="Editar fondo" />
+                                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => DeleteFundAsync(f.Fund)" aria-label="Quitar fondo" />
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -90,7 +102,7 @@ else
             <SectionCard>
                 <div class="tk-table-wrap">
                     <table class="tk-table">
-                        <thead><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Proveedor</th><th class="num">Subtotal</th><th class="num">IVA</th><th class="num">Total</th><th>Estado</th><th>Comprado por</th></tr></thead>
+                        <thead><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Proveedor</th><th class="num">Subtotal</th><th class="num">IVA</th><th class="num">Total</th><th>Estado</th><th>Comprado por</th><th></th></tr></thead>
                         <tbody>
                             @foreach (var e in _purchases)
                             {
@@ -98,6 +110,7 @@ else
                                     <td>@UiText.Date(e.Date)</td><td>@e.Description</td><td>@e.Category</td><td>@e.Supplier</td>
                                     <td class="num">@UiText.Money(e.Subtotal ?? e.Total)</td><td class="num">@UiText.Money(e.Vat ?? 0)</td><td class="num">@UiText.Money(e.Total)</td>
                                     <td>@e.Status</td><td>@e.PaidBy</td>
+                                    <td class="tk-actions-cell">@RowActions(e)</td>
                                 </tr>
                             }
                         </tbody>
@@ -110,7 +123,7 @@ else
             <SectionCard>
                 <div class="tk-table-wrap">
                     <table class="tk-table">
-                        <thead><tr><th>Fecha</th><th>Fondo</th><th>Factura</th><th>Comercio</th><th>Descripción</th><th>Centro de costos</th><th class="num">Monto</th></tr></thead>
+                        <thead><tr><th>Fecha</th><th>Fondo</th><th>Factura</th><th>Comercio</th><th>Descripción</th><th>Centro de costos</th><th class="num">Monto</th><th></th></tr></thead>
                         <tbody>
                             @foreach (var e in _petty)
                             {
@@ -118,6 +131,7 @@ else
                                     <td>@UiText.Date(e.Date)</td><td>@e.Fund?.Name</td>
                                     <td>@if (string.IsNullOrWhiteSpace(e.InvoiceNumber) || e.InvoiceNumber.TrimEnd('-', ' ', 'D', 'T', 'E') == "") { <StatusChip Status="StatusChip.Kind.Bajo" Text="Sin factura" /> } else { @e.InvoiceNumber }</td>
                                     <td>@e.Supplier</td><td>@e.Description</td><td>@(e.CostCenter ?? "—")</td><td class="num">@UiText.Money(e.Total)</td>
+                                    <td class="tk-actions-cell">@RowActions(e)</td>
                                 </tr>
                             }
                         </tbody>
@@ -130,11 +144,11 @@ else
             <SectionCard>
                 <div class="tk-table-wrap">
                     <table class="tk-table">
-                        <thead><tr><th>Fecha</th><th>Fondo</th><th>Descripción</th><th>Centro de costos</th><th class="num">Monto</th></tr></thead>
+                        <thead><tr><th>Fecha</th><th>Fondo</th><th>Descripción</th><th>Centro de costos</th><th class="num">Monto</th><th></th></tr></thead>
                         <tbody>
                             @foreach (var e in _travel)
                             {
-                                <tr><td>@UiText.Date(e.Date)</td><td>@e.Fund?.Name</td><td>@e.Description</td><td>@(e.CostCenter ?? "—")</td><td class="num">@UiText.Money(e.Total)</td></tr>
+                                <tr><td>@UiText.Date(e.Date)</td><td>@e.Fund?.Name</td><td>@e.Description</td><td>@(e.CostCenter ?? "—")</td><td class="num">@UiText.Money(e.Total)</td><td class="tk-actions-cell">@RowActions(e)</td></tr>
                             }
                         </tbody>
                     </table>
@@ -143,7 +157,10 @@ else
         </MudTabPanel>
 
         <MudTabPanel Text="Órdenes por nodo">
-            <ProjectPicker Value="_projectId" Changed="OnProjectAsync" />
+            <div class="tk-toolbar">
+                <ProjectPicker Value="_projectId" Changed="OnProjectAsync" />
+                <button type="button" class="tk-btn tk-btn--primary" @onclick="() => OrderAsync(null)" disabled="@(_projectId == 0)">+ Orden</button>
+            </div>
             @if (_orders.Count == 0)
             {
                 <SectionCard><EmptyState Title="Este proyecto no tiene órdenes cargadas" Icon="@Icons.Material.Outlined.Receipt" Description="Suba el preciario en Importar Excel." /></SectionCard>
@@ -153,7 +170,7 @@ else
                 <SectionCard Title="@($"Órdenes · {UiText.Money(_orders.Sum(o => o.Total))} con IVA")">
                     <div class="tk-table-wrap">
                         <table class="tk-table">
-                            <thead><tr><th>Nodo</th><th>Orden</th><th class="num">HP</th><th class="num">Subtotal</th><th class="num">IVA</th><th class="num">Total</th><th>Brigada</th><th>Material</th><th>Liquidación</th></tr></thead>
+                            <thead><tr><th>Nodo</th><th>Orden</th><th class="num">HP</th><th class="num">Subtotal</th><th class="num">IVA</th><th class="num">Total</th><th>Brigada</th><th>Material</th><th>Liquidación</th><th></th></tr></thead>
                             <tbody>
                                 @foreach (var o in _orders)
                                 {
@@ -163,6 +180,10 @@ else
                                         <td>@(o.ContractorName ?? "—")</td>
                                         <td>@(o.MaterialStatus ?? "—")</td>
                                         <td>@if (string.Equals(o.LiquidationStatus, "REALIZADA", StringComparison.OrdinalIgnoreCase)) { <StatusChip Status="StatusChip.Kind.Ok" Text="Realizada" /> } else { <StatusChip Status="StatusChip.Kind.Neutral" Text="@(o.LiquidationStatus is null ? "—" : Xl(o.LiquidationStatus))" /> }</td>
+                                        <td class="tk-actions-cell">
+                                            <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => OrderAsync(o)" aria-label="Editar orden" />
+                                            <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => DeleteOrderAsync(o)" aria-label="Quitar orden" />
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
@@ -173,6 +194,9 @@ else
         </MudTabPanel>
 
         <MudTabPanel Text="Precios target">
+            <div class="tk-toolbar">
+                <button type="button" class="tk-btn tk-btn--primary" @onclick="() => PriceAsync(null)" disabled="@(_projectId == 0)">+ Precio</button>
+            </div>
             @if (_prices.Count == 0)
             {
                 <SectionCard><EmptyState Title="Este proyecto no tiene precios cargados" Icon="@Icons.Material.Outlined.Sell" Description="Suba el preciario en Importar Excel." /></SectionCard>
@@ -184,11 +208,15 @@ else
                     <SectionCard Title="@($"Precio target · {section.Key}")" Class="mb-4">
                         <div class="tk-table-wrap">
                             <table class="tk-table">
-                                <thead><tr><th>Rubro</th><th>Tipo</th><th>Unidad</th><th class="num">Precio target</th></tr></thead>
+                                <thead><tr><th>Rubro</th><th>Tipo</th><th>Unidad</th><th class="num">Precio target</th><th></th></tr></thead>
                                 <tbody>
                                     @foreach (var p in section)
                                     {
-                                        <tr><td>@p.Item</td><td>@p.Type</td><td>@p.Unit</td><td class="num">@UiText.Money(p.TargetPrice)</td></tr>
+                                        <tr><td>@p.Item</td><td>@p.Type</td><td>@p.Unit</td><td class="num">@UiText.Money(p.TargetPrice)</td>
+                                            <td class="tk-actions-cell">
+                                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => PriceAsync(p)" aria-label="Editar precio" />
+                                                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => DeletePriceAsync(p)" aria-label="Quitar precio" />
+                                            </td></tr>
                                     }
                                 </tbody>
                             </table>
@@ -209,13 +237,19 @@ else
     private List<PriceItem> _prices = [];
     private int _projectId;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await ReloadAsync(first: true);
+
+    private async Task ReloadAsync(bool first = false)
     {
         _summary = await Finance.SummaryAsync();
         _purchases = await Finance.ExpensesAsync(ExpenseKind.Purchase, null);
         _petty = await Finance.ExpensesAsync(ExpenseKind.PettyCash, null);
         _travel = await Finance.ExpensesAsync(ExpenseKind.Travel, null);
-        _projectId = Selection.CurrentId ?? (await Selection.ListAsync()).FirstOrDefault()?.Id ?? 0;
+        if (first || _projectId == 0)
+        {
+            _projectId = Selection.CurrentId ?? (await Selection.ListAsync()).FirstOrDefault()?.Id ?? 0;
+        }
+
         await OnProjectAsync(_projectId);
     }
 
@@ -230,4 +264,78 @@ else
         max <= 0 ? "0" : Math.Max(2, Math.Round(value / max * 100, 1)).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 
     private static string Xl(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..].ToLowerInvariant();
+
+    private RenderFragment RowActions(ExpenseEntry entry) => @<text>
+        <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => ExpenseAsync(entry, entry.Kind)" aria-label="Editar" />
+        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => DeleteExpenseAsync(entry)" aria-label="Quitar" />
+    </text>;
+
+    private async Task<bool> ConfirmAsync(string title, string text) =>
+        await Dialogs.ShowMessageBoxAsync(title, text, yesText: "Quitar", cancelText: "Cancelar") == true;
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            await ReloadAsync();
+        }
+        catch (Tekcom.Gestion.Application.Common.BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ShowAsync<TDialog>(string title, DialogParameters parameters, MaxWidth width = MaxWidth.Medium) where TDialog : Microsoft.AspNetCore.Components.IComponent
+    {
+        var dialog = await Dialogs.ShowAsync<TDialog>(title, parameters, new DialogOptions { MaxWidth = width, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await ReloadAsync();
+        }
+    }
+
+    private Task ExpenseAsync(ExpenseEntry? entry, ExpenseKind kind) =>
+        ShowAsync<ExpenseDialog>(entry is null ? "Nuevo gasto" : "Editar gasto", new DialogParameters { ["Model"] = entry, ["DefaultKind"] = kind });
+
+    private async Task DeleteExpenseAsync(ExpenseEntry entry)
+    {
+        if (await ConfirmAsync("Quitar gasto", $"¿Quitar «{entry.Description}» ({UiText.Money(entry.Total)})?"))
+        {
+            await RunAsync(() => Finance.DeleteExpenseAsync(entry.Id));
+        }
+    }
+
+    private Task FundAsync(ExpenseFund? fund) =>
+        ShowAsync<FundDialog>(fund is null ? "Nuevo fondo" : "Editar fondo", new DialogParameters { ["Model"] = fund }, MaxWidth.Small);
+
+    private async Task DeleteFundAsync(ExpenseFund fund)
+    {
+        if (await ConfirmAsync("Quitar fondo", $"¿Quitar el fondo «{fund.Name}»?"))
+        {
+            await RunAsync(() => Finance.DeleteFundAsync(fund.Id));
+        }
+    }
+
+    private Task OrderAsync(ContractOrder? order) =>
+        ShowAsync<OrderDialog>(order is null ? "Nueva orden" : "Editar orden", new DialogParameters { ["ProjectId"] = _projectId, ["Model"] = order });
+
+    private async Task DeleteOrderAsync(ContractOrder order)
+    {
+        if (await ConfirmAsync("Quitar orden", $"¿Quitar la orden de {order.Code}?"))
+        {
+            await RunAsync(() => Finance.DeleteOrderAsync(order.Id));
+        }
+    }
+
+    private Task PriceAsync(PriceItem? price) =>
+        ShowAsync<PriceDialog>(price is null ? "Nuevo precio" : "Editar precio", new DialogParameters { ["ProjectId"] = _projectId, ["Model"] = price });
+
+    private async Task DeletePriceAsync(PriceItem price)
+    {
+        if (await ConfirmAsync("Quitar precio", $"¿Quitar el precio de «{price.Item}»?"))
+        {
+            await RunAsync(() => Finance.DeletePriceAsync(price.Id));
+        }
+    }
 }

@@ -53,7 +53,9 @@ else
     </PageHeader>
 
     <div class="tk-kpi-grid">
-        <KpiCard Label="Avance del nodo" Value="@($"{_summary.ProgressPercent:0.#}%")" Note="ponderado por días de cada etapa" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Avance global del nodo" Value="@($"{_summary.GlobalPercent:0.#}%")"
+                 Note="@(_summary.PiecesPercent is null ? "por etapas (el nodo no tiene proyección)" : "por piezas instaladas sobre lo proyectado")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Avance por etapas" Value="@($"{_summary.ProgressPercent:0.#}%")" Note="ponderado por días de cada etapa" />
         <KpiCard Label="Tiempo transcurrido" Value="@($"{_summary.Pace.ElapsedPercent:0.#}%")"
                  Note="@($"{UiText.Date(site.PlannedStart)} – {UiText.Date(site.PlannedEnd)}")" />
         <KpiCard Label="Avance de FATs" Value="@($"{_summary.FatPercent:0.#}%")"
@@ -175,12 +177,12 @@ else
                 <div class="tk-table-wrap">
                     <table class="tk-table tk-table--compact">
                         <thead>
-                            <tr><th>Material</th><th>UM</th><th>Proyectado (diseño)</th><th>Ajustes</th><th>Proyectado vigente</th><th>Entregado</th><th>Instalado</th><th>Pendiente</th><th>Variación</th><th>Alerta</th></tr>
+                            <tr><th>Material</th><th>UM</th><th>Proyectado (diseño)</th><th>Ajustes</th><th>Proyectado vigente</th><th>Entregado</th><th>Instalado</th><th>Pendiente</th><th>Variación</th><th>Alerta</th><th></th></tr>
                         </thead>
                         <tbody>
                             @foreach (var group in _materials.GroupBy(m => m.Material.Category))
                             {
-                                <tr><td colspan="10" class="strong" style="background:#fafbfd">@UiText.CategoryName(group.Key)</td></tr>
+                                <tr><td colspan="11" class="strong" style="background:#fafbfd">@UiText.CategoryName(group.Key)</td></tr>
                                 @foreach (var m in group)
                                 {
                                     <tr>
@@ -207,6 +209,12 @@ else
                                             else if (m.Material.TracksStock && m.Installed > m.Delivered)
                                             {
                                                 <StatusChip Status="StatusChip.Kind.Dia" Text="Instalado > entregado" />
+                                            }
+                                        </td>
+                                        <td class="tk-actions-cell">
+                                            @if (_canEdit)
+                                            {
+                                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditInstalledAsync(m)" aria-label="Corregir instalado" />
                                             }
                                         </td>
                                     </tr>
@@ -373,6 +381,21 @@ else
     {
         var dialog = await Dialogs.ShowAsync<MovementDialog>("Registrar instalado",
             new DialogParameters { ["ProjectId"] = _summary!.Site.ProjectId, ["Kind"] = MovementDialog.MovementKind.Installed, ["LockedSiteId"] = Id },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task EditInstalledAsync(MaterialQuantity quantity)
+    {
+        var dialog = await Dialogs.ShowAsync<SetInstalledDialog>("Corregir lo instalado",
+            new DialogParameters
+            {
+                ["ProjectId"] = _summary!.Site.ProjectId, ["SiteId"] = Id, ["MaterialId"] = quantity.Material.Id,
+                ["MaterialName"] = quantity.Material.Name, ["Unit"] = quantity.Material.Unit, ["Current"] = quantity.Installed,
+            },
             new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         if (!(await dialog.Result)!.Canceled)
         {

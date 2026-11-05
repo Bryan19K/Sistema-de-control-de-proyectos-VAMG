@@ -1,0 +1,55 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IFinanceService Finance
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="4">
+                <MudSelect T="string" @bind-Value="_m.Section" Label="Sección" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="string" Value="@("ODN")">ODN</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("FEEDER")">Feeder</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="8"><MudTextField @bind-Value="_m.Item" Label="Rubro" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_m.Type" Label="Tipo" Placeholder="AERIAL" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_m.Unit" Label="Unidad" Placeholder="Pcs, Mtrs" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudNumericField Format="0.##" T="decimal" @bind-Value="_m.TargetPrice" Label="Precio target" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public PriceItem? Model { get; set; }
+
+    private PriceItem _m = new() { Section = "ODN" };
+
+    protected override void OnInitialized()
+    {
+        _m = Model is null ? new PriceItem { ProjectId = ProjectId, Section = "ODN" } : new PriceItem
+        {
+            Id = Model.Id, ProjectId = Model.ProjectId, Section = Model.Section, Item = Model.Item, Type = Model.Type, Unit = Model.Unit, TargetPrice = Model.TargetPrice,
+        };
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Finance.SavePriceAsync(_m);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

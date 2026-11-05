@@ -254,6 +254,12 @@ public sealed class SiteService(
         var fatInstalled = FatGroups.Sum(g => totals.GetValueOrDefault(g).Installed);
         var fatPercent = fatProjected <= 0 ? 0 : Math.Round(fatInstalled / fatProjected * 100m, 1);
 
+        QuantityGroup[] pieceGroups = [QuantityGroup.FcCable, QuantityGroup.MpoCable, QuantityGroup.SubBox, QuantityGroup.EndBox,
+            QuantityGroup.HubBox, QuantityGroup.XBox, QuantityGroup.Fusion, QuantityGroup.Crossing];
+        var piecesProjected = pieceGroups.Sum(g => totals.GetValueOrDefault(g).Projected);
+        var piecesDone = pieceGroups.Sum(g => Math.Min(totals.GetValueOrDefault(g).Installed, totals.GetValueOrDefault(g).Projected));
+        decimal? piecesPercent = piecesProjected <= 0 ? null : Math.Round(piecesDone / piecesProjected * 100m, 1);
+
         var stages = site.Stages.ToDictionary(st => st.Code, st => st.Status);
         var measured = stages.GetValueOrDefault(StageCode.FatMeasurements) == StageStatus.Finished;
 
@@ -265,6 +271,7 @@ public sealed class SiteService(
             Stages = stages,
             Quantities = totals,
             FatPercent = fatPercent,
+            PiecesPercent = piecesPercent,
             ReadyToMeasure = fatProjected > 0 && fatPercent >= project.ReadyToMeasurePercent && !measured,
         };
     }
