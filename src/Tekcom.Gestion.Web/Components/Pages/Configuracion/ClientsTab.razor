@@ -1,0 +1,73 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IReferenceDataService Reference
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<div class="tk-toolbar">
+    <span class="grow tk-muted">Clientes de los proyectos (NextWave, etc.). Al cambiar el nombre se cambia en todos sus proyectos.</span>
+    <button type="button" class="tk-btn tk-btn--primary" @onclick="() => EditAsync(null)">+ Agregar</button>
+</div>
+
+@if (_clients.Count == 0)
+{
+    <EmptyState Title="Todavía no hay clientes" Icon="@Icons.Material.Outlined.Business" />
+}
+else
+{
+    <div class="tk-table-wrap">
+        <table class="tk-table">
+            <thead><tr><th>Cliente</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var c in _clients)
+                {
+                    var client = c;
+                    <tr>
+                        <td>@client.Name</td>
+                        <td class="tk-actions-cell">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditAsync(client)" aria-label="Editar" />
+                            <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => DeleteAsync(client)" aria-label="Quitar" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<Client> _clients = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _clients = (await Reference.ClientsAsync()).OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private async Task EditAsync(Client? client)
+    {
+        var dialog = await Dialogs.ShowAsync<ClientDialog>(client is null ? "Nuevo cliente" : "Editar cliente",
+            new DialogParameters { ["Id"] = client?.Id ?? 0, ["Name"] = client?.Name }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(Client client)
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Quitar cliente", $"¿Quitar a {client.Name}?", yesText: "Quitar", cancelText: "Cancelar") != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await Reference.DeleteClientAsync(client.Id);
+            await LoadAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}
