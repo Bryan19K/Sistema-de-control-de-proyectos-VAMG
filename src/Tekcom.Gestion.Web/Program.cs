@@ -32,6 +32,7 @@ builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddSingleton<ImportStaging>();
 builder.Services.AddScoped<ProjectSelection>();
 builder.Services.AddScoped<ThemeState>();
 builder.Services.AddScoped<UserAccess>();
@@ -94,6 +95,50 @@ app.MapGet("/healthz", async (Microsoft.EntityFrameworkCore.IDbContextFactory<Te
     await using var db = factory.CreateDbContext();
     return await db.Database.CanConnectAsync() ? Results.Ok("ok") : Results.StatusCode(503);
 }).AllowAnonymous();
+
+// Subida de Excel por una petición web normal: el celular corta la conexión en vivo de Blazor al abrir el selector
+// de archivos, así que el archivo no pasa por ahí. Solo lo lee y lo deja listo; guardar en la base requiere confirmar
+// en la pantalla. (Sin antiforgery: la cookie de sesión es SameSite=Lax y subir un archivo aquí no cambia ningún dato.)
+app.MapPost("/importar/subir", async (
+    HttpRequest request,
+    System.Security.Claims.ClaimsPrincipal user,
+    ImportStaging staging,
+    Tekcom.Gestion.Application.Import.IDataImportCoordinator coordinator) =>
+{
+    var form = await request.ReadFormAsync();
+    var file = form.Files["archivo"];
+    if (file is null || file.Length == 0 || !file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.Redirect("/importar?error=archivo");
+    }
+
+    if (file.Length > 25 * 1024 * 1024)
+    {
+        return Results.Redirect("/importar?error=tamano");
+    }
+
+    using var memory = new MemoryStream();
+    await file.CopyToAsync(memory);
+    var staged = staging.Add(user.Identity?.Name ?? string.Empty, file.FileName);
+    try
+    {
+        staged.Packs = await coordinator.AnalyzeAsync(memory.ToArray(), file.FileName);
+        if (staged.Packs.Count == 0)
+        {
+            staged.Error = "No reconocí este Excel. Use el control FTTH, el control de proyectos NextWave, sus materiales, los gastos o el preciario.";
+        }
+    }
+    catch (Tekcom.Gestion.Application.Common.BusinessRuleException ex)
+    {
+        staged.Error = ex.Message;
+    }
+    catch (Exception)
+    {
+        staged.Error = "No se pudo leer el archivo. Verifique que sea un Excel (.xlsx) válido y que no esté dañado.";
+    }
+
+    return Results.Redirect($"/importar?archivo={staged.Id}");
+}).RequireAuthorization(policy => policy.RequireRole(Tekcom.Gestion.Domain.Identity.AppRoles.Admin)).DisableAntiforgery();
 
 // Descarga de adjuntos de tareas (solo usuarios con sesión iniciada).
 app.MapGet("/adjuntos/tareas/{id:int}", async (int id, Tekcom.Gestion.Application.Services.ITaskService tasks) =>

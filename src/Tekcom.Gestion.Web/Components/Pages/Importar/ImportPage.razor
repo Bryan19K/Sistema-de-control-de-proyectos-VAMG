@@ -6,6 +6,8 @@
 @using Tekcom.Gestion.Domain.Entities
 @using Tekcom.Gestion.Web.Services
 @inject IDataImportCoordinator Importer
+@inject ImportStaging Staging
+@inject AuthenticationStateProvider Authentication
 @inject IProjectService Projects
 @inject ProjectSelection Selection
 @inject ISnackbar Snackbar
@@ -20,14 +22,25 @@
         Sirven el Excel de control FTTH (con sus hojas de bodega), el control de proyectos NextWave, el control de materiales de NextWave,
         los gastos y el preciario. El sistema le muestra qué encontró <strong>antes de guardar nada</strong> y puede subir el mismo archivo otra vez sin duplicar.
     </p>
-    <InputFile OnChange="OnFileAsync" accept=".xlsx" disabled="@_busy" />
-    @if (_busy)
+    @if (Error is "archivo")
     {
-        <MudProgressLinear Indeterminate="true" Class="mt-3" />
+        <div class="tk-alert tk-alert--warning mb-3"><span>Elija un archivo Excel (.xlsx).</span></div>
     }
-    @if (_fileName is not null && !_busy)
+    else if (Error is "tamano")
     {
-        <p class="mt-2 tk-muted">Archivo leído: @_fileName</p>
+        <div class="tk-alert tk-alert--warning mb-3"><span>El archivo supera los 25 MB.</span></div>
+    }
+    @if (_staged?.Error is { } stagedError)
+    {
+        <div class="tk-alert tk-alert--warning mb-3"><span>@stagedError</span></div>
+    }
+    <form method="post" action="importar/subir" enctype="multipart/form-data" class="tk-toolbar">
+        <input type="file" name="archivo" accept=".xlsx" required />
+        <button type="submit" class="tk-btn tk-btn--primary">Leer archivo</button>
+    </form>
+    @if (_staged is not null && _staged.Error is null)
+    {
+        <p class="mt-2 tk-muted">Archivo leído: @_staged.FileName</p>
     }
 </SectionCard>
 
@@ -50,7 +63,8 @@
         }
     }
     <div class="tk-toolbar">
-        <a href="proyectos" class="tk-btn tk-btn--primary">Ver proyectos</a>
+        <a href="importar" class="tk-btn tk-btn--primary">Subir otro archivo</a>
+        <a href="proyectos" class="tk-btn tk-btn--outline">Ver proyectos</a>
         <a href="materiales" class="tk-btn tk-btn--outline">Ver materiales</a>
         <a href="edificios" class="tk-btn tk-btn--outline">Ver edificios</a>
         <a href="gastos" class="tk-btn tk-btn--outline">Ver gastos</a>
@@ -115,71 +129,54 @@ else if (_packs.Count > 0)
 }
 
 @code {
+    [SupplyParameterFromQuery(Name = "archivo")] public string? ArchivoId { get; set; }
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+
+    private StagedImport? _staged;
     private List<PackAnalysis> _packs = [];
     private List<PackAnalysis>? _done;
-    private string? _fileName;
     private bool _busy;
     private List<Project> _projects = [];
     private bool _useExisting;
     private int _projectId;
     private string? _newCode;
     private string? _newName;
+    private string? _loadedId;
 
     private bool HasFtth => _packs.Any(p => p.Kind == PackKind.FtthControl);
     private bool NeedsTarget => HasFtth || _packs.Any(p => p.NeedsProject);
 
     protected override async Task OnInitializedAsync() => _projects = await Projects.ListAsync();
 
-    private async Task OnFileAsync(InputFileChangeEventArgs args)
+    protected override async Task OnParametersSetAsync()
     {
-        _done = null;
-        _packs = [];
-        var file = args.File;
-        if (!file.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        if (_loadedId == ArchivoId)
         {
-            Snackbar.Add("Seleccione un archivo Excel (.xlsx).", Severity.Warning);
             return;
         }
 
-        _busy = true;
-        try
+        _loadedId = ArchivoId;
+        var user = (await Authentication.GetAuthenticationStateAsync()).User.Identity?.Name ?? string.Empty;
+        _staged = Staging.Get(ArchivoId, user);
+        _packs = _staged?.Packs ?? [];
+        _done = _staged?.Done;
+        if (_packs.Count == 0)
         {
-            await using var stream = file.OpenReadStream(maxAllowedSize: 25 * 1024 * 1024);
-            using var memory = new MemoryStream();
-            await stream.CopyToAsync(memory);
-            _packs = await Importer.AnalyzeAsync(memory.ToArray(), file.Name);
-            _fileName = file.Name;
-            if (_packs.Count == 0)
-            {
-                Snackbar.Add("No reconocí este Excel. Use el control FTTH, el control de proyectos NextWave, sus materiales, los gastos o el preciario.", Severity.Warning);
-                return;
-            }
+            return;
+        }
 
-            var ftth = _packs.FirstOrDefault(p => p.Kind == PackKind.FtthControl);
-            _newCode = ftth?.Report.SuggestedProjectCode;
-            _newName = ftth?.Report.SuggestedProjectName;
-            var ftthProjects = _projects.Where(p => p.ProjectType?.Code == "FTTH").ToList();
-            _projectId = ftthProjects.FirstOrDefault(p => p.Id == Selection.CurrentId)?.Id
-                ?? ftthProjects.FirstOrDefault()?.Id ?? Selection.CurrentId ?? _projects.FirstOrDefault()?.Id ?? 0;
-            _useExisting = false;
-        }
-        catch (IOException)
-        {
-            Snackbar.Add("No se pudo leer el archivo. Verifique que no supere 25 MB.", Severity.Error);
-        }
-        catch (BusinessRuleException ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _busy = false;
-        }
+        var ftth = _packs.FirstOrDefault(p => p.Kind == PackKind.FtthControl);
+        _newCode = ftth?.Report.SuggestedProjectCode;
+        _newName = ftth?.Report.SuggestedProjectName;
+        var ftthProjects = _projects.Where(p => p.ProjectType?.Code == "FTTH").ToList();
+        _projectId = ftthProjects.FirstOrDefault(p => p.Id == Selection.CurrentId)?.Id
+            ?? ftthProjects.FirstOrDefault()?.Id ?? Selection.CurrentId ?? _projects.FirstOrDefault()?.Id ?? 0;
+        _useExisting = false;
     }
 
     private async Task ApplyAsync()
     {
-        if (_packs.Count == 0)
+        if (_packs.Count == 0 || _staged is null)
         {
             return;
         }
@@ -190,6 +187,7 @@ else if (_packs.Count > 0)
             var existing = _useExisting || !HasFtth;
             var target = existing ? new ImportTarget(_projectId == 0 ? null : _projectId, null, null) : new ImportTarget(null, _newCode, _newName);
             _done = await Importer.ApplyAsync(_packs, target);
+            _staged.Done = _done;
             _projects = await Projects.ListAsync();
             Snackbar.Add("Importación terminada.", Severity.Success);
         }
