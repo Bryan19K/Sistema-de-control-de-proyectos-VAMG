@@ -37,6 +37,52 @@ public sealed class ReferenceDataService(IDbContextFactory<ApplicationDbContext>
         return client;
     }
 
+    public async Task<Client> SaveClientAsync(int id, string name, CancellationToken ct = default)
+    {
+        name = (name ?? string.Empty).Trim();
+        if (name.Length == 0)
+        {
+            throw new BusinessRuleException("El nombre del cliente es obligatorio.");
+        }
+
+        await using var db = factory.CreateDbContext();
+        var key = NameNormalizer.Key(name);
+        var all = await db.Clients.ToListAsync(ct);
+        if (all.Any(c => c.Id != id && NameNormalizer.Key(c.Name) == key))
+        {
+            throw new BusinessRuleException($"Ya existe un cliente llamado '{name}'.");
+        }
+
+        Client client;
+        if (id == 0)
+        {
+            client = new Client();
+            db.Clients.Add(client);
+        }
+        else
+        {
+            client = all.FirstOrDefault(c => c.Id == id) ?? throw new BusinessRuleException("El cliente no existe.");
+        }
+
+        client.Name = name;
+        await db.SaveChangesAsync(ct);
+        return client;
+    }
+
+    public async Task DeleteClientAsync(int id, CancellationToken ct = default)
+    {
+        await using var db = factory.CreateDbContext();
+        var used = await db.Projects.CountAsync(p => p.ClientId == id, ct);
+        if (used > 0)
+        {
+            throw new BusinessRuleException($"El cliente tiene {used} proyecto(s): cámbieles el cliente antes de quitarlo.");
+        }
+
+        var client = await db.Clients.FirstOrDefaultAsync(c => c.Id == id, ct) ?? throw new BusinessRuleException("El cliente no existe.");
+        db.Clients.Remove(client);
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task<List<Contractor>> ContractorsAsync(bool includeInactive = false, CancellationToken ct = default)
     {
         await using var db = factory.CreateDbContext();

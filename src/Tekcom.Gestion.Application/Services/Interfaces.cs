@@ -10,6 +10,12 @@ public interface IReferenceDataService
     Task<List<Client>> ClientsAsync(CancellationToken ct = default);
     Task<Client> GetOrCreateClientAsync(string name, CancellationToken ct = default);
 
+    /// <summary>Cambia el nombre de un cliente (o lo crea si el id es 0). No se repiten nombres.</summary>
+    Task<Client> SaveClientAsync(int id, string name, CancellationToken ct = default);
+
+    /// <summary>Quita un cliente; se rechaza si algún proyecto lo usa.</summary>
+    Task DeleteClientAsync(int id, CancellationToken ct = default);
+
     Task<List<Contractor>> ContractorsAsync(bool includeInactive = false, CancellationToken ct = default);
     Task<Contractor> SaveContractorAsync(Contractor contractor, CancellationToken ct = default);
 

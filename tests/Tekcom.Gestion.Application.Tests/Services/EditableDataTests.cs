@@ -217,4 +217,24 @@ public class EditableDataTests
         var invalid = () => env.Sites.SetStageDatesAsync(env.Site.Id, StageCode.FcCable, null, null, new DateOnly(2026, 11, 5), new DateOnly(2026, 11, 1));
         await invalid.Should().ThrowAsync<BusinessRuleException>();
     }
+
+    [Fact]
+    public async Task Los_clientes_se_editan_sin_repetir_y_no_se_quitan_si_tienen_proyectos()
+    {
+        using var db = await TestDb.CreateAsync();
+        var reference = new ReferenceDataService(db);
+        var client = await reference.SaveClientAsync(0, "NextWave");
+        await reference.SaveClientAsync(client.Id, "NEXTWAVE S.A.");
+        (await reference.ClientsAsync()).Single().Name.Should().Be("NEXTWAVE S.A.");
+
+        await reference.SaveClientAsync(0, "Otro");
+        var duplicate = () => reference.SaveClientAsync(client.Id, "otro");
+        await duplicate.Should().ThrowAsync<BusinessRuleException>().WithMessage("*Ya existe*");
+
+        await using var ctx = db.CreateDbContext();
+        var ftth = await ctx.ProjectTypes.SingleAsync(t => t.Code == "FTTH");
+        await new ProjectService(db).SaveAsync(new Project { Code = "C-1", Name = "Con cliente", ProjectTypeId = ftth.Id, ClientId = client.Id });
+        var inUse = () => reference.DeleteClientAsync(client.Id);
+        await inUse.Should().ThrowAsync<BusinessRuleException>().WithMessage("*proyecto*");
+    }
 }
