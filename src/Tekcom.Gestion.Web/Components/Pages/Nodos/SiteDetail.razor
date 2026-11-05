@@ -175,14 +175,14 @@ else
             else
             {
                 <div class="tk-table-wrap">
-                    <table class="tk-table tk-table--compact">
+                    <table class="tk-table tk-table--compact tk-table--grid">
                         <thead>
                             <tr><th>Material</th><th>UM</th><th>Proyectado (diseño)</th><th>Ajustes</th><th>Proyectado vigente</th><th>Entregado</th><th>Instalado</th><th>Pendiente</th><th>Variación</th><th>Alerta</th><th></th></tr>
                         </thead>
                         <tbody>
                             @foreach (var group in _materials.GroupBy(m => m.Material.Category))
                             {
-                                <tr><td colspan="11" class="strong" style="background:#fafbfd">@UiText.CategoryName(group.Key)</td></tr>
+                                <tr class="tk-table__group"><td colspan="11">@UiText.CategoryName(group.Key)</td></tr>
                                 @foreach (var m in group)
                                 {
                                     <tr>
@@ -192,7 +192,7 @@ else
                                         <td class="num @(m.Adjustments != 0 ? "text-warning" : "")">@(m.Adjustments > 0 ? "+" : "")@UiText.Number(m.Adjustments)</td>
                                         <td class="num strong">@UiText.Number(m.Projected)</td>
                                         <td class="num">@(m.Material.TracksStock ? UiText.Number(m.Delivered) : "—")</td>
-                                        <td class="num">@UiText.Number(m.Installed)</td>
+                                        <td class="num tk-installed">@UiText.Number(m.Installed)</td>
                                         <td class="num @(m.Projected - m.Installed > 0 ? "text-danger" : "")">@(m.Projected == 0 ? "—" : UiText.Number(m.Projected - m.Installed))</td>
                                         <td class="num @(m.Projected == 0 ? "muted" : m.Variation > 0 ? "text-danger" : m.Variation < 0 ? "text-success" : "")">
                                             @(m.Projected == 0 ? "—" : $"{(m.Variation > 0 ? "+" : "")}{m.VariationPercent:0.#}%")

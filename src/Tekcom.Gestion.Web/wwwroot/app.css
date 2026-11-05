@@ -247,6 +247,7 @@ h1:focus { outline: none; }
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 16px;
 }
@@ -261,6 +262,7 @@ h1:focus { outline: none; }
 .tk-section__header-right {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
     color: var(--tk-text-2);
 }
@@ -1197,3 +1199,22 @@ html[data-theme="dark"] code { color: var(--tk-text); }
 .tk-building-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 20px; }
 .tk-gantt__detail { padding: 14px 18px 20px; background: var(--tk-surface-2); border-bottom: 1px solid var(--tk-line); min-width: 760px; }
 .tk-h3 { font-size: 1rem; margin: 0; color: var(--tk-heading); }
+
+/* ---------- Tabla con cuadrícula y números centrados (cantidades por material) ---------- */
+.tk-table--grid { border-collapse: collapse; }
+.tk-table--grid th,
+.tk-table--grid td {
+    border: 1px solid var(--tk-card-border);
+    text-align: center;
+    vertical-align: middle;
+}
+.tk-table--grid th { background: var(--tk-surface-2); border-radius: 0; font-size: 0.86rem; line-height: 1.25; }
+.tk-table--grid th:first-child, .tk-table--grid td:first-child { text-align: left; }
+.tk-table--grid tr:last-child td { border-bottom: 1px solid var(--tk-card-border); }
+.tk-table--grid td.num { font-variant-numeric: tabular-nums; }
+.tk-table--grid .tk-installed { font-weight: 800; color: var(--tk-heading); }
+.tk-table--grid tr.tk-table__group td { text-align: left; font-weight: 700; background: var(--tk-surface-2); color: var(--tk-heading); }
+.tk-table--grid td .tk-chip, .tk-table--grid td .mud-chip { margin: 0 auto; }
+.tk-table--grid td:first-child { min-width: 170px; }
+.tk-table--grid td .tk-chip { white-space: normal; text-align: center; }
+.tk-table--grid td:nth-last-child(2) { min-width: 150px; }
