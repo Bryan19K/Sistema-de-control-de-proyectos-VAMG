@@ -504,15 +504,19 @@ public sealed class NextWaveControlImportService(IDbContextFactory<ApplicationDb
             project.PlannedStart ??= item.Start;
             project.PlannedEnd ??= item.End;
             project.ActualStart ??= item.Start;
-            project.ActualEnd = item.End;
-            project.ReportedProgress = item.Progress;
-            project.PendingWork = item.PendingWork;
-            project.Status = NameNormalizer.Key(item.StatusText) switch
+            if (project.Id == 0)
             {
-                "FINALIZADO" or "FINALIZADA" or "COMPLETADO" => ProjectStatus.Closed,
-                "EN PROCESO" or "EN CURSO" => ProjectStatus.Active,
-                _ => ProjectStatus.Planning,
-            };
+                // Solo al crear: después el avance y el estado se editan en el sistema y no se pisan.
+                project.ActualEnd = item.End;
+                project.ReportedProgress = item.Progress;
+                project.PendingWork = item.PendingWork;
+                project.Status = NameNormalizer.Key(item.StatusText) switch
+                {
+                    "FINALIZADO" or "FINALIZADA" or "COMPLETADO" => ProjectStatus.Closed,
+                    "EN PROCESO" or "EN CURSO" => ProjectStatus.Active,
+                    _ => ProjectStatus.Planning,
+                };
+            }
             var details = new List<string>();
             if (item.Contractor is not null) { details.Add($"Contratista: {item.Contractor}"); }
             if (item.Observations is not null) { details.Add(item.Observations); }
@@ -527,32 +531,51 @@ public sealed class NextWaveControlImportService(IDbContextFactory<ApplicationDb
 
         await db.SaveChangesAsync(ct);
 
-        // Datos que vienen del Excel: se reemplazan en cada carga (el Excel es la fuente).
+        // Fases, apartamentos, infraestructura y niveles: solo se cargan en los proyectos que todavía no los tienen,
+        // para no pisar lo que se haya corregido en el sistema.
         var ids = map.Values.Select(p => p.Id).ToList();
-        db.ProjectPhases.RemoveRange(await db.ProjectPhases.Where(x => ids.Contains(x.ProjectId)).ToListAsync(ct));
-        db.BuildingRecords.RemoveRange(await db.BuildingRecords.Where(x => ids.Contains(x.ProjectId)).ToListAsync(ct));
-        await db.SaveChangesAsync(ct);
+        var withPhases = (await db.ProjectPhases.Where(x => ids.Contains(x.ProjectId)).Select(x => x.ProjectId).Distinct().ToListAsync(ct)).ToHashSet();
+        var withRecords = (await db.BuildingRecords.Where(x => ids.Contains(x.ProjectId)).Select(x => x.ProjectId).Distinct().ToListAsync(ct)).ToHashSet();
+        var skippedProjects = new List<string>();
 
         foreach (var phase in data.Phases)
         {
+            var target = map[NameNormalizer.Key(phase.Project)];
+            if (withPhases.Contains(target.Id))
+            {
+                continue;
+            }
+
             db.ProjectPhases.Add(new ProjectPhase
             {
-                ProjectId = map[NameNormalizer.Key(phase.Project)].Id, Name = phase.Name, ParentName = phase.Parent,
+                ProjectId = target.Id, Name = phase.Name, ParentName = phase.Parent,
                 Weight = phase.Weight, Percent = phase.Percent, SortOrder = phase.Order,
             });
         }
 
         foreach (var record in data.Records)
         {
+            var target = map[NameNormalizer.Key(record.Project)];
+            if (withRecords.Contains(target.Id))
+            {
+                if (!skippedProjects.Contains(target.Name)) { skippedProjects.Add(target.Name); }
+                continue;
+            }
+
             db.BuildingRecords.Add(new BuildingRecord
             {
-                ProjectId = map[NameNormalizer.Key(record.Project)].Id, Kind = record.Kind, Level = record.Level, Name = record.Name,
+                ProjectId = target.Id, Kind = record.Kind, Level = record.Level, Name = record.Name,
                 ProgressPercent = record.Progress, Status = record.Status, Notes = record.Notes, SortOrder = record.Order,
                 DetailJson = record.Details.Count == 0 ? null : JsonSerializer.Serialize(record.Details),
             });
         }
 
         await db.SaveChangesAsync(ct);
+        if (skippedProjects.Count > 0)
+        {
+            report.Issues.Add(new ImportIssue(ImportSeverity.Info, string.Join(", ", skippedProjects), null, null,
+                "Estos proyectos ya tenían apartamentos y avance cargados: no se sobrescriben para no pisar lo editado en el sistema."));
+        }
 
         var materialResult = await NextWaveMaterials.ApplyAsync(db, map, data.Materials.Select(m => (m.Project, m)).ToList(), "Resumen", ct);
         await transaction.CommitAsync(ct);

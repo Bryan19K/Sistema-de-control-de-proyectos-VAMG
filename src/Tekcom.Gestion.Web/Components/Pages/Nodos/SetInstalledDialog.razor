@@ -1,0 +1,68 @@
+@using Tekcom.Gestion.Web.Services
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Services
+@inject IInventoryService Inventory
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <p class="mb-3"><strong>@MaterialName</strong> · instalado hoy en el nodo: <strong>@UiText.Number(Current)</strong> @Unit</p>
+        <MudNumericField Format="0.##" Immediate="true" T="decimal" @bind-Value="_total" Min="0" Label="Total instalado" HelperText="Escriba el total correcto; el sistema registra la diferencia" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        <div class="mt-3"><DatePick Label="Fecha" @bind-Value="_date" /></div>
+        @if (_total < Current)
+        {
+            <MudTextField @bind-Value="_reason" Label="Motivo de la corrección" Required="true" Lines="2" Class="mt-3" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          HelperText="Para bajar lo instalado hay que explicar por qué. Los registros anteriores se anulan, no se borran." />
+        }
+        else if (_total > Current)
+        {
+            <MudTextField @bind-Value="_reason" Label="Nota (opcional)" Class="mt-3" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <p class="tk-muted mt-2">Se agregan @UiText.Number(_total - Current) @Unit al nodo.</p>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public int SiteId { get; set; }
+    [Parameter] public int MaterialId { get; set; }
+    [Parameter] public string MaterialName { get; set; } = string.Empty;
+    [Parameter] public string Unit { get; set; } = string.Empty;
+    [Parameter] public decimal Current { get; set; }
+
+    private decimal _total;
+    private DateOnly? _date;
+    private string? _reason;
+
+    protected override void OnInitialized()
+    {
+        _total = Current;
+        _date = Clock.Today;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_total == Current)
+        {
+            MudDialog.Cancel();
+            return;
+        }
+
+        try
+        {
+            await Inventory.SetInstalledTotalAsync(ProjectId, SiteId, MaterialId, _total, _date ?? Clock.Today, _reason);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

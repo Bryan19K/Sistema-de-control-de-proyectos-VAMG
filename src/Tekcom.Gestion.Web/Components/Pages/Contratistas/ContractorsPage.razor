@@ -1,0 +1,216 @@
+@page "/contratistas"
+@attribute [Authorize(Roles = AppRoles.Admin)]
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Logic
+@using Tekcom.Gestion.Web.Services
+@inject IContractorDirectoryService Directory
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>Contratistas · TEK-COM</PageTitle>
+
+<PageHeader Title="Contratistas" Subtitle="Base de datos de contratistas y su personal, con el control de pólizas y números de afiliación. Solo la ve el administrador">
+    <Actions>
+        <a href="importar" class="tk-btn tk-btn--outline">Importar Excel</a>
+        <button type="button" class="tk-btn tk-btn--outline" @onclick="() => EditPersonAsync(null, null)">+ Persona</button>
+        <button type="button" class="tk-btn tk-btn--primary" @onclick="() => EditContractorAsync(null)">+ Contratista</button>
+    </Actions>
+</PageHeader>
+
+@if (_views is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <div class="tk-kpi-grid">
+        <KpiCard Label="Contratistas activos" Value="@_views.Count(v => v.Contractor.Stage == ContractorStage.Active).ToString()" Note="@($"{_views.Count(v => v.Contractor.Stage == ContractorStage.Prospect)} por cotizar")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Personal de campo" Value="@_views.Sum(v => v.People).ToString()" Note="@($"{_views.Sum(v => v.Covered)} al día")" Tone="KpiCard.NoteTone.Success" />
+        <KpiCard Label="Pendientes de póliza o afiliación" Value="@_views.Sum(v => v.Pending).ToString()" Note="falta el número o dice PENDIENTE" Tone="@(_views.Sum(v => v.Pending) == 0 ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Danger)" />
+        <KpiCard Label="Vencidas o por vencer" Value="@((_views.Sum(v => v.Expired) + _views.Sum(v => v.ExpiringSoon)).ToString())" Note="vigencia terminada o en 15 días" Tone="@(_views.Sum(v => v.Expired + v.ExpiringSoon) == 0 ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Warning)" />
+    </div>
+
+    <MudTabs Elevation="0" Rounded="true" Color="Color.Primary" ApplyEffectsToContainer="true" TabPanelsClass="pt-4" @bind-ActivePanelIndex="_tab">
+        <MudTabPanel Text="@($"Pendientes ({_attention.Count})")">
+            @if (_attention.Count == 0)
+            {
+                <SectionCard><EmptyState Title="Nadie tiene la póliza o la afiliación pendiente" Icon="@Icons.Material.Outlined.VerifiedUser" Description="Todo el personal registrado tiene su número y está vigente." /></SectionCard>
+            }
+            else
+            {
+                @foreach (var group in _attention.GroupBy(a => a.ContractorName))
+                {
+                    <SectionCard Title="@($"{group.Key} · faltan {group.Count()}")" Class="mb-4">
+                        <div class="tk-table-wrap">
+                            <table class="tk-table tk-table--compact">
+                                <thead><tr><th>Persona</th><th>Cargo</th><th>Teléfono</th><th>Seguro</th><th>Estado</th><th></th></tr></thead>
+                                <tbody>
+                                    @foreach (var a in group)
+                                    {
+                                        var item = a;
+                                        <tr>
+                                            <td>@item.Person.FullName</td><td>@item.Person.Position</td><td>@item.Person.Phone</td>
+                                            <td>@(item.Person.InsuranceType ?? "—")</td>
+                                            <td>@StateChip(item)</td>
+                                            <td class="tk-actions-cell"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditPersonAsync(item.Person, null)" aria-label="Editar" /></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </SectionCard>
+                }
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Contratistas ({_views.Count})")">
+            <div class="tk-toolbar">
+                <MudSwitch T="bool" Value="_inactive" ValueChanged="OnInactiveAsync" Label="Incluir inactivos" Color="Color.Primary" />
+            </div>
+            <SectionCard>
+                <div class="tk-table-wrap">
+                    <table class="tk-table">
+                        <thead><tr><th>Contratista</th><th>Situación</th><th>Representante</th><th>Teléfono</th><th>NRC</th><th>Personal</th><th>Pendientes</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var v in _views)
+                            {
+                                var view = v;
+                                <tr>
+                                    <td><strong>@view.Contractor.Name</strong>@if (!view.Contractor.IsActive) { <span class="tk-chip tk-chip--neutral" style="margin-left:6px">Inactivo</span> }</td>
+                                    <td>@StageName(view.Contractor.Stage)</td>
+                                    <td>@(view.Contractor.LegalRepresentative ?? view.Contractor.ResponsibleName ?? "—")</td>
+                                    <td>@(view.Contractor.Phone ?? "—")</td>
+                                    <td>@(view.Contractor.Nrc ?? "—")</td>
+                                    <td>@view.People</td>
+                                    <td>@if (view.NeedAttention > 0) { <StatusChip Status="StatusChip.Kind.Atrasado" Text="@view.NeedAttention.ToString()" /> } else if (view.People > 0) { <StatusChip Status="StatusChip.Kind.Ok" Text="Al día" /> } else { <span class="tk-muted">—</span> }</td>
+                                    <td class="tk-actions-cell">
+                                        <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditContractorAsync(view.Contractor)" aria-label="Editar" />
+                                        <MudIconButton Icon="@Icons.Material.Outlined.PersonAdd" Size="Size.Small" OnClick="() => EditPersonAsync(null, view.Contractor.Id)" aria-label="Agregar persona" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </SectionCard>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Personal">
+            <div class="tk-toolbar">
+                <MudSelect T="int?" Value="_filterContractor" ValueChanged="OnFilterContractorAsync" Clearable="true" Placeholder="Todos los contratistas" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:240px">
+                    @foreach (var v in _views)
+                    {
+                        <MudSelectItem T="int?" Value="v.Contractor.Id">@v.Contractor.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudTextField @bind-Value="_search" Immediate="true" DebounceInterval="250" OnDebounceIntervalElapsed="LoadPeopleAsync" Placeholder="Buscar nombre o DUI"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:240px" />
+            </div>
+            <SectionCard>
+                <div class="tk-table-wrap">
+                    <table class="tk-table tk-table--compact">
+                        <thead><tr><th>Persona</th><th>Contratista</th><th>Cargo</th><th>DUI</th><th>Teléfono</th><th>Seguro</th><th>Aseguradora</th><th>Póliza / afiliación</th><th>Estado</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var p in _people)
+                            {
+                                var item = p;
+                                <tr>
+                                    <td>@item.Person.FullName</td><td>@item.ContractorName</td><td>@item.Person.Position</td><td>@item.Person.Dui</td><td>@item.Person.Phone</td>
+                                    <td>@item.Person.InsuranceType</td><td>@item.Person.Insurer</td><td>@(item.Person.PolicyNumber ?? "—")</td>
+                                    <td>@StateChip(item)</td>
+                                    <td class="tk-actions-cell">
+                                        <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditPersonAsync(item.Person, null)" aria-label="Editar" />
+                                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => RemovePersonAsync(item.Person)" aria-label="Quitar" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (_people.Count == 0)
+                {
+                    <EmptyState Title="Sin personal" Icon="@Icons.Material.Outlined.Groups" Description="Agregue personas o importe el Excel de contratistas." />
+                }
+            </SectionCard>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    private List<ContractorView>? _views;
+    private List<PersonView> _attention = [];
+    private List<PersonView> _people = [];
+    private bool _inactive;
+    private int? _filterContractor;
+    private string? _search;
+    private int _tab;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _views = await Directory.ListAsync(_inactive);
+        _attention = await Directory.PeopleAsync(onlyNeedingAttention: true);
+        await LoadPeopleAsync();
+    }
+
+    private async Task LoadPeopleAsync() => _people = await Directory.PeopleAsync(_filterContractor, null, _search);
+
+    private async Task OnInactiveAsync(bool value) { _inactive = value; await LoadAsync(); }
+
+    private async Task OnFilterContractorAsync(int? id) { _filterContractor = id; await LoadPeopleAsync(); }
+
+    private static string StageName(ContractorStage stage) => stage switch
+    {
+        ContractorStage.Active => "Trabaja con TEK-COM",
+        ContractorStage.Prospect => "Por cotizar",
+        _ => "Dijo que no",
+    };
+
+    private static RenderFragment StateChip(PersonView view) => builder =>
+    {
+        var (kind, text) = view.State switch
+        {
+            CoverageState.Covered => (StatusChip.Kind.Ok, "Al día"),
+            CoverageState.Pending => (StatusChip.Kind.Atrasado, "Pendiente"),
+            CoverageState.Expired => (StatusChip.Kind.Atrasado, "Vencida"),
+            _ => (StatusChip.Kind.Bajo, "Por vencer"),
+        };
+        builder.OpenComponent<StatusChip>(0);
+        builder.AddAttribute(1, nameof(StatusChip.Status), kind);
+        builder.AddAttribute(2, nameof(StatusChip.Text), text);
+        builder.CloseComponent();
+    };
+
+    private async Task EditContractorAsync(Contractor? contractor)
+    {
+        var dialog = await Dialogs.ShowAsync<ContractorDialog>(contractor is null ? "Nuevo contratista" : "Editar contratista",
+            new DialogParameters { ["Model"] = contractor }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task EditPersonAsync(ContractorPerson? person, int? contractorId)
+    {
+        var dialog = await Dialogs.ShowAsync<PersonDialog>(person is null ? "Nueva persona" : "Editar persona",
+            new DialogParameters { ["Model"] = person, ["ContractorId"] = contractorId }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task RemovePersonAsync(ContractorPerson person)
+    {
+        var ok = await Dialogs.ShowMessageBoxAsync("Quitar persona", $"¿Quitar a {person.FullName} de la lista?", yesText: "Quitar", cancelText: "Cancelar");
+        if (ok == true)
+        {
+            await Directory.RemovePersonAsync(person.Id);
+            await LoadAsync();
+        }
+    }
+}

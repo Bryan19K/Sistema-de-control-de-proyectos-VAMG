@@ -51,6 +51,15 @@ public sealed class SiteSummary
     /// <summary>Avance de FATs (sub-box, end-box, Hub-box y X-box) como en el Excel.</summary>
     public decimal FatPercent { get; init; }
 
+    /// <summary>
+    /// Avance por piezas instaladas: cables, FATs, fusiones y cruces instalados sobre lo proyectado del nodo
+    /// (sin pasarse de lo proyectado en cada grupo). Null si el nodo no tiene proyección.
+    /// </summary>
+    public decimal? PiecesPercent { get; init; }
+
+    /// <summary>Avance global del nodo: por piezas instaladas si hay proyección; si no, el de las etapas.</summary>
+    public decimal GlobalPercent => PiecesPercent ?? ProgressPercent;
+
     /// <summary>Con el % de FATs instaladas definido en el proyecto y sin mediciones finalizadas.</summary>
     public bool ReadyToMeasure { get; init; }
 }

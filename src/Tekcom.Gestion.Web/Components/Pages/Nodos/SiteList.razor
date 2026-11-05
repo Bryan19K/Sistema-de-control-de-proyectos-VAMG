@@ -68,7 +68,7 @@ else
             <div class="tk-table-wrap">
                 <table class="tk-table tk-table--compact">
                     <thead>
-                        <tr><th>Nodo</th><th>Brigada / supervisor</th><th>Plan</th><th>Etapas</th><th>Avance vs. tiempo</th><th>Ritmo</th><th>ODN</th><th>Feeder</th><th>Estado</th></tr>
+                        <tr><th>Nodo</th><th>Brigada / supervisor</th><th>Plan</th><th>Etapas</th><th>Avance global</th><th>Avance vs. tiempo</th><th>Ritmo</th><th>ODN</th><th>Feeder</th><th>Estado</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var s in Filtered)
@@ -88,6 +88,10 @@ else
                                             <span class="tk-dot tk-dot--@status.ToString().ToLowerInvariant()" title="@def.Name: @UiText.StageStatusName(status)"></span>
                                         }
                                     </span>
+                                </td>
+                                <td class="tk-bar-cell" title="@(s.PiecesPercent is null ? "Por etapas (sin proyección)" : "Por piezas instaladas sobre lo proyectado")">
+                                    <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@(s.GlobalPercent >= 100 ? "success" : "info")" style="width:@(Math.Clamp(s.GlobalPercent, 0, 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
+                                    <strong>@s.GlobalPercent.ToString("0.#")%</strong>
                                 </td>
                                 <td class="tk-bar-cell"><PaceBar Progress="(int)Math.Round(s.ProgressPercent)" Elapsed="(int)Math.Round(s.Pace.ElapsedPercent)" /></td>
                                 <td><PaceChip Pace="s.Pace" /></td>

@@ -188,3 +188,21 @@ public sealed class ContractOrderConfiguration : IEntityTypeConfiguration<Contra
         b.HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId);
     }
 }
+
+public sealed class ContractorPersonConfiguration : IEntityTypeConfiguration<ContractorPerson>
+{
+    public void Configure(EntityTypeBuilder<ContractorPerson> b)
+    {
+        b.Property(x => x.FullName).HasMaxLength(160).IsRequired();
+        b.Property(x => x.Dui).HasMaxLength(40);
+        b.Property(x => x.Position).HasMaxLength(80);
+        b.Property(x => x.Phone).HasMaxLength(40);
+        b.Property(x => x.InsuranceType).HasMaxLength(80);
+        b.Property(x => x.InsuranceStatus).HasMaxLength(200);
+        b.Property(x => x.Insurer).HasMaxLength(120);
+        b.Property(x => x.PolicyNumber).HasMaxLength(60);
+        b.Property(x => x.Notes).HasMaxLength(1000);
+        b.HasIndex(x => x.ContractorId);
+        b.HasOne(x => x.Contractor).WithMany(c => c.People).HasForeignKey(x => x.ContractorId);
+    }
+}

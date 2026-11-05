@@ -1,0 +1,66 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject IBuildingService Buildings
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6"><MudNumericField Format="0.##" T="decimal?" @bind-Value="_progress" Label="Avance global (%)" Min="0" Max="100" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="ProjectStatus" @bind-Value="_status" Label="Estado" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var s in Enum.GetValues<ProjectStatus>())
+                    {
+                        <MudSelectItem T="ProjectStatus" Value="s">@UiText.ProjectStatusName(s)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_pending" Label="Trabajos por ejecutar" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_responsible" Label="Responsable" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Inicio" @bind-Value="_start" /></MudItem>
+            <MudItem xs="12" sm="6"><DatePick Label="Fin" @bind-Value="_end" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Project Model { get; set; } = default!;
+
+    private decimal? _progress;
+    private ProjectStatus _status;
+    private string? _pending;
+    private string? _responsible;
+    private DateOnly? _start;
+    private DateOnly? _end;
+
+    protected override void OnInitialized()
+    {
+        _progress = Model.ReportedProgress;
+        _status = Model.Status;
+        _pending = Model.PendingWork;
+        _responsible = Model.ResponsibleName;
+        _start = Model.PlannedStart;
+        _end = Model.PlannedEnd;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Buildings.SaveProjectAsync(Model.Id, _progress, _pending, _status, _responsible, _start, _end);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

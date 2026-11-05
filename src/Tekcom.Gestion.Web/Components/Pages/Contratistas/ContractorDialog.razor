@@ -1,0 +1,74 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IContractorDirectoryService Directory
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="8"><MudTextField @bind-Value="_m.Name" Label="Contratista" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="ContractorStage" @bind-Value="_m.Stage" Label="Situación" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="ContractorStage" Value="ContractorStage.Active">Trabaja con TEK-COM</MudSelectItem>
+                    <MudSelectItem T="ContractorStage" Value="ContractorStage.Prospect">Por cotizar</MudSelectItem>
+                    <MudSelectItem T="ContractorStage" Value="ContractorStage.Declined">Dijo que no</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.ProviderType" Label="Tipo de proveedor" Placeholder="Persona natural o jurídica" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.LegalRepresentative" Label="Representante legal" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Dui" Label="DUI / NIT" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Nrc" Label="NRC" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_m.Address" Label="Dirección" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Phone" Label="Teléfono" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Email" Label="Correo electrónico" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudNumericField T="int?" @bind-Value="_m.Crews" Label="Cuadrillas disponibles" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_m.SupervisorName" Label="Supervisor responsable" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_m.SupervisorPhone" Label="Teléfono del supervisor" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.CrewLeaderName" Label="Encargado de cuadrilla" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.CrewLeaderPhone" Label="Teléfono del encargado" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.BankHolder" Label="Titular de la cuenta" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Bank" Label="Banco" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.AccountType" Label="Tipo de cuenta" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.AccountNumber" Label="Número de cuenta" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_m.Notes" Label="Observaciones" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudSwitch T="bool" @bind-Value="_m.IsActive" Label="Activo (aparece al elegir brigada)" Color="Color.Primary" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Contractor? Model { get; set; }
+
+    private Contractor _m = new();
+
+    protected override void OnInitialized()
+    {
+        _m = Model is null ? new Contractor() : new Contractor
+        {
+            Id = Model.Id, Name = Model.Name, ResponsibleName = Model.ResponsibleName, Phone = Model.Phone, IsActive = Model.IsActive,
+            Stage = Model.Stage, ProviderType = Model.ProviderType, LegalRepresentative = Model.LegalRepresentative, Dui = Model.Dui,
+            Nrc = Model.Nrc, Address = Model.Address, Email = Model.Email, Crews = Model.Crews, SupervisorName = Model.SupervisorName,
+            SupervisorPhone = Model.SupervisorPhone, CrewLeaderName = Model.CrewLeaderName, CrewLeaderPhone = Model.CrewLeaderPhone,
+            BankHolder = Model.BankHolder, Bank = Model.Bank, AccountType = Model.AccountType, AccountNumber = Model.AccountNumber, Notes = Model.Notes,
+        };
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var saved = await Directory.SaveAsync(_m);
+            MudDialog.Close(DialogResult.Ok(saved.Id));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

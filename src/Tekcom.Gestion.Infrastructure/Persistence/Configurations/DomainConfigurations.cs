@@ -35,6 +35,21 @@ public sealed class ContractorConfiguration : IEntityTypeConfiguration<Contracto
         b.Property(x => x.Name).HasMaxLength(150).IsRequired();
         b.Property(x => x.ResponsibleName).HasMaxLength(150);
         b.Property(x => x.Phone).HasMaxLength(40);
+        b.Property(x => x.ProviderType).HasMaxLength(60);
+        b.Property(x => x.LegalRepresentative).HasMaxLength(160);
+        b.Property(x => x.Dui).HasMaxLength(80);
+        b.Property(x => x.Nrc).HasMaxLength(40);
+        b.Property(x => x.Address).HasMaxLength(300);
+        b.Property(x => x.Email).HasMaxLength(160);
+        b.Property(x => x.SupervisorName).HasMaxLength(160);
+        b.Property(x => x.SupervisorPhone).HasMaxLength(60);
+        b.Property(x => x.CrewLeaderName).HasMaxLength(160);
+        b.Property(x => x.CrewLeaderPhone).HasMaxLength(60);
+        b.Property(x => x.BankHolder).HasMaxLength(160);
+        b.Property(x => x.Bank).HasMaxLength(120);
+        b.Property(x => x.AccountType).HasMaxLength(60);
+        b.Property(x => x.AccountNumber).HasMaxLength(60);
+        b.Property(x => x.Notes).HasMaxLength(1000);
     }
 }
 

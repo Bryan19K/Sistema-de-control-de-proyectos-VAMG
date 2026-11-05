@@ -7,6 +7,8 @@
 @using Tekcom.Gestion.Domain.Enums
 @using Tekcom.Gestion.Web.Services
 @inject IBuildingService Buildings
+@inject IDialogService Dialogs
+@inject UserAccess Access
 
 <PageTitle>Edificios · TEK-COM</PageTitle>
 
@@ -37,6 +39,13 @@ else
         {
             <SectionCard Title="@item.Project.Name" Badge="@null">
                 <p class="tk-muted mb-2">Centro de costos @item.Project.Code · @(item.Project.Client?.Name ?? "—")</p>
+                @if (_admin)
+                {
+                    <div class="tk-toolbar" style="margin-bottom:8px">
+                        <button type="button" class="tk-btn tk-btn--outline" @onclick="() => EditProjectAsync(item.Project)">Editar avance y estado</button>
+                        <button type="button" class="tk-btn tk-btn--outline" @onclick="() => PhaseAsync(item.Project.Id, null)">+ Fase</button>
+                    </div>
+                }
                 <div class="mb-2"><StatusChip Status="StatusKind(item.Project.Status)" Text="@UiText.ProjectStatusName(item.Project.Status)" /></div>
                 <div class="tk-phase">
                     <strong>Avance global</strong>
@@ -46,7 +55,7 @@ else
                 @foreach (var phase in item.Phases)
                 {
                     <div class="tk-phase @(phase.ParentName is null ? "" : "tk-phase--child")" data-tip="@($"{phase.Percent:0.#}%|{phase.Name} · peso {phase.Weight:0.#}%")">
-                        <span>@phase.Name <span class="tk-muted">· @($"{phase.Weight:0.#}%")</span></span>
+                        <span>@if (_admin) { <a class="tk-row-link" role="button" tabindex="0" title="Editar fase" @onclick="() => PhaseAsync(item.Project.Id, phase)">@phase.Name</a> } else { @phase.Name } <span class="tk-muted">· @($"{phase.Weight:0.#}%")</span></span>
                         <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@(phase.Percent >= 100 ? "success" : "info")" style="width:@Pct(phase.Percent)%"></span></span>
                         <span>@($"{phase.Percent:0.#}%")</span>
                     </div>
@@ -77,18 +86,22 @@ else
         <MudTabPanel Text="@($"Apartamentos ({_units.Count})")">
             @if (_units.Count == 0)
             {
-                <SectionCard><EmptyState Title="Este edificio no tiene apartamentos registrados" Icon="@Icons.Material.Outlined.Apartment" Description="Los edificios de infraestructura no se miden por apartamento." /></SectionCard>
+                <SectionCard>
+                    <EmptyState Title="Este edificio no tiene apartamentos registrados" Icon="@Icons.Material.Outlined.Apartment" Description="Los edificios de infraestructura no se miden por apartamento." />
+                    @if (_admin) { <button type="button" class="tk-btn tk-btn--primary mt-3" @onclick="() => RecordAsync(BuildingRecordKind.Unit, null)">+ Apartamento</button> }
+                </SectionCard>
             }
             else
             {
                 <div class="tk-toolbar">
+                    @if (_admin) { <button type="button" class="tk-btn tk-btn--primary" @onclick="() => RecordAsync(BuildingRecordKind.Unit, null)">+ Apartamento</button> }
                     <MudTextField @bind-Value="_search" Immediate="true" Placeholder="Buscar apartamento o nivel" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                                   Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:260px" />
                 </div>
                 <SectionCard>
                     <div class="tk-table-wrap">
                         <table class="tk-table">
-                            <thead><tr><th>Nivel</th><th>Apartamento</th><th>Avance</th><th>Estado</th><th>Detalle</th></tr></thead>
+                            <thead><tr><th>Nivel</th><th>Apartamento</th><th>Avance</th><th>Estado</th><th>Detalle</th><th></th></tr></thead>
                             <tbody>
                                 @foreach (var u in FilteredUnits)
                                 {
@@ -97,6 +110,7 @@ else
                                         <td class="tk-bar-cell"><span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--@((u.ProgressPercent ?? 0) >= 100 ? "success" : "info")" style="width:@Pct(u.ProgressPercent)%"></span></span> @($"{u.ProgressPercent ?? 0:0.#}%")</td>
                                         <td>@u.Status</td>
                                         <td>@DetailView(u)</td>
+                                        <td class="tk-actions-cell">@if (_admin) { <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => RecordAsync(BuildingRecordKind.Unit, u)" aria-label="Editar" /> }</td>
                                     </tr>
                                 }
                             </tbody>
@@ -112,6 +126,7 @@ else
                 <SectionCard Title="@($"Infraestructura · {@record.Status ?? "—"} · {record.ProgressPercent ?? 0:0.#}%")" Class="mb-4">
                     @DetailBlock(record)
                     @if (!string.IsNullOrWhiteSpace(record.Notes)) { <p class="tk-muted">@record.Notes</p> }
+                    @if (_admin) { <button type="button" class="tk-btn tk-btn--outline mt-2" @onclick="() => RecordAsync(BuildingRecordKind.Infrastructure, record)">Editar avance y estado</button> }
                 </SectionCard>
             }
             @if (_infra.Count == 0)
@@ -124,11 +139,11 @@ else
             <SectionCard>
                 <div class="tk-table-wrap">
                     <table class="tk-table">
-                        <thead><tr><th>Nivel</th><th>Avance</th><th>Estado</th><th>Comentarios</th><th>Detalle</th></tr></thead>
+                        <thead><tr><th>Nivel</th><th>Avance</th><th>Estado</th><th>Comentarios</th><th>Detalle</th><th></th></tr></thead>
                         <tbody>
                             @foreach (var l in _levels)
                             {
-                                <tr><td>@l.Name</td><td>@($"{l.ProgressPercent ?? 0:0.#}%")</td><td>@l.Status</td><td>@l.Notes</td><td>@DetailView(l)</td></tr>
+                                <tr><td>@l.Name</td><td>@($"{l.ProgressPercent ?? 0:0.#}%")</td><td>@l.Status</td><td>@l.Notes</td><td>@DetailView(l)</td><td class="tk-actions-cell">@if (_admin) { <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => RecordAsync(BuildingRecordKind.Level, l)" aria-label="Editar" /> }</td></tr>
                             }
                         </tbody>
                     </table>
@@ -137,6 +152,10 @@ else
         </MudTabPanel>
 
         <MudTabPanel Text="@($"Materiales ({_materials.Count})")">
+            @if (_admin)
+            {
+                <div class="tk-toolbar"><a href="materiales" class="tk-btn tk-btn--outline">Registrar movimientos en Materiales</a></div>
+            }
             @if (_materials.Count == 0)
             {
                 <SectionCard><EmptyState Title="Sin materiales cargados" Icon="@Icons.Material.Outlined.Inventory2" Description="Cargue el control de materiales en Importar Excel." /></SectionCard>
@@ -173,6 +192,7 @@ else
     private List<BuildingRecord> _infra = [];
     private List<BuildingRecord> _levels = [];
     private List<BuildingMaterialRow> _materials = [];
+    private bool _admin;
 
     private decimal AverageProgress => _overview is { Count: > 0 } ? _overview.Average(o => o.Project.ReportedProgress ?? 0) : 0;
 
@@ -182,6 +202,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _admin = await Access.IsAdminAsync();
         _overview = await Buildings.OverviewAsync();
         if (_overview.Count > 0)
         {
@@ -254,4 +275,30 @@ else
 
         builder.CloseElement();
     };
+
+    private async Task ReloadAsync()
+    {
+        var current = _projectId;
+        _overview = await Buildings.OverviewAsync();
+        await OnProjectAsync(current);
+    }
+
+    private async Task ShowAsync<TDialog>(string title, DialogParameters parameters, MaxWidth width = MaxWidth.Medium) where TDialog : Microsoft.AspNetCore.Components.IComponent
+    {
+        var dialog = await Dialogs.ShowAsync<TDialog>(title, parameters, new DialogOptions { MaxWidth = width, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await ReloadAsync();
+        }
+    }
+
+    private Task EditProjectAsync(Project project) =>
+        ShowAsync<BuildingProjectDialog>("Editar avance y estado", new DialogParameters { ["Model"] = project });
+
+    private Task PhaseAsync(int projectId, ProjectPhase? phase) =>
+        ShowAsync<BuildingPhaseDialog>(phase is null ? "Nueva fase" : "Editar fase", new DialogParameters { ["ProjectId"] = projectId, ["Model"] = phase }, MaxWidth.Small);
+
+    private Task RecordAsync(BuildingRecordKind kind, BuildingRecord? record) =>
+        ShowAsync<BuildingRecordDialog>(record is null ? "Nuevo registro" : "Editar registro",
+            new DialogParameters { ["ProjectId"] = _projectId, ["Kind"] = kind, ["Model"] = record }, MaxWidth.Small);
 }

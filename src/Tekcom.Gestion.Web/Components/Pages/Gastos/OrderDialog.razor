@@ -1,0 +1,58 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Services
+@inject IFinanceService Finance
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.Code" Label="Nodo u orden" Required="true" Placeholder="SON01, FEEDER…" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_m.OrderNumber" Label="Número de orden" Placeholder="OC2026-0475" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudNumericField T="int?" @bind-Value="_m.HomesPassed" Label="HP (hogares pasados)" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudNumericField Format="0.##" T="decimal" @bind-Value="_m.Subtotal" Label="Subtotal" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudNumericField Format="0.##" T="decimal" @bind-Value="_m.Vat" Label="IVA" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField Value="@UiText.Money(_m.Subtotal + _m.Vat)" Label="Total con IVA" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_m.ContractorName" Label="Brigada asignada" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_m.MaterialStatus" Label="Material" Placeholder="ENTREGADO" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_m.ConstructionStatus" Label="Construcción" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_m.LiquidationStatus" Label="Liquidación" Placeholder="PENDIENTE, REALIZADA" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public ContractOrder? Model { get; set; }
+
+    private ContractOrder _m = new();
+
+    protected override void OnInitialized()
+    {
+        _m = Model is null ? new ContractOrder { ProjectId = ProjectId } : new ContractOrder
+        {
+            Id = Model.Id, ProjectId = Model.ProjectId, Code = Model.Code, OrderNumber = Model.OrderNumber, HomesPassed = Model.HomesPassed,
+            Subtotal = Model.Subtotal, Vat = Model.Vat, Total = Model.Total, ContractorName = Model.ContractorName,
+            MaterialStatus = Model.MaterialStatus, ConstructionStatus = Model.ConstructionStatus, LiquidationStatus = Model.LiquidationStatus,
+        };
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Finance.SaveOrderAsync(_m);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

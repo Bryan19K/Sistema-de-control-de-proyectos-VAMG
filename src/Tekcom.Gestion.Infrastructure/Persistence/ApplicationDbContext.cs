@@ -13,6 +13,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ProjectType> ProjectTypes => Set<ProjectType>();
     public DbSet<Supervisor> Supervisors => Set<Supervisor>();
     public DbSet<Contractor> Contractors => Set<Contractor>();
+    public DbSet<ContractorPerson> ContractorPeople => Set<ContractorPerson>();
 
     // Proyectos y nodos
     public DbSet<Project> Projects => Set<Project>();

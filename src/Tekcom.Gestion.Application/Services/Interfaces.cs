@@ -177,6 +177,12 @@ public interface IInventoryService
     /// <summary>Instalado en un nodo en un día (alimenta el avance y la liquidación).</summary>
     Task<InventoryMovement> InstalledAsync(int projectId, int siteId, int materialId, decimal quantity, DateOnly date, int? contractorId, string? notes, CancellationToken ct = default);
 
+    /// <summary>
+    /// Deja el instalado de un material en un nodo en el total indicado. Si sube, registra la diferencia; si baja, anula
+    /// (con el motivo) los registros más recientes hasta llegar al total. Nada se borra.
+    /// </summary>
+    Task<decimal> SetInstalledTotalAsync(int projectId, int siteId, int materialId, decimal newTotal, DateOnly date, string? reason, CancellationToken ct = default);
+
     /// <summary>Anula un movimiento con motivo. Nada se borra.</summary>
     Task VoidAsync(int movementId, string reason, CancellationToken ct = default);
 
@@ -344,6 +350,17 @@ public interface IFinanceService
     Task<List<ExpenseEntry>> ExpensesAsync(ExpenseKind? kind, int? fundId, CancellationToken ct = default);
     Task<List<ContractOrder>> OrdersAsync(int projectId, CancellationToken ct = default);
     Task<List<PriceItem>> PricesAsync(int projectId, CancellationToken ct = default);
+
+    // Edición (administrador): lo que viene del Excel se puede corregir, agregar y quitar desde el sistema.
+    Task<ExpenseEntry> SaveExpenseAsync(ExpenseEntry entry, CancellationToken ct = default);
+    Task DeleteExpenseAsync(int id, CancellationToken ct = default);
+    Task<List<ExpenseFund>> FundsAsync(CancellationToken ct = default);
+    Task<ExpenseFund> SaveFundAsync(ExpenseFund fund, CancellationToken ct = default);
+    Task DeleteFundAsync(int id, CancellationToken ct = default);
+    Task<ContractOrder> SaveOrderAsync(ContractOrder order, CancellationToken ct = default);
+    Task DeleteOrderAsync(int id, CancellationToken ct = default);
+    Task<PriceItem> SavePriceAsync(PriceItem price, CancellationToken ct = default);
+    Task DeletePriceAsync(int id, CancellationToken ct = default);
 }
 
 public interface IBuildingService
@@ -351,4 +368,26 @@ public interface IBuildingService
     Task<List<BuildingOverview>> OverviewAsync(CancellationToken ct = default);
     Task<List<BuildingRecord>> RecordsAsync(int projectId, BuildingRecordKind kind, CancellationToken ct = default);
     Task<List<BuildingMaterialRow>> MaterialsAsync(int projectId, CancellationToken ct = default);
+
+    // Edición (administrador)
+    Task<Project> SaveProjectAsync(int projectId, decimal? reportedProgress, string? pendingWork, ProjectStatus status, string? responsible,
+        DateOnly? plannedStart, DateOnly? plannedEnd, CancellationToken ct = default);
+    Task<ProjectPhase> SavePhaseAsync(ProjectPhase phase, CancellationToken ct = default);
+    Task DeletePhaseAsync(int id, CancellationToken ct = default);
+    Task<BuildingRecord> SaveRecordAsync(BuildingRecord record, CancellationToken ct = default);
+    Task DeleteRecordAsync(int id, CancellationToken ct = default);
+}
+
+public interface IContractorDirectoryService
+{
+    Task<List<ContractorView>> ListAsync(bool includeInactive = false, CancellationToken ct = default);
+    Task<Contractor?> GetAsync(int id, CancellationToken ct = default);
+    Task<Contractor> SaveAsync(Contractor contractor, CancellationToken ct = default);
+    Task SetActiveAsync(int id, bool active, CancellationToken ct = default);
+
+    /// <summary>Personal de campo con el estado de su póliza o afiliación. Se puede filtrar por contratista, estado o texto.</summary>
+    Task<List<PersonView>> PeopleAsync(int? contractorId = null, CoverageState? state = null, string? search = null, bool onlyNeedingAttention = false, CancellationToken ct = default);
+
+    Task<ContractorPerson> SavePersonAsync(ContractorPerson person, CancellationToken ct = default);
+    Task RemovePersonAsync(int personId, CancellationToken ct = default);
 }

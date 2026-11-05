@@ -1,0 +1,52 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IBuildingService Buildings
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12"><MudTextField @bind-Value="_m.Name" Label="Fase o proceso" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_m.ParentName" Label="Pertenece a la fase" HelperText="Déjelo vacío si es una fase principal" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="6"><MudNumericField Format="0.##" T="decimal" @bind-Value="_m.Weight" Label="Peso (%)" Min="0" Max="100" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="6"><MudNumericField Format="0.##" T="decimal" @bind-Value="_m.Percent" Label="Avance (%)" Min="0" Max="100" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        @if (_m.Id != 0)
+        {
+            <MudButton Color="Color.Error" OnClick="DeleteAsync">Quitar</MudButton>
+        }
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public ProjectPhase? Model { get; set; }
+
+    private ProjectPhase _m = new();
+
+    protected override void OnInitialized()
+    {
+        _m = Model is null ? new ProjectPhase { ProjectId = ProjectId } : new ProjectPhase
+        {
+            Id = Model.Id, ProjectId = Model.ProjectId, Name = Model.Name, ParentName = Model.ParentName, Weight = Model.Weight, Percent = Model.Percent,
+        };
+    }
+
+    private async Task SaveAsync()
+    {
+        try { await Buildings.SavePhaseAsync(_m); MudDialog.Close(DialogResult.Ok(true)); }
+        catch (BusinessRuleException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task DeleteAsync()
+    {
+        try { await Buildings.DeletePhaseAsync(_m.Id); MudDialog.Close(DialogResult.Ok(true)); }
+        catch (BusinessRuleException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+}

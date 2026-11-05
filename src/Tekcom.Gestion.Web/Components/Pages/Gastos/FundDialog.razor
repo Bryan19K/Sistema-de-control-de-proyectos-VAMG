@@ -1,0 +1,52 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IFinanceService Finance
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12"><MudTextField @bind-Value="_m.Name" Label="Nombre del fondo" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="ExpenseKind" @bind-Value="_m.Kind" Label="Tipo" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="ExpenseKind" Value="ExpenseKind.PettyCash">Caja chica</MudSelectItem>
+                    <MudSelectItem T="ExpenseKind" Value="ExpenseKind.Travel">Viáticos</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6"><MudNumericField Format="0.##" T="decimal" @bind-Value="_m.AssignedAmount" Label="Monto asignado" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ExpenseFund? Model { get; set; }
+
+    private ExpenseFund _m = new() { Kind = ExpenseKind.PettyCash, AssignedAmount = 500 };
+
+    protected override void OnInitialized()
+    {
+        if (Model is not null)
+        {
+            _m = new ExpenseFund { Id = Model.Id, Name = Model.Name, Kind = Model.Kind, AssignedAmount = Model.AssignedAmount };
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Finance.SaveFundAsync(_m);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

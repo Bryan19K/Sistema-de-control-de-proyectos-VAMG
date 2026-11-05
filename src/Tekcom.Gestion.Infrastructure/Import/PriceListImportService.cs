@@ -206,18 +206,22 @@ public sealed class PriceListImportService(IDbContextFactory<ApplicationDbContex
             ?? throw new BusinessRuleException("El proyecto seleccionado no existe.");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
-        // Precios: la lista del Excel reemplaza a la anterior.
-        db.PriceItems.RemoveRange(await db.PriceItems.Where(p => p.ProjectId == project.Id).ToListAsync(ct));
-        foreach (var price in data.Prices)
+        // Precios: si el proyecto ya tiene precios (cargados o editados) no se tocan.
+        var pricesLoaded = false;
+        if (!await db.PriceItems.AnyAsync(p => p.ProjectId == project.Id, ct))
         {
-            db.PriceItems.Add(new PriceItem
+            pricesLoaded = true;
+            foreach (var price in data.Prices)
             {
-                ProjectId = project.Id, Section = price.Section, Item = price.Item, Type = price.Type, Unit = price.Unit,
-                TargetPrice = price.Price, SortOrder = price.Order,
-            });
+                db.PriceItems.Add(new PriceItem
+                {
+                    ProjectId = project.Id, Section = price.Section, Item = price.Item, Type = price.Type, Unit = price.Unit,
+                    TargetPrice = price.Price, SortOrder = price.Order,
+                });
+            }
         }
 
-        // Órdenes: se actualizan por código; el Excel manda.
+        // Órdenes: las nuevas se crean; las que ya existen solo completan lo que esté vacío (el sistema manda).
         var sites = await db.Sites.Where(s => s.ProjectId == project.Id).ToListAsync(ct);
         var orders = await db.ContractOrders.Where(o => o.ProjectId == project.Id).ToListAsync(ct);
         var created = 0;
@@ -226,22 +230,19 @@ public sealed class PriceListImportService(IDbContextFactory<ApplicationDbContex
             var order = orders.FirstOrDefault(o => string.Equals(o.Code, item.Code, StringComparison.OrdinalIgnoreCase));
             if (order is null)
             {
-                order = new ContractOrder { ProjectId = project.Id, Code = item.Code };
+                order = new ContractOrder { ProjectId = project.Id, Code = item.Code, Subtotal = item.Subtotal, Vat = item.Vat, Total = item.Total };
                 db.ContractOrders.Add(order);
                 orders.Add(order);
                 created++;
             }
 
-            order.SiteId = sites.FirstOrDefault(s => string.Equals(s.Code, item.Code, StringComparison.OrdinalIgnoreCase))?.Id;
-            order.OrderNumber = item.OrderNumber;
-            order.HomesPassed = item.HomesPassed;
-            order.Subtotal = item.Subtotal;
-            order.Vat = item.Vat;
-            order.Total = item.Total;
-            order.ContractorName = item.Contractor;
-            order.MaterialStatus = item.Material;
-            order.ConstructionStatus = item.Construction;
-            order.LiquidationStatus = item.Liquidation;
+            order.SiteId ??= sites.FirstOrDefault(s => string.Equals(s.Code, item.Code, StringComparison.OrdinalIgnoreCase))?.Id;
+            order.OrderNumber ??= item.OrderNumber;
+            order.HomesPassed ??= item.HomesPassed;
+            order.ContractorName ??= item.Contractor;
+            order.MaterialStatus ??= item.Material;
+            order.ConstructionStatus ??= item.Construction;
+            order.LiquidationStatus ??= item.Liquidation;
         }
 
         // Catálogo ERP: completa código, modelo y descripción de los materiales existentes (o los crea).
@@ -266,7 +267,7 @@ public sealed class PriceListImportService(IDbContextFactory<ApplicationDbContex
         }
 
         report.Counts.MaterialsCreated = materials.Created;
-        report.Summary.Add(new("Precios guardados", data.Prices.Count.ToString(CultureInfo.InvariantCulture)));
+        report.Summary.Add(new("Precios guardados", pricesLoaded ? data.Prices.Count.ToString(CultureInfo.InvariantCulture) : "ya había precios; no se tocan"));
         report.Summary.Add(new("Órdenes nuevas", created.ToString(CultureInfo.InvariantCulture)));
         report.Summary.Add(new("Órdenes actualizadas", (data.Orders.Count - created).ToString(CultureInfo.InvariantCulture)));
         report.Summary.Add(new("Materiales con código ERP", data.Catalog.Count.ToString(CultureInfo.InvariantCulture)));

@@ -14,7 +14,7 @@ public sealed class ProjectSelection(IProjectService projects)
 
     public async Task<List<Project>> ListAsync() => await projects.ListAsync();
 
-    /// <summary>Si no hay proyecto elegido, toma el primero activo.</summary>
+    /// <summary>Si no hay proyecto elegido, toma el primero activo; los de FTTH van primero porque son los que tienen nodos y bodega.</summary>
     public async Task<int?> EnsureAsync()
     {
         if (CurrentId is not null)
@@ -23,7 +23,8 @@ public sealed class ProjectSelection(IProjectService projects)
         }
 
         var all = await projects.ListAsync();
-        CurrentId = (all.FirstOrDefault(p => p.Status == ProjectStatus.Active) ?? all.FirstOrDefault())?.Id;
+        var ordered = all.OrderBy(p => p.ProjectType?.Code == "FTTH" ? 0 : 1).ToList();
+        CurrentId = (ordered.FirstOrDefault(p => p.Status == ProjectStatus.Active) ?? ordered.FirstOrDefault())?.Id;
         return CurrentId;
     }
 

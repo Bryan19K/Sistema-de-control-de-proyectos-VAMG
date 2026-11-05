@@ -82,9 +82,11 @@ public static class DependencyInjection
         services.AddScoped<IDataPackImporter, Import.NextWaveMaterialsImportService>();
         services.AddScoped<IDataPackImporter, Import.ExpensesImportService>();
         services.AddScoped<IDataPackImporter, Import.PriceListImportService>();
+        services.AddScoped<IDataPackImporter, Import.ContractorsImportService>();
         services.AddScoped<IDataImportCoordinator, Import.DataImportCoordinator>();
         services.AddScoped<IFinanceService, FinanceService>();
         services.AddScoped<IBuildingService, BuildingService>();
+        services.AddScoped<IContractorDirectoryService, ContractorDirectoryService>();
 
         // Avisos: correo y WhatsApp (cada canal se activa solo cuando está configurado) + Hangfire.
         services.Configure<Notifications.EmailOptions>(configuration.GetSection(Notifications.EmailOptions.SectionName));
