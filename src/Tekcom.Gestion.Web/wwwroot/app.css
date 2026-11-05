@@ -1218,3 +1218,35 @@ html[data-theme="dark"] code { color: var(--tk-text); }
 .tk-table--grid td:first-child { min-width: 170px; }
 .tk-table--grid td .tk-chip { white-space: normal; text-align: center; }
 .tk-table--grid td:nth-last-child(2) { min-width: 150px; }
+
+/* ---------- Tabla de cantidades: encabezado y columna de material fijos, columna Instalado en verde suave ---------- */
+.tk-grid-scroll { max-height: 72vh; overflow: auto; border-radius: 10px; }
+.tk-grid-scroll .tk-table--grid { border-collapse: separate; border-spacing: 0; }
+.tk-grid-scroll .tk-table--grid th,
+.tk-grid-scroll .tk-table--grid td { border-width: 0 1px 1px 0; border-style: solid; border-color: var(--tk-card-border); }
+.tk-grid-scroll .tk-table--grid thead th:first-child,
+.tk-grid-scroll .tk-table--grid td:first-child { border-left: 1px solid var(--tk-card-border); }
+.tk-grid-scroll .tk-table--grid thead th { border-top: 1px solid var(--tk-card-border); }
+
+.tk-grid-scroll .tk-table--grid thead th {
+    position: sticky; top: 0; z-index: 3;
+    background: var(--tk-surface-3);
+    box-shadow: 0 1px 0 var(--tk-card-border);
+}
+.tk-grid-scroll .tk-table--grid tbody td:first-child {
+    position: sticky; left: 0; z-index: 2;
+    background: var(--tk-surface);
+}
+.tk-grid-scroll .tk-table--grid thead th:first-child { left: 0; z-index: 4; }
+.tk-grid-scroll .tk-table--grid tr.tk-table__group td { background: var(--tk-surface-3); }
+.tk-group-label { position: sticky; left: 10px; display: inline-block; }
+
+/* Instalado: verde suave que no cansa la vista */
+.tk-table--grid .tk-col-installed { background: color-mix(in srgb, var(--tk-success) 9%, var(--tk-surface)); }
+.tk-table--grid thead th.tk-col-installed { background: color-mix(in srgb, var(--tk-success) 20%, var(--tk-surface-3)); color: var(--tk-heading); }
+.tk-table--grid td.tk-installed { color: var(--tk-heading); }
+
+/* Fila resaltada al pasar el cursor o tocar */
+.tk-grid-scroll .tk-table--grid tbody tr:hover td { background: color-mix(in srgb, var(--tk-primary, #2a78d6) 7%, var(--tk-surface)); }
+.tk-grid-scroll .tk-table--grid tbody tr:hover td.tk-col-installed { background: color-mix(in srgb, var(--tk-success) 16%, var(--tk-surface)); }
+.tk-grid-scroll .tk-table--grid tbody tr.tk-table__group:hover td { background: var(--tk-surface-3); }
