@@ -1,0 +1,25 @@
+<MudDialog>
+    <DialogContent>
+        <MudDatePicker PickerVariant="PickerVariant.Static" Date="_date" DateChanged="OnPicked" FirstDayOfWeek="DayOfWeek.Monday" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public DateOnly Date { get; set; }
+
+    private DateTime? _date;
+
+    protected override void OnInitialized() => _date = Date.ToDateTime(TimeOnly.MinValue);
+
+    private void OnPicked(DateTime? picked)
+    {
+        if (picked is { } value)
+        {
+            MudDialog.Close(DialogResult.Ok(DateOnly.FromDateTime(value)));
+        }
+    }
+}

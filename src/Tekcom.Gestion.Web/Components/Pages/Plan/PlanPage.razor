@@ -53,12 +53,7 @@ else
         </div>
         @if (_gantt && _days)
         {
-            <div class="tk-weeknav">
-                <button type="button" class="tk-btn tk-btn--outline" @onclick="() => _weekStart = _weekStart.AddDays(-7)" aria-label="Semana anterior">‹</button>
-                <strong>@UiText.ShortDate(_weekStart) – @UiText.ShortDate(_weekStart.AddDays(6))</strong>
-                <button type="button" class="tk-btn tk-btn--outline" @onclick="() => _weekStart = _weekStart.AddDays(7)" aria-label="Semana siguiente">›</button>
-                <button type="button" class="tk-btn tk-btn--outline" @onclick="() => _weekStart = MondayOf(Clock.Today)">Hoy</button>
-            </div>
+            <WeekNav WeekStart="_weekStart" WeekStartChanged="d => _weekStart = d" TodayDate="Clock.Today" />
         }
         <span class="grow"></span>
         @if (_canEdit)
