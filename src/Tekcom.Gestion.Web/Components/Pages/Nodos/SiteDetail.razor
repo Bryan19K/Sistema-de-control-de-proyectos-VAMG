@@ -77,7 +77,7 @@ else
                             {
                                 var local = stage;
                                 <tr>
-                                    <td>@local.Definition?.Name</td>
+                                    <td><a class="tk-row-link" role="button" tabindex="0" @onclick="() => ShowStageAsync(local)">@local.Definition?.Name</a></td>
                                     <td>
                                         @if (_canEdit)
                                         {
@@ -452,6 +452,17 @@ else
         var auto = _project?.MinAcceptableDbm is not null && _project.MaxAcceptableDbm is not null;
         var dialog = await Dialogs.ShowAsync<MeasurementDialog>("Editar medición",
             new DialogParameters { ["SiteId"] = Id, ["Model"] = measurement, ["AutoGrade"] = auto, ["Range"] = auto ? $"{_project!.MinAcceptableDbm:0.##} a {_project.MaxAcceptableDbm:0.##}" : null },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task ShowStageAsync(SiteStage stage)
+    {
+        var dialog = await Dialogs.ShowAsync<StageInfoDialog>(stage.Definition?.Name ?? "Etapa",
+            new DialogParameters { ["ProjectId"] = _summary!.Site.ProjectId, ["SiteId"] = Id, ["Stage"] = stage, ["CanEdit"] = _canEdit },
             new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         if (!(await dialog.Result)!.Canceled)
         {

@@ -1,0 +1,145 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject ISiteService Sites
+@inject IInventoryService Inventory
+@inject IDialogService Dialogs
+@inject IDateTimeProvider Clock
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <div class="tk-stage-modal">
+            <div class="tk-stage-modal__status">
+                <StatusChip Status="UiText.StageStatusKind(Stage.Status)" Text="@UiText.StageStatusName(Stage.Status)" />
+            </div>
+
+            <dl class="tk-stage-modal__grid">
+                <dt>Inició</dt>
+                <dd>@(Stage.ActualStart is { } s ? UiText.LongDate(s) : "Sin fecha registrada")</dd>
+                <dt>@(Stage.Status == StageStatus.Finished ? "Terminó" : "Termina")</dt>
+                <dd>@EndText</dd>
+                @if (Stage.ActualStart is { } a && Stage.ActualEnd is { } b)
+                {
+                    <dt>Duró</dt>
+                    <dd>@(b.DayNumber - a.DayNumber + 1) día(s)</dd>
+                }
+                else if (Stage.ActualStart is { } c && Stage.Status == StageStatus.InProgress)
+                {
+                    <dt>Lleva</dt>
+                    <dd>@Math.Max(1, Clock.Today.DayNumber - c.DayNumber + 1) día(s)</dd>
+                }
+                <dt>Plan</dt>
+                <dd>@(Stage.PlannedStart is null && Stage.PlannedEnd is null ? "Sin fechas planificadas" : $"{UiText.Date(Stage.PlannedStart)} – {UiText.Date(Stage.PlannedEnd)}")</dd>
+            </dl>
+
+            @if (!string.IsNullOrWhiteSpace(Stage.Notes))
+            {
+                <p class="tk-muted mt-2">Nota: @Stage.Notes</p>
+            }
+
+            @if (_loaded && _count > 0)
+            {
+                <div class="tk-stage-modal__trace">
+                    <strong>Según lo instalado en esta etapa</strong>
+                    <div>Primer registro: @UiText.Date(_first) · Último registro: @UiText.Date(_last) · @_count registro(s)</div>
+                    @if (_fromExcel)
+                    {
+                        <div class="tk-muted">Esas fechas son las de la carga del Excel, no las reales de campo; por eso no se usan solas.</div>
+                    }
+                </div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        @if (CanEdit && _loaded && _count > 0 && !_fromExcel && (Stage.ActualStart is null || Stage.ActualEnd is null))
+        {
+            <MudButton OnClick="UseInstalledDatesAsync">Usar fechas de lo instalado</MudButton>
+        }
+        @if (CanEdit)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="EditAsync">Editar fechas</MudButton>
+        }
+        <MudButton OnClick="() => MudDialog.Cancel()">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public int SiteId { get; set; }
+    [Parameter] public SiteStage Stage { get; set; } = default!;
+    [Parameter] public bool CanEdit { get; set; }
+
+    private bool _loaded;
+    private int _count;
+    private DateOnly _first;
+    private DateOnly _last;
+    private bool _fromExcel;
+
+    private string EndText => Stage.ActualEnd is { } e
+        ? UiText.LongDate(e)
+        : Stage.Status == StageStatus.Finished ? "Sin fecha registrada" : "Todavía no termina";
+
+    private static QuantityGroup[] GroupsFor(StageCode code) => code switch
+    {
+        StageCode.FcCable => [QuantityGroup.FcCable],
+        StageCode.MpoCable => [QuantityGroup.MpoCable],
+        StageCode.Fat => [QuantityGroup.SubBox, QuantityGroup.EndBox],
+        StageCode.HubAndXBox => [QuantityGroup.HubBox, QuantityGroup.XBox],
+        StageCode.Fusion => [QuantityGroup.Fusion],
+        StageCode.AmericanCrossings => [QuantityGroup.Crossing],
+        _ => [],
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var groups = GroupsFor(Stage.Code);
+        if (groups.Length > 0)
+        {
+            var moves = await Inventory.MovementsAsync(new MovementFilter
+            {
+                ProjectId = ProjectId, SiteId = SiteId, Type = MovementType.Installed, IncludeVoided = false, Take = 5000,
+            });
+            var own = moves.Where(m => m.Material is not null && groups.Contains(m.Material.Group)).ToList();
+            if (own.Count > 0)
+            {
+                _count = own.Count;
+                _first = own.Min(m => m.Date);
+                _last = own.Max(m => m.Date);
+                _fromExcel = own.All(m => (m.Notes ?? string.Empty).Contains("Excel", StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        _loaded = true;
+    }
+
+    private async Task UseInstalledDatesAsync()
+    {
+        try
+        {
+            await Sites.SetStageDatesAsync(SiteId, Stage.Code, Stage.PlannedStart, Stage.PlannedEnd,
+                Stage.ActualStart ?? _first, Stage.ActualEnd ?? (Stage.Status == StageStatus.Finished ? _last : null));
+            Snackbar.Add("Fechas guardadas.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task EditAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<StageDatesDialog>($"Fechas de {Stage.Definition?.Name ?? "la etapa"}",
+            new DialogParameters { ["SiteId"] = SiteId, ["Stage"] = Stage }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+    }
+}
