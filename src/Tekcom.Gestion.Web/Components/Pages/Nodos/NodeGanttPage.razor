@@ -35,12 +35,7 @@
     </div>
     @if (_days)
     {
-        <div class="tk-weeknav">
-            <button type="button" class="tk-btn tk-btn--outline" @onclick="() => MoveWeek(-1)" aria-label="Semana anterior">‹</button>
-            <strong>@UiText.ShortDate(_weekStart) – @UiText.ShortDate(_weekStart.AddDays(6))</strong>
-            <button type="button" class="tk-btn tk-btn--outline" @onclick="() => MoveWeek(1)" aria-label="Semana siguiente">›</button>
-            <button type="button" class="tk-btn tk-btn--outline" @onclick="GoToday">Hoy</button>
-        </div>
+        <WeekNav WeekStart="_weekStart" WeekStartChanged="d => _weekStart = d" TodayDate="Clock.Today" />
     }
 </div>
 

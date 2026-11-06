@@ -1,0 +1,33 @@
+@using Tekcom.Gestion.Web.Services
+@inject IDialogService Dialogs
+
+<div class="tk-weeknav">
+    <button type="button" class="tk-btn tk-btn--outline" @onclick="() => Move(-1)" aria-label="Semana anterior">‹</button>
+    <button type="button" class="tk-btn tk-btn--outline tk-weeknav__range" @onclick="PickAsync" aria-label="Elegir una fecha en el calendario" title="Elegir una fecha">
+        <MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Size="Size.Small" /> @UiText.ShortDate(WeekStart) – @UiText.ShortDate(WeekStart.AddDays(6))
+    </button>
+    <button type="button" class="tk-btn tk-btn--outline" @onclick="() => Move(1)" aria-label="Semana siguiente">›</button>
+    <button type="button" class="tk-btn tk-btn--outline" @onclick="Today">Hoy</button>
+</div>
+
+@code {
+    [Parameter] public DateOnly WeekStart { get; set; }
+    [Parameter] public EventCallback<DateOnly> WeekStartChanged { get; set; }
+    [Parameter] public DateOnly TodayDate { get; set; }
+
+    private static DateOnly MondayOf(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+
+    private Task Move(int weeks) => WeekStartChanged.InvokeAsync(WeekStart.AddDays(7 * weeks));
+    private Task Today() => WeekStartChanged.InvokeAsync(MondayOf(TodayDate));
+
+    private async Task PickAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<JumpToDateDialog>("Ir a la semana de…",
+            new DialogParameters { ["Date"] = WeekStart }, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall });
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: DateOnly picked })
+        {
+            await WeekStartChanged.InvokeAsync(MondayOf(picked));
+        }
+    }
+}
