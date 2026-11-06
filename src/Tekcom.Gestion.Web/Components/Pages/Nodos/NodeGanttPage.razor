@@ -35,7 +35,16 @@
     </div>
     @if (_days)
     {
-        <WeekNav WeekStart="_weekStart" WeekStartChanged="d => _weekStart = d" TodayDate="Clock.Today" />
+        <div class="tk-segment" role="tablist" aria-label="Cuántos días ver">
+            <button type="button" class="@Seg(_span == 7)" @onclick="() => SetSpan(7)">1 sem</button>
+            <button type="button" class="@Seg(_span == 14)" @onclick="() => SetSpan(14)">2 sem</button>
+            <button type="button" class="@Seg(_span == 28)" @onclick="() => SetSpan(28)">4 sem</button>
+            <button type="button" class="@Seg(_span == 0)" @onclick="() => SetSpan(0)">Todo</button>
+        </div>
+        @if (_span > 0)
+        {
+            <WeekNav WeekStart="_weekStart" WeekStartChanged="d => _weekStart = d" TodayDate="Clock.Today" Days="_span" />
+        }
     }
 </div>
 
@@ -63,15 +72,21 @@ else
         <p class="tk-muted mb-2">Toque un día de la fila de un nodo (o de una etapa) para poner ahí el inicio o el fin.</p>
     }
 
-    <div class="tk-card tk-gantt tk-gantt--compact @(_days ? "tk-gantt--days" : string.Empty)" style="--tk-gantt-cols:@Cols">
+    <div class="tk-card tk-gantt tk-gantt--compact @(_days ? "tk-gantt--days" : string.Empty) @(Dense ? "tk-gantt--dense" : string.Empty) @(_days && _span == 0 ? "tk-gantt--tiny" : string.Empty)" style="--tk-gantt-cols:@Cols; --tk-day-w:@(DayWidth)px">
         <div class="tk-gantt__head">
             <div>Nodo</div>
             @if (_days)
             {
-                @for (var d = 0; d < 7; d++)
+                @for (var d = 0; d < DayCount; d++)
                 {
-                    var day = _weekStart.AddDays(d);
-                    <div class="@(day == Clock.Today ? "is-today" : string.Empty)" title="@UiText.LongDate(day)">@DayName(d)<br /><span class="tk-gantt__daynum">@day.Day</span></div>
+                    var day = AxisStart.AddDays(d);
+                    <div class="@DayClass(day, d)" title="@UiText.LongDate(day)">
+                        @if (Dense)
+                        {
+                            <span class="tk-gantt__mon">@(d == 0 || day.Day == 1 ? MonthName(day) : " ")</span>
+                        }
+                        <span class="tk-gantt__dow">@(Dense ? DayLetter(day) : DayName(d))</span><br /><span class="tk-gantt__daynum">@day.Day</span>
+                    </div>
                 }
             }
             else
@@ -136,13 +151,36 @@ else
     private DateOnly _axisStart;
     private DateOnly _weekStart;
     private int _weeks = 8;
+    private int _span;
+    private DateOnly _allStart;
+    private int _allDays = 28;
     private int? _openId;
     private List<SiteStage> _stages = [];
     private List<InventoryMovement> _installed = [];
     private List<StageDefinition> _definitions = [];
 
     private decimal Average => _all.Count == 0 ? 0 : _all.Average(s => s.GlobalPercent);
-    private int Cols => _days ? 7 : _weeks;
+    private int DayCount => _span > 0 ? _span : _allDays;
+    private int Cols => _days ? DayCount : _weeks;
+    private bool Dense => _days && DayCount > 7;
+    private int DayWidth => _span switch { 14 => 44, 28 => 30, 0 => 18, _ => 0 };
+
+    private static readonly CultureInfo EsCulture = CultureInfo.GetCultureInfo("es-SV");
+    private static string MonthName(DateOnly day) => day.ToString("MMM", EsCulture).TrimEnd('.');
+    private static string DayLetter(DateOnly day) => day.DayOfWeek switch
+    {
+        DayOfWeek.Monday => "L", DayOfWeek.Tuesday => "M", DayOfWeek.Wednesday => "M", DayOfWeek.Thursday => "J",
+        DayOfWeek.Friday => "V", DayOfWeek.Saturday => "S", _ => "D",
+    };
+
+    private string DayClass(DateOnly day, int index)
+    {
+        var cls = new List<string>();
+        if (day == Clock.Today) cls.Add("is-today");
+        if (day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) cls.Add("is-weekend");
+        if (day.DayOfWeek == DayOfWeek.Monday && index > 0) cls.Add("is-weekstart");
+        return string.Join(' ', cls);
+    }
 
     private IEnumerable<SiteSummary> Visible
     {
@@ -165,6 +203,7 @@ else
 
     private void SetFilter(GanttFilter filter) => _filter = _filter == filter ? GanttFilter.All : filter;
     private void SetDays(bool days) => _days = days;
+    private void SetSpan(int span) => _span = span;
     private void MoveWeek(int delta) => _weekStart = _weekStart.AddDays(7 * delta);
     private void GoToday() => _weekStart = MondayOf(Clock.Today);
     private static DateOnly MondayOf(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
@@ -210,6 +249,8 @@ else
         {
             _axisStart = MondayOf(Clock.Today);
             _weeks = 8;
+            _allStart = _axisStart;
+            _allDays = 28;
             return;
         }
 
@@ -219,6 +260,8 @@ else
         var max = dates.Max();
         _axisStart = MondayOf(min);
         _weeks = Math.Max(4, (int)Math.Ceiling((max.DayNumber - _axisStart.DayNumber + 1) / 7.0));
+        _allStart = _axisStart;
+        _allDays = _weeks * 7;
     }
 
     private async Task ShowStageAsync(Site site, SiteStage? stage)
@@ -255,8 +298,8 @@ else
 
     // ------------------------------------------------------------------ ejes y barras
 
-    private DateOnly AxisStart => _days ? _weekStart : _axisStart;
-    private double TotalDays => _days ? 7 : _weeks * 7.0;
+    private DateOnly AxisStart => _days ? (_span == 0 ? _allStart : _weekStart) : _axisStart;
+    private double TotalDays => _days ? DayCount : _weeks * 7.0;
     private static string Pct(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
     private string TodayLeft => Pct((Clock.Today.DayNumber - AxisStart.DayNumber + 0.5) / TotalDays * 100);
     private bool TodayVisible => Clock.Today >= AxisStart && Clock.Today < AxisStart.AddDays((int)TotalDays);
@@ -288,9 +331,9 @@ else
         var seq = 0;
         for (var c = 0; c < Cols; c++)
         {
-            var date = _days ? _weekStart.AddDays(c) : default;
+            var date = _days ? AxisStart.AddDays(c) : default;
             builder.OpenElement(seq++, "div");
-            builder.AddAttribute(seq++, "class", "tk-gantt__cell" + (_days && _canEdit ? " is-clickable" : string.Empty) + (_days && date == Clock.Today ? " is-today" : string.Empty));
+            builder.AddAttribute(seq++, "class", "tk-gantt__cell" + (_days && _canEdit ? " is-clickable" : string.Empty) + (_days ? " " + DayClass(date, c) : string.Empty));
             if (_days && _canEdit)
             {
                 var dayCopy = date;

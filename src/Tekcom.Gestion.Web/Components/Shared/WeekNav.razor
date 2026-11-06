@@ -4,7 +4,7 @@
 <div class="tk-weeknav">
     <button type="button" class="tk-btn tk-btn--outline" @onclick="() => Move(-1)" aria-label="Semana anterior">‹</button>
     <button type="button" class="tk-btn tk-btn--outline tk-weeknav__range" @onclick="PickAsync" aria-label="Elegir una fecha en el calendario" title="Elegir una fecha">
-        <MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Size="Size.Small" /> @UiText.ShortDate(WeekStart) – @UiText.ShortDate(WeekStart.AddDays(6))
+        <MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Size="Size.Small" /> @UiText.ShortDate(WeekStart) – @UiText.ShortDate(WeekStart.AddDays(Math.Max(Days, 1) - 1))
     </button>
     <button type="button" class="tk-btn tk-btn--outline" @onclick="() => Move(1)" aria-label="Semana siguiente">›</button>
     <button type="button" class="tk-btn tk-btn--outline" @onclick="Today">Hoy</button>
@@ -14,6 +14,8 @@
     [Parameter] public DateOnly WeekStart { get; set; }
     [Parameter] public EventCallback<DateOnly> WeekStartChanged { get; set; }
     [Parameter] public DateOnly TodayDate { get; set; }
+    /// <summary>Cuántos días se ven a la vez (7 = una semana).</summary>
+    [Parameter] public int Days { get; set; } = 7;
 
     private static DateOnly MondayOf(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
 

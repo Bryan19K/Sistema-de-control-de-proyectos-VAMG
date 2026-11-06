@@ -1338,3 +1338,39 @@ html[data-theme="dark"] .tk-seg__part--none { color: var(--tk-text); }
 .tk-stage-modal__grid dd { margin: 0; color: var(--tk-heading); font-weight: 700; }
 .tk-stage-modal__trace { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--tk-surface-3); font-size: .92rem; }
 .tk-weeknav__range { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+
+/* ---------- Gantt por días compacto: muchos días angostos, columna del nodo fija ---------- */
+.tk-gantt--dense .tk-gantt__head,
+.tk-gantt--dense .tk-gantt__row {
+    grid-template-columns: 220px repeat(var(--tk-gantt-cols), minmax(var(--tk-day-w), 1fr));
+    min-width: calc(220px + var(--tk-gantt-cols) * var(--tk-day-w));
+}
+.tk-gantt--dense .tk-gantt__bars { grid-template-columns: repeat(var(--tk-gantt-cols), minmax(var(--tk-day-w), 1fr)); }
+.tk-gantt--dense .tk-gantt__row { background: var(--tk-surface); }
+.tk-gantt--dense .tk-gantt__row.is-open,
+.tk-gantt--dense .tk-gantt__row.tk-gantt__row--stage { background: var(--tk-surface-2); }
+.tk-gantt--dense .tk-gantt__row.tk-gantt__row--stage:hover { background: var(--tk-surface-3); }
+.tk-gantt--dense .tk-gantt__head > div:first-child,
+.tk-gantt--dense .tk-gantt__label { position: sticky; left: 0; z-index: 4; background: inherit; }
+.tk-gantt--dense .tk-gantt__head > div:first-child { background: var(--tk-th-bg, #f5f7fa); padding-left: 10px; }
+.tk-gantt--dense .tk-gantt__head > div { padding: 4px 0; font-size: .72rem; min-width: 0; }
+.tk-gantt--dense .tk-gantt__daynum { font-size: .82rem; }
+.tk-gantt--dense .tk-gantt__detail { position: sticky; left: 0; min-width: 0; width: 100%; box-sizing: border-box; }
+.tk-gantt__mon { display: block; font-size: .6rem; font-weight: 800; text-transform: uppercase; color: var(--tk-primary, #2a78d6); white-space: nowrap; }
+.tk-gantt--tiny .tk-gantt__dow { display: none; }
+.tk-gantt--tiny .tk-gantt__daynum { font-size: .66rem; }
+.tk-gantt__head > div.is-weekend { background: color-mix(in srgb, var(--tk-text-3) 9%, var(--tk-th-bg, #f5f7fa)); }
+.tk-gantt__cell.is-weekend { background: color-mix(in srgb, var(--tk-text-3) 7%, transparent); }
+.tk-gantt__head > div.is-weekend.is-today { background: color-mix(in srgb, var(--tk-warning) 18%, var(--tk-surface-2)); }
+.tk-gantt__cell.is-weekend.is-today { background: color-mix(in srgb, var(--tk-warning) 10%, transparent); }
+.tk-gantt__head > div.is-weekstart,
+.tk-gantt__cell.is-weekstart { border-left-color: color-mix(in srgb, var(--tk-text-3) 55%, var(--tk-line)); }
+@media (max-width: 640px) {
+    .tk-gantt--dense .tk-gantt__head,
+    .tk-gantt--dense .tk-gantt__row {
+        grid-template-columns: 140px repeat(var(--tk-gantt-cols), minmax(var(--tk-day-w), 1fr));
+        min-width: calc(140px + var(--tk-gantt-cols) * var(--tk-day-w));
+    }
+    .tk-gantt--dense .tk-gantt__label { padding: 4px 6px; font-size: .8rem; }
+    .tk-gantt--dense .tk-gantt__row--stage .tk-gantt__label { padding-left: 14px; }
+}
