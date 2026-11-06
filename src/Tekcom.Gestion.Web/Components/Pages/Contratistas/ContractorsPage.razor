@@ -26,10 +26,10 @@
 else
 {
     <div class="tk-kpi-grid">
-        <KpiCard Label="Contratistas activos" Value="@_views.Count(v => v.Contractor.Stage == ContractorStage.Active).ToString()" Note="@($"{_views.Count(v => v.Contractor.Stage == ContractorStage.Prospect)} por cotizar")" Tone="KpiCard.NoteTone.Info" />
-        <KpiCard Label="Personal de campo" Value="@_views.Sum(v => v.People).ToString()" Note="@($"{_views.Sum(v => v.Covered)} al día")" Tone="KpiCard.NoteTone.Success" />
-        <KpiCard Label="Pendientes de póliza o afiliación" Value="@_views.Sum(v => v.Pending).ToString()" Note="falta el número o dice PENDIENTE" Tone="@(_views.Sum(v => v.Pending) == 0 ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Danger)" />
-        <KpiCard Label="Vencidas o por vencer" Value="@((_views.Sum(v => v.Expired) + _views.Sum(v => v.ExpiringSoon)).ToString())" Note="vigencia terminada o en 15 días" Tone="@(_views.Sum(v => v.Expired + v.ExpiringSoon) == 0 ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Warning)" />
+        <KpiCard Label="Contratistas activos" Value="@_views.Count(v => v.Contractor.Stage == ContractorStage.Active).ToString()" OnClick="() => _tab = 1" Active="_tab == 1" Note="@($"{_views.Count(v => v.Contractor.Stage == ContractorStage.Prospect)} por cotizar")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Personal de campo" Value="@_views.Sum(v => v.People).ToString()" OnClick="() => _tab = 2" Active="_tab == 2" Note="@($"{_views.Sum(v => v.Covered)} al día")" Tone="KpiCard.NoteTone.Success" />
+        <KpiCard Label="Pendientes de póliza o afiliación" Value="@_views.Sum(v => v.Pending).ToString()" OnClick="() => _tab = 0" Active="_tab == 0" Note="falta el número o dice PENDIENTE" Tone="@(_views.Sum(v => v.Pending) == 0 ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Danger)" />
+        <KpiCard Label="Vencidas o por vencer" Value="@((_views.Sum(v => v.Expired) + _views.Sum(v => v.ExpiringSoon)).ToString())" OnClick="() => _tab = 0" Note="vigencia terminada o en 15 días" Tone="@(_views.Sum(v => v.Expired + v.ExpiringSoon) == 0 ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Warning)" />
     </div>
 
     <MudTabs Elevation="0" Rounded="true" Color="Color.Primary" ApplyEffectsToContainer="true" TabPanelsClass="pt-4" @bind-ActivePanelIndex="_tab">

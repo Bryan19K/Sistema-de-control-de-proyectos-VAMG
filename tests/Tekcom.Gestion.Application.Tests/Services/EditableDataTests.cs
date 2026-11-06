@@ -237,4 +237,23 @@ public class EditableDataTests
         var inUse = () => reference.DeleteClientAsync(client.Id);
         await inUse.Should().ThrowAsync<BusinessRuleException>().WithMessage("*proyecto*");
     }
+
+    [Fact]
+    public async Task El_ritmo_del_nodo_usa_el_avance_por_piezas_instaladas()
+    {
+        using var env = await SetupAsync();
+        var site = (await env.Sites.GetAsync(env.Site.Id))!;
+        site.PlannedStart = env.Today.AddDays(-20);
+        site.PlannedEnd = env.Today.AddDays(-1); // el tiempo ya terminó
+        await env.Sites.SaveAsync(site);
+
+        await env.Inventory.SetInstalledTotalAsync(env.Project.Id, env.Site.Id, env.Cable.Id, 3, env.Today, null);
+        var behind = (await env.Sites.GetSummaryAsync(env.Site.Id))!;
+        behind.GlobalPercent.Should().Be(30m);
+        behind.Pace.Status.Should().Be(Domain.Enums.PaceStatus.Behind);
+
+        await env.Inventory.SetInstalledTotalAsync(env.Project.Id, env.Site.Id, env.Cable.Id, 10, env.Today, null);
+        (await env.Sites.GetSummaryAsync(env.Site.Id))!.Pace.Status.Should().Be(Domain.Enums.PaceStatus.Completed,
+            "con todas las piezas instaladas el nodo está completo aunque sus etapas no estén marcadas");
+    }
 }

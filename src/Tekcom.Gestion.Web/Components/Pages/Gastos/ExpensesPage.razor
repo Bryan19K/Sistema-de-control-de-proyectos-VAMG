@@ -33,17 +33,17 @@ else if (_summary.Entries == 0 && _orders.Count == 0)
 else
 {
     <div class="tk-kpi-grid">
-        <KpiCard Label="Total gastado" Value="@UiText.Money(_summary.GrandTotal)" Note="@($"{_summary.Entries} registros")" Tone="KpiCard.NoteTone.Info" />
-        <KpiCard Label="Compras con IVA" Value="@UiText.Money(_summary.PurchasesTotal)" Note="@($"IVA {UiText.Money(_summary.PurchasesVat)}")" />
-        <KpiCard Label="Caja chica" Value="@UiText.Money(_summary.PettyCashTotal)" Note="con factura (DTE)" />
-        <KpiCard Label="Viáticos" Value="@UiText.Money(_summary.TravelTotal)" Note="supervisores y técnicos" />
+        <KpiCard Label="Total gastado" Value="@UiText.Money(_summary.GrandTotal)" OnClick="() => _tab = 0" Active="_tab == 0" Note="@($"{_summary.Entries} registros")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Compras con IVA" Value="@UiText.Money(_summary.PurchasesTotal)" OnClick="() => _tab = 1" Active="_tab == 1" Note="@($"IVA {UiText.Money(_summary.PurchasesVat)}")" />
+        <KpiCard Label="Caja chica" Value="@UiText.Money(_summary.PettyCashTotal)" OnClick="() => _tab = 2" Active="_tab == 2" Note="con factura (DTE)" />
+        <KpiCard Label="Viáticos" Value="@UiText.Money(_summary.TravelTotal)" OnClick="() => _tab = 3" Active="_tab == 3" Note="supervisores y técnicos" />
         @if (_orders.Count > 0)
         {
-            <KpiCard Label="Valor de las órdenes" Value="@UiText.Money(_orders.Sum(o => o.Total))" Note="@($"{_orders.Count} órdenes con IVA")" Tone="KpiCard.NoteTone.Success" />
+            <KpiCard Label="Valor de las órdenes" Value="@UiText.Money(_orders.Sum(o => o.Total))" OnClick="() => _tab = 4" Active="_tab == 4" Note="@($"{_orders.Count} órdenes con IVA")" Tone="KpiCard.NoteTone.Success" />
         }
     </div>
 
-    <MudTabs Elevation="0" Rounded="true" Color="Color.Primary" ApplyEffectsToContainer="true" TabPanelsClass="pt-4">
+    <MudTabs Elevation="0" Rounded="true" Color="Color.Primary" ApplyEffectsToContainer="true" TabPanelsClass="pt-4" @bind-ActivePanelIndex="_tab">
         <MudTabPanel Text="Resumen">
             <div class="tk-two-col">
                 <SectionCard Title="Gasto por tipo">
@@ -236,6 +236,7 @@ else
     private List<ContractOrder> _orders = [];
     private List<PriceItem> _prices = [];
     private int _projectId;
+    private int _tab;
 
     protected override async Task OnInitializedAsync() => await ReloadAsync(first: true);
 

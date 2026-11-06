@@ -31,15 +31,15 @@
 else
 {
     <div class="tk-kpi-grid">
-        <KpiCard Label="Proyectos activos" Value="@_data.ActiveProjects.ToString()"
+        <KpiCard Label="Proyectos activos" Value="@_data.ActiveProjects.ToString()" Href="proyectos"
                  Note="@(_data.ActiveProjects == 0 ? "Sin proyectos activos" : $"{_data.OnTimeProjects} en tiempo")"
                  Tone="@(_data.ActiveProjects == 0 ? KpiCard.NoteTone.Neutral : KpiCard.NoteTone.Success)" />
-        <KpiCard Label="Tareas vencidas" Value="@_data.OverdueTasks.ToString()"
+        <KpiCard Label="Tareas vencidas" Value="@_data.OverdueTasks.ToString()" Href="sprints"
                  Note="@(_data.OverdueTasks == 0 ? "Todo al día" : $"{_data.OverdueSinceYesterday} desde ayer")"
                  Tone="@(_data.OverdueTasks == 0 ? KpiCard.NoteTone.Neutral : KpiCard.NoteTone.Danger)" />
-        <KpiCard Label="Tareas esta semana" Value="@_data.TasksThisWeek.ToString()"
+        <KpiCard Label="Tareas esta semana" Value="@_data.TasksThisWeek.ToString()" Href="sprints"
                  Note="@($"{_data.TasksThisWeekDone} completadas")" Tone="KpiCard.NoteTone.Info" />
-        <KpiCard Label="Materiales con stock bajo" Value="@_data.LowStockMaterials.ToString()"
+        <KpiCard Label="Materiales con stock bajo" Value="@_data.LowStockMaterials.ToString()" Href="materiales?estado=alertas"
                  Note="@(_data.LowStockMaterials == 0 ? "Bodega sin alertas" : "Revisar bodega")"
                  Tone="@(_data.LowStockMaterials == 0 ? KpiCard.NoteTone.Neutral : KpiCard.NoteTone.Warning)" />
     </div>

@@ -1,0 +1,28 @@
+@using Tekcom.Gestion.Web.Services
+
+<MudDialog>
+    <DialogContent>
+        <p class="mb-3">Día elegido: <strong>@UiText.LongDate(Date)</strong></p>
+        <MudStack Spacing="2">
+            <button type="button" class="tk-btn tk-btn--outline" @onclick='() => Pick("ps")'>Poner aquí el INICIO planificado</button>
+            <button type="button" class="tk-btn tk-btn--outline" @onclick='() => Pick("pe")'>Poner aquí el FIN planificado</button>
+            @if (ShowActual)
+            {
+                <button type="button" class="tk-btn tk-btn--outline" @onclick='() => Pick("as")'>Poner aquí el INICIO real</button>
+                <button type="button" class="tk-btn tk-btn--outline" @onclick='() => Pick("ae")'>Poner aquí el FIN real</button>
+            }
+            <button type="button" class="tk-btn tk-btn--primary" @onclick='() => Pick("all")'>Abrir todas las fechas…</button>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public DateOnly Date { get; set; }
+    [Parameter] public bool ShowActual { get; set; }
+
+    private void Pick(string choice) => MudDialog.Close(DialogResult.Ok(choice));
+}

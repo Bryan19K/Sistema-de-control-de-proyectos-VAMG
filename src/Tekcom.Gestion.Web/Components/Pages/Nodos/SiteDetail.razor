@@ -53,20 +53,20 @@ else
     </PageHeader>
 
     <div class="tk-kpi-grid">
-        <KpiCard Label="Avance global del nodo" Value="@($"{_summary.GlobalPercent:0.#}%")"
+        <KpiCard Label="Avance global del nodo" Value="@($"{_summary.GlobalPercent:0.#}%")" Href="@($"nodos/{Id}#sec-cantidades")"
                  Note="@(_summary.PiecesPercent is null ? "por etapas (el nodo no tiene proyección)" : "por piezas instaladas sobre lo proyectado")" Tone="KpiCard.NoteTone.Info" />
-        <KpiCard Label="Avance por etapas" Value="@($"{_summary.ProgressPercent:0.#}%")" Note="ponderado por días de cada etapa" />
+        <KpiCard Label="Avance por etapas" Value="@($"{_summary.ProgressPercent:0.#}%")" Href="@($"nodos/{Id}#sec-etapas")" Note="ponderado por días de cada etapa" />
         <KpiCard Label="Tiempo transcurrido" Value="@($"{_summary.Pace.ElapsedPercent:0.#}%")"
                  Note="@($"{UiText.Date(site.PlannedStart)} – {UiText.Date(site.PlannedEnd)}")" />
-        <KpiCard Label="Avance de FATs" Value="@($"{_summary.FatPercent:0.#}%")"
+        <KpiCard Label="Avance de FATs" Value="@($"{_summary.FatPercent:0.#}%")" Href="@($"nodos/{Id}#sec-mediciones")"
                  Note="@(_summary.ReadyToMeasure ? "Listo para medir" : $"Se mide con {_project?.ReadyToMeasurePercent}%")"
                  Tone="_summary.ReadyToMeasure ? KpiCard.NoteTone.Warning : KpiCard.NoteTone.Neutral" />
-        <KpiCard Label="Entrega al cliente" Value="@(site.IsReadyToDeliver ? "Listo" : "Pendiente")"
+        <KpiCard Label="Entrega al cliente" Value="@(site.IsReadyToDeliver ? "Listo" : "Pendiente")" Href="@($"nodos/{Id}#sec-control")"
                  Note="ODN y feeder finalizados" Tone="site.IsReadyToDeliver ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Neutral" />
     </div>
 
     <div class="tk-dash-grid">
-        <SectionCard Title="Etapas del nodo">
+        <div id="sec-etapas" class="tk-anchor"><SectionCard Title="Etapas del nodo">
             <HeaderActions><PaceChip Pace="_summary.Pace" /></HeaderActions>
             <ChildContent>
                 <div class="tk-table-wrap">
@@ -113,9 +113,9 @@ else
                     </table>
                 </div>
             </ChildContent>
-        </SectionCard>
+        </SectionCard></div>
 
-        <SectionCard Title="Control del nodo">
+        <div id="sec-control" class="tk-anchor"><SectionCard Title="Control del nodo">
             <div class="tk-flag">
                 <div>
                     <div class="tk-flag__label">Supervisión de CAES</div>
@@ -154,10 +154,10 @@ else
             {
                 <div class="tk-flag"><div><div class="tk-flag__label">Notas</div><div class="tk-flag__help">@site.Notes</div></div></div>
             }
-        </SectionCard>
+        </SectionCard></div>
     </div>
 
-    <SectionCard Title="Cantidades por material" Class="mt-6">
+    <div id="sec-cantidades" class="tk-anchor"><SectionCard Title="Cantidades por material" Class="mt-6">
         <HeaderActions>
             <a href="nodos/@Id/liquidacion" class="tk-btn tk-btn--outline">Liquidación</a>
             @if (_canEdit)
@@ -232,10 +232,10 @@ else
                 </div>
             }
         </ChildContent>
-    </SectionCard>
+    </SectionCard></div>
 
     <div class="tk-two-col mt-6">
-        <SectionCard Title="Mediciones de FATs">
+        <div id="sec-mediciones" class="tk-anchor"><SectionCard Title="Mediciones de FATs">
             <HeaderActions>
                 @if (_measureSummary.Measured > 0)
                 {
@@ -275,7 +275,7 @@ else
                     </div>
                 }
             </ChildContent>
-        </SectionCard>
+        </SectionCard></div>
 
         <SectionCard Title="Ajustes de la proyección">
             @if (_adjustments.Count == 0)
