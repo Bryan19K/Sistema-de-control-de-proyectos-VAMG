@@ -1300,3 +1300,33 @@ button.tk-kpi--link.is-active { border-color: var(--tk-primary, #2a78d6); box-sh
 .tk-export-preview .tk-logo-placeholder { border-color: #b9c3cf; }
 html[data-theme="dark"] .tk-seg__part { color: #0b1a2a; }
 html[data-theme="dark"] .tk-seg__part--none { color: var(--tk-text); }
+
+/* ---------- Cronograma de nodos más consolidado ---------- */
+.tk-gantt--compact .tk-gantt__head,
+.tk-gantt--compact .tk-gantt__row { grid-template-columns: 220px repeat(var(--tk-gantt-cols), minmax(0, 1fr)); }
+.tk-gantt--compact .tk-gantt__head > div { padding: 7px 6px; font-size: .85rem; }
+.tk-gantt--compact .tk-gantt__row { min-height: 40px; }
+.tk-gantt--compact .tk-gantt__cell { height: 40px; }
+.tk-gantt--compact .tk-gantt__bars { height: 40px; }
+.tk-gantt--compact .tk-gantt__label { padding: 4px 10px; font-size: .88rem; line-height: 1.2; min-width: 0; }
+.tk-gantt--compact .tk-gantt__sub { font-size: .74rem; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-gantt--compact .tk-gantt__bar { height: 11px; }
+.tk-gantt--compact .tk-gantt__bar--planned { height: 13px; }
+.tk-gantt--compact .tk-gantt__row--stage { min-height: 30px; }
+.tk-gantt--compact .tk-gantt__row--stage .tk-gantt__cell,
+.tk-gantt--compact .tk-gantt__row--stage .tk-gantt__bars { height: 30px; }
+.tk-gantt--compact .tk-gantt__row--stage .tk-gantt__label { padding: 2px 10px 2px 24px; font-size: .84rem; }
+.tk-gantt--compact .tk-gantt__row--stage .tk-gantt__bar { height: 9px; }
+.tk-gantt--compact .tk-gantt__row--stage .tk-gantt__bar--planned { height: 11px; }
+.tk-gantt--compact .tk-gantt__row.is-open { background: var(--tk-surface-2); }
+.tk-gantt--compact .tk-gantt__detail { padding: 8px 14px 12px; font-size: .9rem; }
+.tk-gantt--compact .tk-gantt__detail .tk-hbars { gap: 6px; }
+.tk-gantt--compact .tk-gantt__detail .tk-hbar { font-size: .85rem; gap: 8px; }
+.tk-gantt--compact .tk-gantt__detail .tk-hbar__track { height: 9px; }
+.tk-gantt--compact .tk-gantt__detail .tk-table th, .tk-gantt--compact .tk-gantt__detail .tk-table td { padding: 5px 8px; }
+.tk-stage-info { min-width: 760px; padding: 8px 14px 10px 24px; background: var(--tk-surface-3); border-bottom: 1px solid var(--tk-line); }
+.tk-stage-info__body { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: .9rem; color: var(--tk-text); }
+.tk-stage-info__item strong { color: var(--tk-heading); }
+.tk-stage-info .tk-btn { padding: 5px 12px; font-size: .85rem; }
+.tk-gantt--compact .tk-gantt__row.tk-row-click .tk-gantt__sub { white-space: normal; overflow: visible; }
+.tk-gantt--compact .tk-gantt__row.tk-row-click .tk-chip { font-size: .7rem; padding: 1px 7px; }
