@@ -109,7 +109,7 @@ else
                     var status = stage?.Status ?? StageStatus.Pending;
                     var code = def.Code;
                     var key = $"{summary.Site.Id}:{(int)def.Code}";
-                    <div class="tk-gantt__row tk-gantt__row--stage @(_stageInfo == key ? "is-open" : string.Empty)" @onclick="() => ToggleStage(key)">
+                    <div class="tk-gantt__row tk-gantt__row--stage" @onclick="() => ShowStageAsync(summary.Site, stage)">
                         <div class="tk-gantt__label">
                             <span class="tk-stage-dot tk-stage-dot--@status.ToString().ToLowerInvariant()"></span>@def.Name
                             <div class="tk-gantt__sub">@UiText.StageStatusName(status)@(stage?.ActualStart is { } started ? $" · {UiText.ShortDate(started)}{(stage.ActualEnd is { } ended ? $" → {UiText.ShortDate(ended)}" : string.Empty)}" : string.Empty)</div>
@@ -118,10 +118,6 @@ else
                             @DayCells(summary.Site.Id, code, stage?.PlannedStart, stage?.PlannedEnd, stage?.ActualStart, stage?.ActualEnd, status == StageStatus.Finished ? 100 : 0, StageTone(status), isStage: true)
                         </div>
                     </div>
-                    @if (_stageInfo == key)
-                    {
-                        <div class="tk-stage-info">@StageInfo(summary.Site.Id, stage, status)</div>
-                    }
                 }
 
                 <div class="tk-gantt__detail">@Detail(summary)</div>
@@ -146,7 +142,6 @@ else
     private DateOnly _weekStart;
     private int _weeks = 8;
     private int? _openId;
-    private string? _stageInfo;
     private List<SiteStage> _stages = [];
     private List<InventoryMovement> _installed = [];
     private List<StageDefinition> _definitions = [];
@@ -231,46 +226,24 @@ else
         _weeks = Math.Max(4, (int)Math.Ceiling((max.DayNumber - _axisStart.DayNumber + 1) / 7.0));
     }
 
-    private void ToggleStage(string key) => _stageInfo = _stageInfo == key ? null : key;
-
-    private RenderFragment StageInfo(int siteId, SiteStage? stage, StageStatus status) => @<div class="tk-stage-info__body">
-        <span class="tk-stage-info__item"><strong>Estado:</strong> @UiText.StageStatusName(status)</span>
-        @if (stage?.ActualStart is { } started)
+    private async Task ShowStageAsync(Site site, SiteStage? stage)
+    {
+        if (stage is null)
         {
-            <span class="tk-stage-info__item"><strong>Inició:</strong> @UiText.LongDate(started)</span>
-            @if (stage.ActualEnd is { } ended)
-            {
-                <span class="tk-stage-info__item"><strong>Terminó:</strong> @UiText.LongDate(ended)</span>
-                <span class="tk-stage-info__item"><strong>Duró:</strong> @(ended.DayNumber - started.DayNumber + 1) día(s)</span>
-            }
-            else if (status == StageStatus.InProgress)
-            {
-                <span class="tk-stage-info__item"><strong>Lleva:</strong> @(Math.Max(1, Clock.Today.DayNumber - started.DayNumber + 1)) día(s)</span>
-            }
-        }
-        else if (status == StageStatus.Finished)
-        {
-            <span class="tk-stage-info__item tk-muted">Finalizada, pero todavía no tiene fechas registradas.</span>
-        }
-        else if (status == StageStatus.Pending)
-        {
-            <span class="tk-stage-info__item tk-muted">Todavía no inicia.</span>
+            return;
         }
 
-        @if (stage?.PlannedStart is not null || stage?.PlannedEnd is not null)
+        var dialog = await Dialogs.ShowAsync<StageInfoDialog>(stage.Definition?.Name ?? "Etapa",
+            new DialogParameters { ["ProjectId"] = site.ProjectId, ["SiteId"] = site.Id, ["Stage"] = stage, ["CanEdit"] = _canEdit },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
         {
-            <span class="tk-stage-info__item"><strong>Plan:</strong> @UiText.ShortDate(stage?.PlannedStart) – @UiText.ShortDate(stage?.PlannedEnd)</span>
+            await LoadAsync();
         }
-
-        @if (_canEdit)
-        {
-            <button type="button" class="tk-btn tk-btn--outline" @onclick="() => EditStageAsync(siteId, stage)" @onclick:stopPropagation="true">Editar fechas</button>
-        }
-    </div>;
+    }
 
     private async Task ToggleAsync(SiteSummary summary)
     {
-        _stageInfo = null;
         if (_openId == summary.Site.Id)
         {
             _openId = null;

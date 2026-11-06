@@ -1330,3 +1330,10 @@ html[data-theme="dark"] .tk-seg__part--none { color: var(--tk-text); }
 .tk-stage-info .tk-btn { padding: 5px 12px; font-size: .85rem; }
 .tk-gantt--compact .tk-gantt__row.tk-row-click .tk-gantt__sub { white-space: normal; overflow: visible; }
 .tk-gantt--compact .tk-gantt__row.tk-row-click .tk-chip { font-size: .7rem; padding: 1px 7px; }
+
+/* ---------- Ventanita de la etapa (inicio y fin) ---------- */
+.tk-stage-modal__status { margin-bottom: 12px; }
+.tk-stage-modal__grid { display: grid; grid-template-columns: 110px 1fr; gap: 8px 12px; margin: 0; font-size: 1rem; }
+.tk-stage-modal__grid dt { color: var(--tk-text-2); font-weight: 600; }
+.tk-stage-modal__grid dd { margin: 0; color: var(--tk-heading); font-weight: 700; }
+.tk-stage-modal__trace { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--tk-surface-3); font-size: .92rem; }
