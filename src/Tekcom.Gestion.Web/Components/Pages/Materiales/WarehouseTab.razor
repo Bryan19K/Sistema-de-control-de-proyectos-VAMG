@@ -6,6 +6,7 @@
 @inject ProjectSelection Selection
 @inject IDialogService Dialogs
 @inject UserAccess Access
+@inject NavigationManager Navigation
 
 @if (_projectId == 0)
 {
@@ -26,12 +27,12 @@ else
     </div>
 
     <div class="tk-kpi-grid">
-        <KpiCard Label="Materiales en bodega" Value="@_rows.Count.ToString()" Note="con movimientos o proyectados" Tone="KpiCard.NoteTone.Info" />
-        <KpiCard Label="Faltantes" Value="@_rows.Count(r => r.Status == StockStatus.Shortage).ToString()" Note="falta recibir para cubrir el diseño"
+        <KpiCard Label="Materiales en bodega" Value="@_rows.Count.ToString()" OnClick="() => SetStatus(null)" Active="_status is null && !_alerts" Note="con movimientos o proyectados" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Faltantes" Value="@_rows.Count(r => r.Status == StockStatus.Shortage).ToString()" OnClick="() => SetStatus(StockStatus.Shortage)" Active="_status == StockStatus.Shortage" Note="falta recibir para cubrir el diseño"
                  Tone="_rows.Any(r => r.Status == StockStatus.Shortage) ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Neutral" />
-        <KpiCard Label="Stock bajo" Value="@_rows.Count(r => r.Status == StockStatus.Low).ToString()" Note="en o por debajo del mínimo"
+        <KpiCard Label="Stock bajo" Value="@_rows.Count(r => r.Status == StockStatus.Low).ToString()" OnClick="() => SetStatus(StockStatus.Low)" Active="_status == StockStatus.Low" Note="en o por debajo del mínimo"
                  Tone="_rows.Any(r => r.Status == StockStatus.Low) ? KpiCard.NoteTone.Warning : KpiCard.NoteTone.Neutral" />
-        <KpiCard Label="Stock negativo" Value="@_rows.Count(r => r.Status == StockStatus.Negative).ToString()" Note="requiere revisión"
+        <KpiCard Label="Stock negativo" Value="@_rows.Count(r => r.Status == StockStatus.Negative).ToString()" OnClick="() => SetStatus(StockStatus.Negative)" Active="_status == StockStatus.Negative" Note="requiere revisión"
                  Tone="_rows.Any(r => r.Status == StockStatus.Negative) ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Success" />
     </div>
 
@@ -90,13 +91,37 @@ else
     private bool _canManage;
     private string? _search;
 
-    private List<StockRow> Filtered => string.IsNullOrWhiteSpace(_search)
-        ? _rows
-        : _rows.Where(r => r.Material.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
-            || r.Material.Aliases.Any(a => a.Alias.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToList();
+    private StockStatus? _status;
+    private bool _alerts;
+
+    private void SetStatus(StockStatus? status)
+    {
+        _status = _status == status ? null : status;
+        _alerts = false;
+    }
+
+    private List<StockRow> Filtered => _rows
+        .Where(r => _status is null || r.Status == _status)
+        .Where(r => !_alerts || r.Status is StockStatus.Shortage or StockStatus.Low or StockStatus.Negative)
+        .Where(r => string.IsNullOrWhiteSpace(_search)
+            || r.Material.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || r.Material.Aliases.Any(a => a.Alias.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+        .ToList();
 
     protected override async Task OnInitializedAsync()
     {
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
+        if (query.TryGetValue("estado", out var estado))
+        {
+            switch (estado.ToString())
+            {
+                case "alertas": _alerts = true; break;
+                case "bajo": _status = StockStatus.Low; break;
+                case "faltantes": _status = StockStatus.Shortage; break;
+                case "negativo": _status = StockStatus.Negative; break;
+            }
+        }
+
         _canManage = await Access.CanManageWarehouseAsync();
         _projectId = await Selection.EnsureAsync() ?? 0;
         await LoadAsync();

@@ -47,9 +47,19 @@ else
     <div class="tk-toolbar">
         <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
         <div class="tk-segment" role="tablist">
-            <button type="button" class="@Seg(true)" @onclick="() => _gantt = true">Gantt</button>
+            <button type="button" class="@(_gantt && !_days ? "tk-segment__item is-active" : "tk-segment__item")" @onclick="() => { _gantt = true; _days = false; }">Semanas</button>
+            <button type="button" class="@(_gantt && _days ? "tk-segment__item is-active" : "tk-segment__item")" @onclick="() => { _gantt = true; _days = true; }">Días</button>
             <button type="button" class="@Seg(false)" @onclick="() => _gantt = false">Tabla</button>
         </div>
+        @if (_gantt && _days)
+        {
+            <div class="tk-weeknav">
+                <button type="button" class="tk-btn tk-btn--outline" @onclick="() => _weekStart = _weekStart.AddDays(-7)" aria-label="Semana anterior">‹</button>
+                <strong>@UiText.ShortDate(_weekStart) – @UiText.ShortDate(_weekStart.AddDays(6))</strong>
+                <button type="button" class="tk-btn tk-btn--outline" @onclick="() => _weekStart = _weekStart.AddDays(7)" aria-label="Semana siguiente">›</button>
+                <button type="button" class="tk-btn tk-btn--outline" @onclick="() => _weekStart = MondayOf(Clock.Today)">Hoy</button>
+            </div>
+        }
         <span class="grow"></span>
         @if (_canEdit)
         {
@@ -82,12 +92,27 @@ else
     {
         @if (_gantt)
         {
-            <div class="tk-card tk-gantt" style="--tk-gantt-cols:@_weeks">
+            @if (_days && _canEdit)
+            {
+                <p class="tk-muted mb-2">Toque un día de la fila de una actividad para poner ahí su inicio o su fin.</p>
+            }
+            <div class="tk-card tk-gantt @(_days ? "tk-gantt--days" : string.Empty)" style="--tk-gantt-cols:@Cols">
                 <div class="tk-gantt__head">
                     <div>Actividad</div>
-                    @for (var w = 0; w < _weeks; w++)
+                    @if (_days)
                     {
-                        <div title="@UiText.ShortDate(_axisStart.AddDays(w * 7))">S@(w + 1)</div>
+                        @for (var d = 0; d < 7; d++)
+                        {
+                            var day = _weekStart.AddDays(d);
+                            <div class="@(day == Clock.Today ? "is-today" : string.Empty)" title="@UiText.LongDate(day)">@DayName(d)<br /><span class="tk-gantt__daynum">@day.Day</span></div>
+                        }
+                    }
+                    else
+                    {
+                        @for (var w = 0; w < _weeks; w++)
+                        {
+                            <div title="@UiText.ShortDate(_axisStart.AddDays(w * 7))">S@(w + 1)</div>
+                        }
                     }
                 </div>
                 @foreach (var phase in _plan.Phases)
@@ -105,13 +130,19 @@ else
                             <div class="tk-gantt__sub">@phase.Progress.ToString("0.#")%</div>
                         </div>
                         <div class="tk-gantt__bars">
-                            @for (var w = 0; w < _weeks; w++) { <div class="tk-gantt__cell"></div> }
+                            @for (var w = 0; w < Cols; w++) { <div class="tk-gantt__cell @(_days && _weekStart.AddDays(w) == Clock.Today ? "is-today" : string.Empty)"></div> }
                             @if (phase.Start is not null && phase.End is not null)
                             {
-                                <div class="tk-gantt__bar tk-gantt__bar--planned" style="left:@Left(phase.Start.Value)%; width:@Width(phase.Start.Value, phase.End.Value)%"></div>
-                                <div class="tk-gantt__bar tk-gantt__bar--@PhaseTone(phase)" style="left:@Left(phase.Start.Value)%; width:@(Fraction(Width(phase.Start.Value, phase.End.Value), phase.Progress))%"></div>
+                                @if (BarStyle(phase.Start, phase.End) is { } full)
+                                {
+                                    <div class="tk-gantt__bar tk-gantt__bar--planned" style="@full"></div>
+                                }
+                                @if (ProgressStyle(phase.Start.Value, phase.End.Value, phase.Progress) is { } done)
+                                {
+                                    <div class="tk-gantt__bar tk-gantt__bar--@PhaseTone(phase)" style="@done"></div>
+                                }
                             }
-                            <div class="tk-gantt__today" style="left:@TodayLeft%"></div>
+                            @if (TodayVisible) { <div class="tk-gantt__today" style="left:@TodayLeft%"></div> }
                         </div>
                     </div>
                     @foreach (var item in phase.Activities)
@@ -134,20 +165,31 @@ else
                                 <div class="tk-gantt__sub">@UiText.ShortDate(activity.PlannedStart)@(activity.IsMilestone ? string.Empty : $" – {UiText.ShortDate(activity.PlannedEnd)}") · @item.Progress.ToString("0.#")%</div>
                             </div>
                             <div class="tk-gantt__bars">
-                                @for (var w = 0; w < _weeks; w++) { <div class="tk-gantt__cell"></div> }
+                                @for (var w = 0; w < Cols; w++)
+                                {
+                                    var day = _days ? _weekStart.AddDays(w) : default;
+                                    <div class="tk-gantt__cell @(_days && day == Clock.Today ? "is-today" : string.Empty) @(_days && _canEdit ? "is-clickable" : string.Empty)"
+                                         @onclick="() => DayClickedAsync(item, day)" @onclick:stopPropagation="true"></div>
+                                }
                                 @if (activity.IsMilestone)
                                 {
-                                    <div class="tk-gantt__milestone @(item.IsDone ? "is-done" : string.Empty)" style="left:@Left(activity.PlannedStart)%" title="@activity.Name · @UiText.ShortDate(activity.PlannedStart)"></div>
+                                    @if (activity.PlannedStart >= AxisStart && activity.PlannedStart < AxisStart.AddDays((int)TotalDays))
+                                    {
+                                        <div class="tk-gantt__milestone @(item.IsDone ? "is-done" : string.Empty)" style="left:@Left(activity.PlannedStart)%" title="@activity.Name · @UiText.ShortDate(activity.PlannedStart)"></div>
+                                    }
                                 }
                                 else
                                 {
-                                    <div class="tk-gantt__bar tk-gantt__bar--planned" style="left:@Left(activity.PlannedStart)%; width:@Width(activity.PlannedStart, activity.PlannedEnd)%"></div>
-                                    @if (RealEnd(item) is { } realEnd && activity.ActualStart is { } realStart)
+                                    @if (BarStyle(activity.PlannedStart, activity.PlannedEnd) is { } plannedBar)
                                     {
-                                        <div class="tk-gantt__bar tk-gantt__bar--@ActivityTone(item)" style="left:@Left(realStart)%; width:@Width(realStart, realEnd)%"></div>
+                                        <div class="tk-gantt__bar tk-gantt__bar--planned" style="@plannedBar"></div>
+                                    }
+                                    @if (RealEnd(item) is { } realEnd && activity.ActualStart is { } realStart && BarStyle(realStart, realEnd) is { } realBar)
+                                    {
+                                        <div class="tk-gantt__bar tk-gantt__bar--@ActivityTone(item)" style="@realBar"></div>
                                     }
                                 }
-                                <div class="tk-gantt__today" style="left:@TodayLeft%"></div>
+                                @if (TodayVisible) { <div class="tk-gantt__today" style="left:@TodayLeft%"></div> }
                             </div>
                         </div>
                     }
@@ -261,6 +303,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         _canEdit = await Access.CanEditAsync();
+        _weekStart = MondayOf(Clock.Today);
         _projectId = await Selection.EnsureAsync() ?? 0;
         await LoadAsync();
     }
@@ -295,11 +338,84 @@ else
         _weeks = Math.Max(4, (int)Math.Ceiling((max.DayNumber - _axisStart.DayNumber + 1) / 7.0));
     }
 
-    private double TotalDays => _weeks * 7.0;
+    private bool _days;
+    private DateOnly _weekStart = DateOnly.FromDateTime(DateTime.Today);
+
+    private static DateOnly MondayOf(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+    private static string DayName(int index) => index switch { 0 => "Lun", 1 => "Mar", 2 => "Mié", 3 => "Jue", 4 => "Vie", 5 => "Sáb", _ => "Dom" };
+
+    private int Cols => _days ? 7 : _weeks;
+    private DateOnly AxisStart => _days ? _weekStart : _axisStart;
+    private double TotalDays => _days ? 7 : _weeks * 7.0;
     private static string Pct(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
-    private string Left(DateOnly date) => Pct((date.DayNumber - _axisStart.DayNumber) / TotalDays * 100);
+    private string Left(DateOnly date) => Pct((date.DayNumber - AxisStart.DayNumber) / TotalDays * 100);
     private string Width(DateOnly start, DateOnly end) => Pct(Math.Max(1, end.DayNumber - start.DayNumber + 1) / TotalDays * 100);
-    private string TodayLeft => Pct((Clock.Today.DayNumber - _axisStart.DayNumber + 0.5) / TotalDays * 100);
+    private string TodayLeft => Pct((Clock.Today.DayNumber - AxisStart.DayNumber + 0.5) / TotalDays * 100);
+    private bool TodayVisible => Clock.Today >= AxisStart && Clock.Today < AxisStart.AddDays((int)TotalDays);
+
+    /// <summary>Estilo de una barra recortada a lo que se ve en pantalla (null si queda fuera).</summary>
+    private string? BarStyle(DateOnly? start, DateOnly? end)
+    {
+        if (start is null || end is null)
+        {
+            return null;
+        }
+
+        var from = Math.Max(start.Value.DayNumber, AxisStart.DayNumber);
+        var to = Math.Min(end.Value.DayNumber, AxisStart.DayNumber + (int)TotalDays - 1);
+        return to < from ? null : $"left:{Pct((from - AxisStart.DayNumber) / TotalDays * 100)}%; width:{Pct((to - from + 1) / TotalDays * 100)}%";
+    }
+
+    private string? ProgressStyle(DateOnly start, DateOnly end, decimal progress)
+    {
+        var total = end.DayNumber - start.DayNumber + 1;
+        var doneDays = Math.Clamp((double)progress / 100.0 * total, 0, total);
+        return doneDays <= 0 ? null : BarStyle(start, start.AddDays((int)Math.Ceiling(doneDays) - 1));
+    }
+
+    private async Task DayClickedAsync(PlanActivityView item, DateOnly day)
+    {
+        if (!_days || !_canEdit)
+        {
+            return;
+        }
+
+        var dialog = await Dialogs.ShowAsync<Nodos.DayActionDialog>("Fechas de la actividad",
+            new DialogParameters { ["Date"] = day, ["ShowActual"] = false }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if ((await dialog.Result) is not { Canceled: false, Data: string choice })
+        {
+            return;
+        }
+
+        if (choice == "all")
+        {
+            await ActivityDialogAsync(item.Activity, null);
+            return;
+        }
+
+        try
+        {
+            var activity = item.Activity;
+            if (choice == "ps")
+            {
+                activity.PlannedStart = day;
+                if (activity.PlannedEnd < day) { activity.PlannedEnd = day; }
+            }
+            else
+            {
+                activity.PlannedEnd = day;
+                if (activity.PlannedStart > day) { activity.PlannedStart = day; }
+            }
+
+            await PlanService.SaveActivityAsync(activity, item.Predecessors.Select(p => p.Id));
+            Snackbar.Add("Fecha guardada.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
 
     private string Fraction(string widthPct, decimal progress) =>
         Pct(double.Parse(widthPct, CultureInfo.InvariantCulture) * (double)Math.Clamp(progress, 0, 100) / 100);

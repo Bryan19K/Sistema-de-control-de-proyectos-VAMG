@@ -359,7 +359,7 @@ h1:focus { outline: none; }
 
 .tk-table th {
     text-align: left;
-    background: #f5f7fa;
+    background: var(--tk-th-bg, #f5f7fa);
     color: var(--tk-heading);
     font-weight: 700;
     padding: 12px 14px;
@@ -571,7 +571,7 @@ code {
 }
 
 .tk-gantt__head {
-    background: #f5f7fa;
+    background: var(--tk-th-bg, #f5f7fa);
     border-bottom: 1px solid var(--tk-card-border);
     border-radius: 8px 8px 0 0;
     font-weight: 700;
@@ -1139,6 +1139,7 @@ html[data-theme="dark"] {
     --tk-text-3: #8a9db3;
     --tk-heading: #e6edf5;
     --tk-planned: #34506b;
+    --tk-th-bg: #1f3a54;
     --tk-danger-bg: #432024; --tk-danger: #f2928c;
     --tk-success-bg: #153524; --tk-success: #6fcf97;
     --tk-info-bg: #16335c; --tk-info: #8ab4f8;
@@ -1147,6 +1148,14 @@ html[data-theme="dark"] {
     --v-ok: #3fb26a; --v-info: #5b9cf0; --v-warn: #e8a317; --v-bad: #ef6b63;
 }
 html[data-theme="dark"] body { background: var(--tk-bg); color: var(--tk-text); }
+html[data-theme="dark"] .tk-alert--danger, html[data-theme="dark"] .alert-danger { color: var(--tk-danger); border-color: color-mix(in srgb, var(--tk-danger) 45%, transparent); }
+html[data-theme="dark"] .tk-alert--warning { color: var(--tk-warning); border-color: color-mix(in srgb, var(--tk-warning) 45%, transparent); }
+html[data-theme="dark"] .tk-alert--info { color: var(--tk-info); border-color: color-mix(in srgb, var(--tk-info) 45%, transparent); }
+html[data-theme="dark"] .tk-task--done { background: var(--tk-surface-2); }
+html[data-theme="dark"] #tk-diag { background: var(--tk-surface-3); color: var(--tk-text); border-color: var(--tk-warning); }
+html[data-theme="dark"] #tk-diag span { color: var(--tk-text-3); }
+html[data-theme="dark"] .tk-gantt__head > div { color: var(--tk-heading); }
+html[data-theme="dark"] .tk-table th { color: var(--tk-heading); }
 html[data-theme="dark"] .tk-btn--primary { color: #fff; }
 html[data-theme="dark"] .tk-btn--navy { background: #2a5a8c; color: #fff; }
 html[data-theme="dark"] .tk-stat__value--bad { color: #f2928c; }
@@ -1250,3 +1259,44 @@ html[data-theme="dark"] code { color: var(--tk-text); }
 .tk-grid-scroll .tk-table--grid tbody tr:hover td { background: color-mix(in srgb, var(--tk-primary, #2a78d6) 7%, var(--tk-surface)); }
 .tk-grid-scroll .tk-table--grid tbody tr:hover td.tk-col-installed { background: color-mix(in srgb, var(--tk-success) 16%, var(--tk-surface)); }
 .tk-grid-scroll .tk-table--grid tbody tr.tk-table__group:hover td { background: var(--tk-surface-3); }
+
+/* ---------- Tarjetas KPI que llevan a su detalle ---------- */
+a.tk-kpi--link, button.tk-kpi--link {
+    display: block; width: 100%; text-align: left; text-decoration: none; color: inherit; cursor: pointer; font: inherit;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+a.tk-kpi--link:hover, button.tk-kpi--link:hover, a.tk-kpi--link:focus-visible, button.tk-kpi--link:focus-visible {
+    border-color: var(--tk-primary, #2a78d6); box-shadow: 0 4px 14px rgba(20, 60, 120, .12); transform: translateY(-1px); outline: none;
+}
+button.tk-kpi--link.is-active { border-color: var(--tk-primary, #2a78d6); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tk-primary, #2a78d6) 35%, transparent); }
+.tk-kpi__go { margin-top: 8px; font-size: .82rem; font-weight: 600; color: var(--tk-primary, #2a78d6); }
+.tk-anchor { scroll-margin-top: 80px; min-width: 0; }
+.tk-anchor > .tk-card, .tk-anchor > section { scroll-margin-top: 80px; }
+
+/* ---------- Gantt de nodos: vista por días, etapas y navegación semanal ---------- */
+.tk-weeknav { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tk-gantt--days .tk-gantt__head > div { line-height: 1.15; padding: 8px 6px; }
+.tk-gantt__daynum { font-weight: 800; font-size: 1.05rem; color: var(--tk-heading); }
+.tk-gantt__head > div.is-today { background: color-mix(in srgb, var(--tk-warning) 18%, var(--tk-surface-2)); }
+.tk-gantt__cell.is-today { background: color-mix(in srgb, var(--tk-warning) 8%, transparent); }
+.tk-gantt__cell.is-clickable { cursor: pointer; }
+.tk-gantt__cell.is-clickable:hover { background: color-mix(in srgb, var(--tk-primary, #2a78d6) 12%, transparent); }
+.tk-gantt__row.is-open { background: var(--tk-surface-2); }
+.tk-gantt__row--stage { background: var(--tk-surface-2); min-height: 44px; cursor: pointer; }
+.tk-gantt__row--stage .tk-gantt__label { padding-left: 28px; font-size: .92rem; }
+.tk-gantt__row--stage .tk-gantt__cell { height: 44px; }
+.tk-gantt__row--stage:hover { background: var(--tk-surface-3); }
+.tk-stage-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: #b9c3d0; }
+.tk-stage-dot--finished { background: var(--tk-success); }
+.tk-stage-dot--inprogress { background: var(--tk-info, #2f6fe0); }
+.tk-stage-dot--incorrection { background: var(--tk-danger, #d13b3b); }
+.tk-gantt--days .tk-gantt__bar, .tk-gantt--days .tk-gantt__today, .tk-gantt--days .tk-gantt__milestone { pointer-events: none; }
+
+/* ---------- Modo oscuro: vista previa de exportes como hoja de papel y segmentos legibles ---------- */
+.tk-export-preview {
+    background: #ffffff; color: #243447;
+    --tk-text: #243447; --tk-text-2: #4a5b6e; --tk-text-3: #6b7a8c; --tk-heading: #12304f; --tk-line: #e6ebf1; --tk-card-border: #dfe5ec;
+}
+.tk-export-preview .tk-logo-placeholder { border-color: #b9c3cf; }
+html[data-theme="dark"] .tk-seg__part { color: #0b1a2a; }
+html[data-theme="dark"] .tk-seg__part--none { color: var(--tk-text); }

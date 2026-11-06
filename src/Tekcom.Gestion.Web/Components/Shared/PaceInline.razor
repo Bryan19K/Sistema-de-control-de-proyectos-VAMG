@@ -1,0 +1,10 @@
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Domain.Logic
+@using Tekcom.Gestion.Web.Services
+
+@{ var (kind, text) = UiText.Pace(Pace.Status); }
+<StatusChip Status="kind" Text="@(Pace.Status is PaceStatus.Ahead or PaceStatus.Behind or PaceStatus.OnTime ? $"{text} · {(Pace.DaysDelta > 0 ? "+" : string.Empty)}{Pace.DaysDelta} d" : text)" />
+
+@code {
+    [Parameter, EditorRequired] public PaceResult Pace { get; set; } = default!;
+}

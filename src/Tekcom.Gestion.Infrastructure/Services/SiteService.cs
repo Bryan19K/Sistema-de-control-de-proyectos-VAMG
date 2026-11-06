@@ -269,13 +269,6 @@ public sealed class SiteService(
         var progress = StageProgressCalculator.Percent(site.Stages.Select(st =>
             new StageWeight(st.Status, st.Definition?.PlannedDays ?? 1, st.Definition?.CountsForProgress ?? true)));
 
-        var pace = PaceCalculator.Calculate(
-            site.OdnFinalized ? 100 : progress,
-            site.PlannedStart,
-            site.PlannedEnd,
-            clock.Today,
-            project.PaceMarginPercent);
-
         var fatProjected = FatGroups.Sum(g => totals.GetValueOrDefault(g).Projected);
         var fatInstalled = FatGroups.Sum(g => totals.GetValueOrDefault(g).Installed);
         var fatPercent = fatProjected <= 0 ? 0 : Math.Round(fatInstalled / fatProjected * 100m, 1);
@@ -285,6 +278,15 @@ public sealed class SiteService(
         var piecesProjected = pieceGroups.Sum(g => totals.GetValueOrDefault(g).Projected);
         var piecesDone = pieceGroups.Sum(g => Math.Min(totals.GetValueOrDefault(g).Installed, totals.GetValueOrDefault(g).Projected));
         decimal? piecesPercent = piecesProjected <= 0 ? null : Math.Round(piecesDone / piecesProjected * 100m, 1);
+
+        // El ritmo compara el avance global (piezas instaladas sobre lo proyectado) contra el tiempo transcurrido;
+        // si el nodo no tiene proyección, usa el avance por etapas.
+        var pace = PaceCalculator.Calculate(
+            site.OdnFinalized ? 100 : piecesPercent ?? progress,
+            site.PlannedStart,
+            site.PlannedEnd,
+            clock.Today,
+            project.PaceMarginPercent);
 
         var stages = site.Stages.ToDictionary(st => st.Code, st => st.Status);
         var measured = stages.GetValueOrDefault(StageCode.FatMeasurements) == StageStatus.Finished;

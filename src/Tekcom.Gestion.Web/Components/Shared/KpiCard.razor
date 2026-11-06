@@ -1,17 +1,15 @@
-<div class="tk-card tk-kpi">
-    <div class="tk-kpi__label">
-        @Label
-        @if (Badge is not null)
-        {
-            <span class="tk-ref">@Badge</span>
-        }
-    </div>
-    <div class="tk-kpi__value">@Value</div>
-    @if (!string.IsNullOrEmpty(Note))
-    {
-        <div class="tk-kpi__note tk-kpi__note--@Tone.ToString().ToLowerInvariant()">@Note</div>
-    }
-</div>
+@if (Href is not null)
+{
+    <a href="@Href" class="tk-card tk-kpi tk-kpi--link" title="@LinkTitle">@Body</a>
+}
+else if (OnClick.HasDelegate)
+{
+    <button type="button" class="tk-card tk-kpi tk-kpi--link @(Active ? "is-active" : string.Empty)" @onclick="OnClick" title="@LinkTitle" aria-pressed="@Active.ToString().ToLowerInvariant()">@Body</button>
+}
+else
+{
+    <div class="tk-card tk-kpi">@Body</div>
+}
 
 @code {
     public enum NoteTone { Neutral, Success, Danger, Info, Warning }
@@ -21,4 +19,34 @@
     [Parameter] public string? Note { get; set; }
     [Parameter] public NoteTone Tone { get; set; } = NoteTone.Neutral;
     [Parameter] public int? Badge { get; set; }
+
+    /// <summary>Si se indica, la tarjeta es un enlace a la pantalla donde se ve lo que dice.</summary>
+    [Parameter] public string? Href { get; set; }
+
+    /// <summary>Si se indica, tocar la tarjeta filtra o cambia de pestaña en la misma pantalla.</summary>
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    /// <summary>Marca la tarjeta como filtro activo.</summary>
+    [Parameter] public bool Active { get; set; }
+
+    private string LinkTitle => "Ver el detalle";
+
+    private RenderFragment Body => @<text>
+        <div class="tk-kpi__label">
+            @Label
+            @if (Badge is not null)
+            {
+                <span class="tk-ref">@Badge</span>
+            }
+        </div>
+        <div class="tk-kpi__value">@Value</div>
+        @if (!string.IsNullOrEmpty(Note))
+        {
+            <div class="tk-kpi__note tk-kpi__note--@Tone.ToString().ToLowerInvariant()">@Note</div>
+        }
+        @if (Href is not null || OnClick.HasDelegate)
+        {
+            <div class="tk-kpi__go">Ver detalle ›</div>
+        }
+    </text>;
 }

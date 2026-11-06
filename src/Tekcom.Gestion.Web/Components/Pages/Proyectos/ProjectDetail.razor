@@ -42,11 +42,11 @@ else
     </PageHeader>
 
     <div class="tk-kpi-grid">
-        <KpiCard Label="Nodos" Value="@_sites.Count.ToString()" Note="@($"{_sites.Count(s => s.Pace.Status == PaceStatus.Behind)} atrasados")"
+        <KpiCard Label="Nodos" Value="@_sites.Count.ToString()" Href="nodos?f=atrasados" Note="@($"{_sites.Count(s => s.Pace.Status == PaceStatus.Behind)} atrasados")"
                  Tone="_sites.Any(s => s.Pace.Status == PaceStatus.Behind) ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Neutral" />
-        <KpiCard Label="ODN finalizadas" Value="@_sites.Count(s => s.Site.OdnFinalized).ToString()" Note="@($"de {_sites.Count} nodos")" Tone="KpiCard.NoteTone.Info" />
-        <KpiCard Label="Feeder finalizado" Value="@_sites.Count(s => s.Site.FeederStatus == FeederStatus.Finished).ToString()" Note="@($"de {_sites.Count} nodos")" Tone="KpiCard.NoteTone.Info" />
-        <KpiCard Label="Listos para entregar" Value="@_sites.Count(s => s.Site.IsReadyToDeliver).ToString()" Note="ODN y feeder finalizados" Tone="KpiCard.NoteTone.Success" />
+        <KpiCard Label="ODN finalizadas" Value="@_sites.Count(s => s.Site.OdnFinalized).ToString()" Href="nodos?f=odn" Note="@($"de {_sites.Count} nodos")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Feeder finalizado" Value="@_sites.Count(s => s.Site.FeederStatus == FeederStatus.Finished).ToString()" Href="nodos" Note="@($"de {_sites.Count} nodos")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Listos para entregar" Value="@_sites.Count(s => s.Site.IsReadyToDeliver).ToString()" Href="nodos?f=entrega" Note="ODN y feeder finalizados" Tone="KpiCard.NoteTone.Success" />
     </div>
 
     <div class="tk-two-col">

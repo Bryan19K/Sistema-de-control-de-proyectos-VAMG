@@ -43,11 +43,11 @@ else
     <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
 
     <div class="tk-kpi-grid">
-        <KpiCard Label="Nodos" Value="@_all.Count.ToString()" Note="@($"{_all.Count(s => s.Pace.Status == PaceStatus.Behind)} atrasados")"
+        <KpiCard Label="Nodos" Value="@_all.Count.ToString()" OnClick="() => SetFilter(NodeFilter.Behind)" Active="_filter == NodeFilter.Behind" Note="@($"{_all.Count(s => s.Pace.Status == PaceStatus.Behind)} atrasados")"
                  Tone="_all.Any(s => s.Pace.Status == PaceStatus.Behind) ? KpiCard.NoteTone.Danger : KpiCard.NoteTone.Neutral" />
-        <KpiCard Label="ODN finalizadas" Value="@_all.Count(s => s.Site.OdnFinalized).ToString()" Note="@($"de {_all.Count}")" Tone="KpiCard.NoteTone.Info" />
-        <KpiCard Label="Listos para entregar" Value="@_all.Count(s => s.Site.IsReadyToDeliver).ToString()" Note="ODN y feeder finalizados" Tone="KpiCard.NoteTone.Success" />
-        <KpiCard Label="Listos para medir" Value="@_all.Count(s => s.ReadyToMeasure).ToString()" Note="@($"{_all.Count(s => !s.Site.LogsUpToDate && s.Stages.Values.Any(v => v != StageStatus.Pending))} con bitácora por actualizar")" Tone="KpiCard.NoteTone.Warning" />
+        <KpiCard Label="ODN finalizadas" Value="@_all.Count(s => s.Site.OdnFinalized).ToString()" OnClick="() => SetFilter(NodeFilter.Odn)" Active="_filter == NodeFilter.Odn" Note="@($"de {_all.Count}")" Tone="KpiCard.NoteTone.Info" />
+        <KpiCard Label="Listos para entregar" Value="@_all.Count(s => s.Site.IsReadyToDeliver).ToString()" OnClick="() => SetFilter(NodeFilter.Deliver)" Active="_filter == NodeFilter.Deliver" Note="ODN y feeder finalizados" Tone="KpiCard.NoteTone.Success" />
+        <KpiCard Label="Listos para medir" Value="@_all.Count(s => s.ReadyToMeasure).ToString()" OnClick="() => SetFilter(NodeFilter.Measure)" Active="_filter == NodeFilter.Measure" Note="@($"{_all.Count(s => !s.Site.LogsUpToDate && s.Stages.Values.Any(v => v != StageStatus.Pending))} con bitácora por actualizar")" Tone="KpiCard.NoteTone.Warning" />
     </div>
 
     <div class="tk-toolbar">
@@ -125,8 +125,28 @@ else
     private string? _search;
     private bool _onlyBehind;
 
+    private enum NodeFilter { None, Behind, Odn, Deliver, Measure }
+
+    private NodeFilter _filter;
+
+    private void SetFilter(NodeFilter filter)
+    {
+        _filter = _filter == filter ? NodeFilter.None : filter;
+        _onlyBehind = false;
+    }
+
+    private bool Passes(SiteSummary s) => _filter switch
+    {
+        NodeFilter.Behind => s.Pace.Status == PaceStatus.Behind,
+        NodeFilter.Odn => s.Site.OdnFinalized,
+        NodeFilter.Deliver => s.Site.IsReadyToDeliver,
+        NodeFilter.Measure => s.ReadyToMeasure,
+        _ => true,
+    };
+
     private List<SiteSummary> Filtered => _all
         .Where(s => !_onlyBehind || s.Pace.Status == PaceStatus.Behind)
+        .Where(Passes)
         .Where(s => string.IsNullOrWhiteSpace(_search)
             || s.Site.Code.Contains(_search, StringComparison.OrdinalIgnoreCase)
             || (s.Site.Contractor?.Name ?? string.Empty).Contains(_search, StringComparison.OrdinalIgnoreCase)
@@ -137,6 +157,11 @@ else
     {
         _canEdit = await Access.CanEditAsync();
         _projectId = await Selection.EnsureAsync() ?? 0;
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
+        _filter = query.TryGetValue("f", out var f) ? f.ToString() switch
+        {
+            "atrasados" => NodeFilter.Behind, "odn" => NodeFilter.Odn, "entrega" => NodeFilter.Deliver, "medir" => NodeFilter.Measure, _ => NodeFilter.None,
+        } : NodeFilter.None;
         await LoadAsync();
     }
 
