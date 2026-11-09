@@ -1378,3 +1378,7 @@ html[data-theme="dark"] .tk-seg__part--none { color: var(--tk-text); }
 /* ---------- Confirmar un borrado ---------- */
 .tk-del-list { margin: 0 0 4px; padding-left: 20px; color: var(--tk-text-2); font-size: .92rem; }
 .tk-del-list li { margin-bottom: 4px; }
+
+/* ---------- Fila de total (viñetas) en la tabla de cantidades ---------- */
+.tk-table--grid tr.tk-table__total td { background: var(--tk-surface-2); font-weight: 800; color: var(--tk-heading); border-top: 2px solid var(--tk-line); }
+.tk-table--grid tr.tk-table__total td.tk-col-installed { background: color-mix(in srgb, var(--tk-success) 22%, var(--tk-surface-2)); }

@@ -60,6 +60,8 @@ else
         <KpiCard Label="Avance por etapas" Value="@($"{_summary.ProgressPercent:0.#}%")" Href="@($"nodos/{Id}#sec-etapas")" Note="ponderado por días de cada etapa" />
         <KpiCard Label="Tiempo transcurrido" Value="@($"{_summary.Pace.ElapsedPercent:0.#}%")"
                  Note="@($"{UiText.Date(site.PlannedStart)} – {UiText.Date(site.PlannedEnd)}")" />
+        <KpiCard Label="Viñetas del nodo" Value="@UiText.Number(_summary.VinetasInstalled)" Href="@($"nodos/{Id}#sec-cantidades")"
+                 Note="@($"instaladas de {UiText.Number(_summary.VinetasProjected)} · suma de los elementos de red")" Tone="@(_summary.VinetasProjected > 0 && _summary.VinetasInstalled >= _summary.VinetasProjected ? KpiCard.NoteTone.Success : KpiCard.NoteTone.Info)" />
         <KpiCard Label="Avance de FATs" Value="@($"{_summary.FatPercent:0.#}%")" Href="@($"nodos/{Id}#sec-mediciones")"
                  Note="@(_summary.ReadyToMeasure ? "Listo para medir" : $"Se mide con {_project?.ReadyToMeasurePercent}%")"
                  Tone="_summary.ReadyToMeasure ? KpiCard.NoteTone.Warning : KpiCard.NoteTone.Neutral" />
@@ -230,6 +232,25 @@ else
                                                 <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => RemoveMaterialAsync(m)" aria-label="Quitar del nodo" title="Quitar del nodo" />
                                             }
                                         </td>
+                                    </tr>
+                                }
+                                @if (group.Key == MaterialCategory.NetworkElement)
+                                {
+                                    var net = _materials.Where(x => SiteSummary.VinetaGroups.Contains(x.Material.Group)).ToList();
+                                    var netProjected = net.Sum(x => x.Projected);
+                                    var netInstalled = net.Sum(x => x.Installed);
+                                    <tr class="tk-table__total">
+                                        <td>Total de viñetas (sub-box + end-box + hub-box + x-box)</td>
+                                        <td>UND</td>
+                                        <td class="num">@UiText.Number(net.Sum(x => x.DesignProjected))</td>
+                                        <td class="num">@(net.Sum(x => x.Adjustments) > 0 ? "+" : "")@UiText.Number(net.Sum(x => x.Adjustments))</td>
+                                        <td class="num strong">@UiText.Number(netProjected)</td>
+                                        <td class="num">@UiText.Number(net.Where(x => x.Material.TracksStock).Sum(x => x.Delivered))</td>
+                                        <td class="num tk-installed tk-col-installed">@UiText.Number(netInstalled)</td>
+                                        <td class="num @(netProjected - netInstalled > 0 ? "text-danger" : "")">@(netProjected == 0 ? "—" : UiText.Number(netProjected - netInstalled))</td>
+                                        <td class="num">@(netProjected == 0 ? "—" : $"{(netInstalled - netProjected > 0 ? "+" : "")}{Math.Round((netInstalled - netProjected) / netProjected * 100m, 1):0.#}%")</td>
+                                        <td></td>
+                                        <td></td>
                                     </tr>
                                 }
                             }

@@ -75,6 +75,32 @@ public class EditableDataTests
     }
 
     [Fact]
+    public async Task Las_vinetas_del_nodo_son_la_suma_de_lo_instalado_de_todos_los_elementos_de_red()
+    {
+        using var env = await SetupAsync();
+        await using var ctx = env.Db.CreateDbContext();
+        var projection = new ProjectionService(env.Db);
+        var plan = new (QuantityGroup Group, decimal Projected, decimal Installed)[]
+        {
+            (QuantityGroup.SubBox, 51, 51), (QuantityGroup.EndBox, 14, 14), (QuantityGroup.HubBox, 6, 5), (QuantityGroup.XBox, 1, 1),
+        };
+        foreach (var (group, projected, installed) in plan)
+        {
+            var material = await ctx.Materials.FirstAsync(m => m.Group == group);
+            await projection.AdjustAsync(env.Site.Id, material.Id, projected, "Diseño", env.Today);
+            await env.Inventory.InstalledAsync(env.Project.Id, env.Site.Id, material.Id, installed, env.Today, null, null);
+        }
+
+        // Un accesorio de la misma categoría (aletas) no lleva viñeta y no debe sumar.
+        var aletas = await new MaterialService(env.Db).SaveAsync(new Material { Name = "ALETAS PARA NAPS", Unit = "PAR", Category = MaterialCategory.NetworkElement });
+        await env.Inventory.InstalledAsync(env.Project.Id, env.Site.Id, aletas.Id, 40, env.Today, null, null);
+
+        var summary = (await env.Sites.GetSummaryAsync(env.Site.Id))!;
+        summary.VinetasInstalled.Should().Be(71);
+        summary.VinetasProjected.Should().Be(72);
+    }
+
+    [Fact]
     public async Task El_avance_por_piezas_no_se_pasa_de_lo_proyectado()
     {
         using var env = await SetupAsync();
