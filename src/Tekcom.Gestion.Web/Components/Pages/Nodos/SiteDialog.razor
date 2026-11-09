@@ -4,6 +4,9 @@
 @inject ISiteService Sites
 @inject IReferenceDataService Reference
 @inject ISnackbar Snackbar
+@inject IDeletionService Deletion
+@inject IDialogService Dialogs
+@inject Tekcom.Gestion.Web.Services.UserAccess Access
 
 <MudDialog>
     <DialogContent>
@@ -36,6 +39,10 @@
         </MudGrid>
     </DialogContent>
     <DialogActions>
+        @if (_isAdmin && _model.Id != 0)
+        {
+            <MudButton Color="Color.Error" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Delete" OnClick="DeleteAsync" Style="margin-right:auto">Eliminar nodo</MudButton>
+        }
         <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
     </DialogActions>
@@ -49,9 +56,11 @@
     private Site _model = new();
     private List<Contractor> _contractors = [];
     private List<Supervisor> _supervisors = [];
+    private bool _isAdmin;
 
     protected override async Task OnInitializedAsync()
     {
+        _isAdmin = await Access.IsAdminAsync();
         _contractors = await Reference.ContractorsAsync();
         _supervisors = await Reference.SupervisorsAsync();
         _model = Model is null
@@ -63,6 +72,33 @@
                 SupervisorId = Model.SupervisorId, PlannedStart = Model.PlannedStart, PlannedEnd = Model.PlannedEnd,
                 ActualStart = Model.ActualStart, ActualEnd = Model.ActualEnd, Notes = Model.Notes,
             };
+    }
+
+    private async Task DeleteAsync()
+    {
+        var impact = await Deletion.SiteImpactAsync(_model.Id);
+        var reason = await DeleteConfirmDialog.AskAsync(Dialogs, "Eliminar nodo", $"¿Eliminar el nodo {_model.Code} con todo lo suyo?",
+            [
+                "Se ocultan sus etapas, proyectado, ajustes, mediciones, tareas y documentos.",
+                $"Se anulan sus {impact.Movements} movimientos de bodega (lo entregado vuelve al stock).",
+                "Los gastos del dinero no se tocan.",
+                "Queda registrado quién lo eliminó y por qué; no se destruye nada en la base.",
+            ], askReason: true, confirmText: _model.Code, buttonLabel: "Eliminar nodo");
+        if (reason is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Deletion.DeleteSiteAsync(_model.Id, reason);
+            Snackbar.Add($"Nodo {_model.Code} eliminado.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok("deleted"));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
     }
 
     private async Task SaveAsync()

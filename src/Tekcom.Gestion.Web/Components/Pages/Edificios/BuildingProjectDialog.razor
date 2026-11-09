@@ -5,6 +5,10 @@
 @using Tekcom.Gestion.Web.Services
 @inject IBuildingService Buildings
 @inject ISnackbar Snackbar
+@inject IDeletionService Deletion
+@inject IDialogService Dialogs
+@inject UserAccess Access
+@inject ProjectSelection Selection
 
 <MudDialog>
     <DialogContent>
@@ -25,6 +29,10 @@
         </MudGrid>
     </DialogContent>
     <DialogActions>
+        @if (_isAdmin && Model is not null)
+        {
+            <MudButton Color="Color.Error" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Delete" OnClick="DeleteAsync" Style="margin-right:auto">Eliminar proyecto</MudButton>
+        }
         <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
     </DialogActions>
@@ -40,15 +48,44 @@
     private string? _responsible;
     private DateOnly? _start;
     private DateOnly? _end;
+    private bool _isAdmin;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        _isAdmin = await Access.IsAdminAsync();
         _progress = Model.ReportedProgress;
         _status = Model.Status;
         _pending = Model.PendingWork;
         _responsible = Model.ResponsibleName;
         _start = Model.PlannedStart;
         _end = Model.PlannedEnd;
+    }
+
+    private async Task DeleteAsync()
+    {
+        var impact = await Deletion.ProjectImpactAsync(Model.Id);
+        var reason = await DeleteConfirmDialog.AskAsync(Dialogs, "Eliminar proyecto", $"¿Eliminar el proyecto {Model.Code} completo?",
+            [
+                "Se ocultan sus fases, niveles, apartamentos, gastos y todo lo suyo.",
+                $"Se anulan sus {impact.Movements} movimientos de bodega.",
+                "Queda registrado quién lo eliminó y por qué; no se destruye nada en la base.",
+            ], askReason: true, confirmText: Model.Code, buttonLabel: "Eliminar proyecto");
+        if (reason is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Deletion.DeleteProjectAsync(Model.Id, reason);
+            Selection.Forget(Model.Id);
+            Snackbar.Add($"Proyecto {Model.Code} eliminado.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
     }
 
     private async Task SaveAsync()

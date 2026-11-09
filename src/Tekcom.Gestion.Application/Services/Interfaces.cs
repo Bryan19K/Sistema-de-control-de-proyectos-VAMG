@@ -421,3 +421,34 @@ public interface ILoadVerificationService
     /// <summary>Revisa que todo lo que traían los Excel de TEK-COM esté cargado en el sistema y lo compara con las cifras de cada archivo.</summary>
     Task<LoadVerification> VerifyAsync(CancellationToken ct = default);
 }
+
+/// <summary>Lo que se verá afectado al borrar algo (para mostrarlo antes de confirmar).</summary>
+public sealed record DeletionImpact(int Nodes, int Movements);
+
+/// <summary>
+/// Borrado con control para el administrador. Todo es borrado lógico: el registro queda en la base con quién
+/// y cuándo lo borró (auditoría), y los movimientos de bodega se anulan con motivo, nunca se destruyen.
+/// </summary>
+public interface IDeletionService
+{
+    /// <summary>Quita un material de un nodo: anula lo entregado/instalado/devuelto y borra su proyectado y ajustes. Devuelve cuántos registros tocó.</summary>
+    Task<int> RemoveMaterialFromSiteAsync(int siteId, int materialId, string reason, CancellationToken ct = default);
+
+    /// <summary>Borra un material del catálogo. Se rechaza si aún tiene movimientos, proyectado o ajustes.</summary>
+    Task DeleteMaterialAsync(int materialId, CancellationToken ct = default);
+
+    Task<DeletionImpact> SiteImpactAsync(int siteId, CancellationToken ct = default);
+
+    /// <summary>Borra un nodo con todo lo suyo (etapas, proyectado, mediciones, tareas…) y anula sus movimientos de bodega.</summary>
+    Task DeleteSiteAsync(int siteId, string reason, CancellationToken ct = default);
+
+    Task<DeletionImpact> ProjectImpactAsync(int projectId, CancellationToken ct = default);
+
+    /// <summary>Borra un proyecto completo: nodos, plan, gastos, edificios, feeder… y anula sus movimientos de bodega.</summary>
+    Task DeleteProjectAsync(int projectId, string reason, CancellationToken ct = default);
+
+    /// <summary>Borra un contratista (y su personal). Se rechaza si tiene nodos o movimientos: en ese caso se desactiva.</summary>
+    Task DeleteContractorAsync(int contractorId, CancellationToken ct = default);
+
+    Task DeleteSupervisorAsync(int supervisorId, CancellationToken ct = default);
+}

@@ -1374,3 +1374,7 @@ html[data-theme="dark"] .tk-seg__part--none { color: var(--tk-text); }
     .tk-gantt--dense .tk-gantt__label { padding: 4px 6px; font-size: .8rem; }
     .tk-gantt--dense .tk-gantt__row--stage .tk-gantt__label { padding-left: 14px; }
 }
+
+/* ---------- Confirmar un borrado ---------- */
+.tk-del-list { margin: 0 0 4px; padding-left: 20px; color: var(--tk-text-2); font-size: .92rem; }
+.tk-del-list li { margin-bottom: 4px; }

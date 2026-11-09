@@ -1,0 +1,62 @@
+<MudDialog>
+    <DialogContent>
+        <p class="mb-2"><strong>@Message</strong></p>
+        @if (Details.Count > 0)
+        {
+            <ul class="tk-del-list">
+                @foreach (var line in Details)
+                {
+                    <li>@line</li>
+                }
+            </ul>
+        }
+        @if (AskReason)
+        {
+            <MudTextField @bind-Value="_reason" Immediate="true" Label="Motivo (obligatorio)" Lines="2" Class="mt-3" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          HelperText="Queda registrado para la auditoría." />
+        }
+        @if (!string.IsNullOrWhiteSpace(ConfirmText))
+        {
+            <MudTextField @bind-Value="_typed" Immediate="true" Label="@($"Para confirmar, escriba {ConfirmText}")" Class="mt-3" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" Disabled="!CanConfirm" OnClick="Confirm">@ButtonLabel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string Message { get; set; } = string.Empty;
+    [Parameter] public List<string> Details { get; set; } = [];
+    [Parameter] public bool AskReason { get; set; }
+
+    /// <summary>Texto que hay que escribir igual para poder confirmar (para borrados grandes).</summary>
+    [Parameter] public string? ConfirmText { get; set; }
+    [Parameter] public string ButtonLabel { get; set; } = "Eliminar";
+
+    private string? _reason;
+    private string? _typed;
+
+    private bool CanConfirm =>
+        (!AskReason || !string.IsNullOrWhiteSpace(_reason))
+        && (string.IsNullOrWhiteSpace(ConfirmText) || string.Equals(_typed?.Trim(), ConfirmText.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(_reason?.Trim() ?? string.Empty));
+
+    /// <summary>Pide confirmación. Devuelve el motivo (vacío si no se pidió) o null si se canceló.</summary>
+    public static async Task<string?> AskAsync(IDialogService dialogs, string title, string message, IEnumerable<string>? details = null,
+        bool askReason = false, string? confirmText = null, string buttonLabel = "Eliminar")
+    {
+        var dialog = await dialogs.ShowAsync<DeleteConfirmDialog>(title,
+            new DialogParameters
+            {
+                ["Message"] = message, ["Details"] = details?.ToList() ?? [], ["AskReason"] = askReason,
+                ["ConfirmText"] = confirmText, ["ButtonLabel"] = buttonLabel,
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        return result is { Canceled: false, Data: string reason } ? reason : null;
+    }
+}
