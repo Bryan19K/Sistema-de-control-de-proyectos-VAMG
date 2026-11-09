@@ -494,6 +494,7 @@ else
             <div>
                 <h3 class="tk-h3 mb-2">Control del nodo</h3>
                 <ul class="tk-muted" style="padding-left:18px">
+                    <li>Viñetas: <strong>@UiText.Number(summary.VinetasInstalled)</strong> instaladas@(summary.VinetasProjected > 0 ? $" de {UiText.Number(summary.VinetasProjected)}" : "") (suma de los elementos de red)</li>
                     <li>ODN: @(summary.Site.OdnFinalized ? $"finalizada el {UiText.Date(summary.Site.OdnFinalizedOn)}" : "pendiente")</li>
                     <li>Feeder: @UiText.FeederStatusName(summary.Site.FeederStatus)</li>
                     <li>Bitácora: @(summary.Site.LogsUpToDate ? "actualizada" : "por actualizar")</li>

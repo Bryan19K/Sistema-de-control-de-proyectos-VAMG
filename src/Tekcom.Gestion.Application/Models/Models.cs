@@ -51,6 +51,15 @@ public sealed class SiteSummary
     /// <summary>Avance de FATs (sub-box, end-box, Hub-box y X-box) como en el Excel.</summary>
     public decimal FatPercent { get; init; }
 
+    /// <summary>Los elementos de red que llevan viñeta: sub-box, end-box, Hub-box y X-box.</summary>
+    public static readonly QuantityGroup[] VinetaGroups = [QuantityGroup.SubBox, QuantityGroup.EndBox, QuantityGroup.HubBox, QuantityGroup.XBox];
+
+    /// <summary>Total de viñetas del nodo = suma de lo instalado de todos los elementos de red (columna VIÑETAS del Excel).</summary>
+    public decimal VinetasInstalled => VinetaGroups.Sum(g => Quantities.TryGetValue(g, out var q) ? q.Installed : 0);
+
+    /// <summary>Viñetas proyectadas = suma de lo proyectado de todos los elementos de red.</summary>
+    public decimal VinetasProjected => VinetaGroups.Sum(g => Quantities.TryGetValue(g, out var q) ? q.Projected : 0);
+
     /// <summary>
     /// Avance por piezas instaladas: cables, FATs, fusiones y cruces instalados sobre lo proyectado del nodo
     /// (sin pasarse de lo proyectado en cada grupo). Null si el nodo no tiene proyección.
