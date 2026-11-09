@@ -14,6 +14,8 @@
 @inject IMeasurementService Measurements
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IDeletionService Deletion
 @inject ProjectSelection Selection
 @inject UserAccess Access
 
@@ -223,6 +225,10 @@ else
                                             {
                                                 <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditInstalledAsync(m)" aria-label="Corregir cantidades" />
                                             }
+                                            @if (_isAdmin)
+                                            {
+                                                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => RemoveMaterialAsync(m)" aria-label="Quitar del nodo" title="Quitar del nodo" />
+                                            }
                                         </td>
                                     </tr>
                                 }
@@ -332,10 +338,12 @@ else
     private MeasurementSummary _measureSummary = new(0, 0, 0);
     private bool _loading = true;
     private bool _canEdit;
+    private bool _isAdmin;
 
     protected override async Task OnParametersSetAsync()
     {
         _canEdit = await Access.CanEditAsync();
+        _isAdmin = await Access.IsAdminAsync();
         await LoadAsync();
     }
 
@@ -391,7 +399,12 @@ else
         var dialog = await Dialogs.ShowAsync<SiteDialog>("Editar nodo",
             new DialogParameters { ["ProjectId"] = _summary!.Site.ProjectId, ["Model"] = _summary.Site },
             new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
-        if (!(await dialog.Result)!.Canceled)
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: "deleted" })
+        {
+            Navigation.NavigateTo("nodos");
+        }
+        else if (!result!.Canceled)
         {
             await LoadAsync();
         }
@@ -421,6 +434,31 @@ else
         if (!(await dialog.Result)!.Canceled)
         {
             await LoadAsync();
+        }
+    }
+
+    private async Task RemoveMaterialAsync(MaterialQuantity quantity)
+    {
+        var reason = await DeleteConfirmDialog.AskAsync(Dialogs, "Quitar del nodo", $"¿Quitar «{quantity.Material.Name}» de este nodo?",
+            [
+                "Se borra su proyectado y sus ajustes.",
+                "Lo entregado, instalado y devuelto se anula (no se destruye): lo entregado vuelve a la bodega.",
+                "Queda registrado quién lo hizo y por qué.",
+            ], askReason: true, buttonLabel: "Quitar del nodo");
+        if (reason is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Deletion.RemoveMaterialFromSiteAsync(Id, quantity.Material.Id, reason);
+            Snackbar.Add($"«{quantity.Material.Name}» ya no está en el nodo.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
         }
     }
 

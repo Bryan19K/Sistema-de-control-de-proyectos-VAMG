@@ -194,7 +194,12 @@ else
         var dialog = await Dialogs.ShowAsync<ProjectDialog>("Editar proyecto",
             new DialogParameters { ["Model"] = _project },
             new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
-        if (!(await dialog.Result)!.Canceled)
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: "deleted" })
+        {
+            Navigation.NavigateTo("proyectos");
+        }
+        else if (!result!.Canceled)
         {
             await LoadAsync();
         }

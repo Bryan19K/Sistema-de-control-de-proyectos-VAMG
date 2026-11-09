@@ -3,6 +3,9 @@
 @using Tekcom.Gestion.Domain.Entities
 @inject IReferenceDataService Reference
 @inject ISnackbar Snackbar
+@inject IDeletionService Deletion
+@inject IDialogService Dialogs
+@inject Tekcom.Gestion.Web.Services.UserAccess Access
 
 <MudDialog>
     <DialogContent>
@@ -17,6 +20,10 @@
         </MudStack>
     </DialogContent>
     <DialogActions>
+        @if (_isAdmin && Id != 0)
+        {
+            <MudButton Color="Color.Error" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Delete" OnClick="DeleteAsync" Style="margin-right:auto">Eliminar</MudButton>
+        }
         <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
     </DialogActions>
@@ -37,13 +44,50 @@
     private string? _responsible;
     private string? _phone;
     private bool _active = true;
+    private bool _isAdmin;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        _isAdmin = await Access.IsAdminAsync();
         _name = Name;
         _responsible = Responsible;
         _phone = Phone;
         _active = Active;
+    }
+
+    private async Task DeleteAsync()
+    {
+        var what = Kind == PersonKind.Contractor ? "contratista" : "supervisor";
+        var ok = await DeleteConfirmDialog.AskAsync(Dialogs, $"Eliminar {what}", $"¿Eliminar a «{_name}»?",
+            [
+                Kind == PersonKind.Contractor
+                    ? "Si tiene nodos o movimientos de bodega a su nombre no se puede: en ese caso desmarque «Activo»."
+                    : "Si supervisa nodos no se puede: cámbieles el supervisor primero, o desmarque «Activo».",
+                "Queda registrado quién lo eliminó.",
+            ]);
+        if (ok is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (Kind == PersonKind.Contractor)
+            {
+                await Deletion.DeleteContractorAsync(Id);
+            }
+            else
+            {
+                await Deletion.DeleteSupervisorAsync(Id);
+            }
+
+            Snackbar.Add($"«{_name}» eliminado.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error, o => o.RequireInteraction = true);
+        }
     }
 
     private async Task SaveAsync()

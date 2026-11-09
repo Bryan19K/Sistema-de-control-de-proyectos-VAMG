@@ -3,6 +3,9 @@
 @using Tekcom.Gestion.Domain.Entities
 @inject IContractorDirectoryService Directory
 @inject ISnackbar Snackbar
+@inject IDeletionService Deletion
+@inject IDialogService Dialogs
+@inject Tekcom.Gestion.Web.Services.UserAccess Access
 
 <MudDialog>
     <DialogContent>
@@ -36,6 +39,10 @@
         </MudGrid>
     </DialogContent>
     <DialogActions>
+        @if (_isAdmin && _m.Id != 0)
+        {
+            <MudButton Color="Color.Error" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Delete" OnClick="DeleteAsync" Style="margin-right:auto">Eliminar contratista</MudButton>
+        }
         <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
     </DialogActions>
@@ -46,9 +53,11 @@
     [Parameter] public Contractor? Model { get; set; }
 
     private Contractor _m = new();
+    private bool _isAdmin;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        _isAdmin = await Access.IsAdminAsync();
         _m = Model is null ? new Contractor() : new Contractor
         {
             Id = Model.Id, Name = Model.Name, ResponsibleName = Model.ResponsibleName, Phone = Model.Phone, IsActive = Model.IsActive,
@@ -57,6 +66,31 @@
             SupervisorPhone = Model.SupervisorPhone, CrewLeaderName = Model.CrewLeaderName, CrewLeaderPhone = Model.CrewLeaderPhone,
             BankHolder = Model.BankHolder, Bank = Model.Bank, AccountType = Model.AccountType, AccountNumber = Model.AccountNumber, Notes = Model.Notes,
         };
+    }
+
+    private async Task DeleteAsync()
+    {
+        var ok = await DeleteConfirmDialog.AskAsync(Dialogs, "Eliminar contratista", $"¿Eliminar a «{_m.Name}»?",
+            [
+                "Se borra también su personal registrado.",
+                "Si tiene nodos o movimientos de bodega a su nombre no se puede: en ese caso desmarque «Activo» y listo.",
+                "Queda registrado quién lo eliminó.",
+            ]);
+        if (ok is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Deletion.DeleteContractorAsync(_m.Id);
+            Snackbar.Add($"«{_m.Name}» eliminado.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(0));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error, o => o.RequireInteraction = true);
+        }
     }
 
     private async Task SaveAsync()

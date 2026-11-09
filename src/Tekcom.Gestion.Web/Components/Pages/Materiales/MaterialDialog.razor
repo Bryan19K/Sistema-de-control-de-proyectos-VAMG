@@ -5,6 +5,9 @@
 @using Tekcom.Gestion.Web.Services
 @inject IMaterialService Materials
 @inject ISnackbar Snackbar
+@inject IDeletionService Deletion
+@inject IDialogService Dialogs
+@inject UserAccess Access
 
 <MudDialog>
     <DialogContent>
@@ -65,6 +68,10 @@
         }
     </DialogContent>
     <DialogActions>
+        @if (_isAdmin && _model.Id != 0)
+        {
+            <MudButton Color="Color.Error" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Delete" OnClick="DeleteAsync" Style="margin-right:auto">Eliminar material</MudButton>
+        }
         <MudButton OnClick="() => MudDialog.Close(DialogResult.Ok(_changed))">Cerrar</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
     </DialogActions>
@@ -78,9 +85,11 @@
     private List<MaterialAlias> _aliases = [];
     private string? _newAlias;
     private bool _changed;
+    private bool _isAdmin;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        _isAdmin = await Access.IsAdminAsync();
         if (Model is not null)
         {
             _model = new Material
@@ -114,6 +123,31 @@
         catch (BusinessRuleException ex)
         {
             Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        var ok = await DeleteConfirmDialog.AskAsync(Dialogs, "Eliminar material", $"¿Eliminar «{_model.Name}» del catálogo?",
+            [
+                "Solo se puede si ya no tiene movimientos, proyectado ni ajustes en ningún nodo.",
+                "Si solo no lo quiere ver, mejor desmarque «Activo».",
+                "Queda registrado quién lo eliminó.",
+            ]);
+        if (ok is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Deletion.DeleteMaterialAsync(_model.Id);
+            Snackbar.Add($"«{_model.Name}» eliminado del catálogo.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error, o => o.RequireInteraction = true);
         }
     }
 

@@ -6,6 +6,9 @@
 @inject IProjectionService Projection
 @inject IDateTimeProvider Clock
 @inject ISnackbar Snackbar
+@inject IDeletionService Deletion
+@inject IDialogService Dialogs
+@inject UserAccess Access
 
 <MudDialog>
     <DialogContent>
@@ -29,6 +32,10 @@
                       HelperText="Todo queda registrado: lo proyectado como ajuste con motivo, y lo entregado e instalado como movimientos. Si baja una cantidad se anulan registros, no se borran." />
     </DialogContent>
     <DialogActions>
+        @if (_isAdmin)
+        {
+            <MudButton Color="Color.Error" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Delete" OnClick="RemoveAsync" Style="margin-right:auto">Quitar del nodo</MudButton>
+        }
         <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
     </DialogActions>
@@ -54,12 +61,40 @@
 
     private bool NeedsReason => _projected != Projected || _installed < Installed || _delivered < Delivered;
 
-    protected override void OnInitialized()
+    private bool _isAdmin;
+
+    protected override async Task OnInitializedAsync()
     {
+        _isAdmin = await Access.IsAdminAsync();
         _projected = Projected;
         _delivered = Delivered;
         _installed = Installed;
         _date = Clock.Today;
+    }
+
+    private async Task RemoveAsync()
+    {
+        var reason = await DeleteConfirmDialog.AskAsync(Dialogs, "Quitar del nodo", $"¿Quitar «{MaterialName}» de este nodo?",
+            [
+                "Se borra su proyectado y sus ajustes.",
+                "Lo entregado, instalado y devuelto se anula (no se destruye): lo entregado vuelve a la bodega.",
+                "Queda registrado quién lo hizo y por qué.",
+            ], askReason: true, buttonLabel: "Quitar del nodo");
+        if (reason is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Deletion.RemoveMaterialFromSiteAsync(SiteId, MaterialId, reason);
+            Snackbar.Add($"«{MaterialName}» ya no está en el nodo.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
     }
 
     private async Task SaveAsync()

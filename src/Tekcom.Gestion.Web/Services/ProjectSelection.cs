@@ -29,4 +29,13 @@ public sealed class ProjectSelection(IProjectService projects)
     }
 
     public void Select(int id) => CurrentId = id;
+
+    /// <summary>Olvida el proyecto elegido si fue borrado.</summary>
+    public void Forget(int id)
+    {
+        if (CurrentId == id)
+        {
+            CurrentId = null;
+        }
+    }
 }
