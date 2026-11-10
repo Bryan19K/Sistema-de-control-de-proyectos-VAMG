@@ -20,25 +20,50 @@
         <h4>Vista previa</h4>
         <div class="dz-bar"><span class="dz-bar__name">Finalizado</span><div class="dz-track"><div class="dz-fill is-done" style="width:100%"></div></div><span class="dz-bar__pct">100%</span></div>
         <div class="dz-bar"><span class="dz-bar__name">En avance</span><div class="dz-track"><div class="dz-fill" style="width:56%"></div></div><span class="dz-bar__pct">56%</span></div>
-        <div class="dz-bar"><span class="dz-bar__name">Sin iniciar</span><div class="dz-track"><div class="dz-fill" style="width:20%;background:var(--dz-red)"></div></div><span class="dz-bar__pct">20%</span></div>
+        <div class="dz-bar"><span class="dz-bar__name">Sin iniciar</span><div class="dz-track"><div class="dz-fill" style="width:20%;--c:var(--dz-red)"></div></div><span class="dz-bar__pct">20%</span></div>
         <svg viewBox="0 0 100 100" role="img" aria-label="Dona de ejemplo">
             <g transform="rotate(-90 50 50)" fill="none" stroke-width="13">
-                <circle cx="50" cy="50" r="40" class="dz-donut__seg is-ink" stroke-dasharray="75 176.3" />
-                <circle cx="50" cy="50" r="40" class="dz-donut__seg is-pink" stroke-dasharray="100 151.3" stroke-dashoffset="-75" />
-                <circle cx="50" cy="50" r="40" class="dz-donut__seg is-red" stroke-dasharray="76 175.3" stroke-dashoffset="-175" />
+                <circle cx="50" cy="50" r="40" class="dz-donut__seg dz-c-done" stroke-dasharray="75 176.3" />
+                <circle cx="50" cy="50" r="40" class="dz-donut__seg dz-c-prog" stroke-dasharray="100 151.3" stroke-dashoffset="-75" />
+                <circle cx="50" cy="50" r="40" class="dz-donut__seg dz-c-red" stroke-dasharray="76 175.3" stroke-dashoffset="-175" />
             </g>
         </svg>
         <div class="dz-insight"><span>FATs por instalar</span><strong class="is-alert">800</strong></div>
     </div>
 </div>
 
+<div class="tk-appearance__section">
+    <h3>Tipo de gráfico</h3>
+    <p class="tk-note">Elija cómo se dibuja cada gráfico de categorías del dashboard. La curva de avance y la producción por fecha siempre van como línea y columnas.</p>
+    @ChartRow("Instalación por partida", "Porcentaje instalado de cada partida", _installation, v => _installation = v)
+    @ChartRow("Avance de las brigadas", "Avance promedio de cada brigada", _brigades, v => _brigades = v)
+    @ChartRow("Etapas finalizadas", "Cuántos nodos terminaron cada etapa", _stages, v => _stages = v)
+    @ChartRow("Avance por nodo", "Porcentaje de avance de cada nodo", _nodes, v => _nodes = v)
+    @ChartRow("Nodos por estado", "Finalizados, en avance y sin iniciar", _states, v => _states = v)
+    <div class="tk-appearance__actions">
+        <button type="button" class="tk-btn tk-btn--primary" @onclick="SaveChartsAsync" disabled="@_busy">Guardar tipos de gráfico</button>
+        <button type="button" class="tk-btn tk-btn--outline" @onclick="ResetChartsAsync" disabled="@_busy">Volver a los tipos de fábrica</button>
+    </div>
+</div>
+
 @code {
+    private ChartKind _installation = DashboardCharts.Default.Installation;
+    private ChartKind _brigades = DashboardCharts.Default.Brigades;
+    private ChartKind _stages = DashboardCharts.Default.Stages;
+    private ChartKind _nodes = DashboardCharts.Default.Nodes;
+    private ChartKind _states = DashboardCharts.Default.States;
+
     private string _done = DashboardColors.Default.Done;
     private string _progress = DashboardColors.Default.InProgress;
     private string _alert = DashboardColors.Default.Alert;
     private bool _busy;
 
-    protected override async Task OnInitializedAsync() => Load(await Appearance.GetColorsAsync());
+    protected override async Task OnInitializedAsync()
+    {
+        Load(await Appearance.GetColorsAsync());
+        var c = await Appearance.GetChartsAsync();
+        (_installation, _brigades, _stages, _nodes, _states) = (c.Installation, c.Brigades, c.Stages, c.Nodes, c.States);
+    }
 
     private void Load(DashboardColors c) => (_done, _progress, _alert) = (c.Done, c.InProgress, c.Alert);
 
@@ -74,6 +99,52 @@
         await Appearance.ResetColorsAsync();
         Load(DashboardColors.Default);
         Snackbar.Add("Se restauraron los colores de referencia.", Severity.Success);
+        _busy = false;
+    }
+
+    private static string KindName(ChartKind kind) => kind switch
+    {
+        ChartKind.Bars => "Barras horizontales",
+        ChartKind.Columns => "Columnas",
+        ChartKind.Donut => "Dona",
+        _ => "Pastel",
+    };
+
+    private RenderFragment ChartRow(string label, string help, ChartKind value, Action<ChartKind> set) => @<div class="tk-chart-row">
+        <div><strong>@label</strong><small>@help</small></div>
+        <select aria-label="@("Tipo de gráfico de " + label)" @onchange="e => set(Enum.Parse<ChartKind>(e.Value?.ToString() ?? nameof(ChartKind.Bars)))">
+            @foreach (var kind in Enum.GetValues<ChartKind>())
+            {
+                <option value="@kind" selected="@(kind == value)">@KindName(kind)</option>
+            }
+        </select>
+    </div>;
+
+    private async Task SaveChartsAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Appearance.SaveChartsAsync(new DashboardCharts(_installation, _brigades, _stages, _nodes, _states));
+            Snackbar.Add("Tipos de gráfico guardados. Se ven en la Presentación al recargarla.", Severity.Success);
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ResetChartsAsync()
+    {
+        _busy = true;
+        await Appearance.ResetChartsAsync();
+        var c = DashboardCharts.Default;
+        (_installation, _brigades, _stages, _nodes, _states) = (c.Installation, c.Brigades, c.Stages, c.Nodes, c.States);
+        Snackbar.Add("Se restauraron los tipos de gráfico de fábrica.", Severity.Success);
         _busy = false;
     }
 }
