@@ -169,5 +169,8 @@ public class InsightsServicesTests
         data.Production.Should().HaveCount(2);
         data.Production[0].Meters.Should().Be(400m);
         data.Production[1].Should().Match<DayProduction>(d => d.Meters == 200m && d.Fats == 10m);
+        data.ProductionBySite.Should().HaveCount(2).And.OnlyContain(p => p.SiteId == site.Id, "la producción también viene separada por nodo para poder filtrarla");
+        row.Quantities.Should().NotBeNull();
+        row.Supervisor.Should().Be("Sin supervisor");
     }
 }
