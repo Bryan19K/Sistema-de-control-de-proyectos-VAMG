@@ -1,6 +1,7 @@
 @using Tekcom.Gestion.Application.Common
 @using Tekcom.Gestion.Application.Services
 @using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
 @inject ISiteService Sites
 @inject IReferenceDataService Reference
 @inject ISnackbar Snackbar
@@ -37,6 +38,42 @@
             <MudItem xs="12" sm="6"><MudNumericField T="double?" @bind-Value="_model.Longitude" Label="Longitud" Format="0.######" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_model.Notes" Label="Notas" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
         </MudGrid>
+
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Orden de construcción</MudText>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="4"><MudNumericField T="int?" @bind-Value="_model.HomesPassed" Label="HP (hogares que pasa)" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_model.ElectricalPermitStatus" Label="Permisos eléctricos" Placeholder="Aprobado" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="bool?" @bind-Value="_model.MaterialsDelivered" Label="Materiales entregados" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="bool?" Value="true">Sí</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="false">No</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudSelect T="ClosureDocStatus?" @bind-Value="_model.KmzStatus" Label="KMZ" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="ClosureDocStatus?" Value="ClosureDocStatus.Validated">Validada</MudSelectItem>
+                    <MudSelectItem T="ClosureDocStatus?" Value="ClosureDocStatus.PendingContractor">Pendiente por contratista</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudSelect T="ClosureDocStatus?" @bind-Value="_model.UmConsolidatedStatus" Label="Consolidado de UM" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="ClosureDocStatus?" Value="ClosureDocStatus.Validated">Validada</MudSelectItem>
+                    <MudSelectItem T="ClosureDocStatus?" Value="ClosureDocStatus.PendingContractor">Pendiente por contratista</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudSelect T="ClosureDocStatus?" @bind-Value="_model.PhotoReportStatus" Label="Reporte fotográfico" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="ClosureDocStatus?" Value="ClosureDocStatus.Validated">Validada</MudSelectItem>
+                    <MudSelectItem T="ClosureDocStatus?" Value="ClosureDocStatus.PendingContractor">Pendiente por contratista</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudSelect T="bool?" @bind-Value="_model.AtpDelivered" Label="ATP entregado" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem T="bool?" Value="true">Sí</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="false">No</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
     </DialogContent>
     <DialogActions>
         @if (_isAdmin && _model.Id != 0)
@@ -71,6 +108,8 @@
                 Latitude = Model.Latitude, Longitude = Model.Longitude, ContractorId = Model.ContractorId,
                 SupervisorId = Model.SupervisorId, PlannedStart = Model.PlannedStart, PlannedEnd = Model.PlannedEnd,
                 ActualStart = Model.ActualStart, ActualEnd = Model.ActualEnd, Notes = Model.Notes,
+                HomesPassed = Model.HomesPassed, ElectricalPermitStatus = Model.ElectricalPermitStatus, MaterialsDelivered = Model.MaterialsDelivered,
+                KmzStatus = Model.KmzStatus, UmConsolidatedStatus = Model.UmConsolidatedStatus, PhotoReportStatus = Model.PhotoReportStatus, AtpDelivered = Model.AtpDelivered,
             };
     }
 

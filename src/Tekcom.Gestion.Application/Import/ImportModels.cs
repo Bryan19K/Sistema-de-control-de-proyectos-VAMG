@@ -170,6 +170,7 @@ public enum PackKind
     Expenses = 4,
     PriceList = 5,
     Contractors = 6,
+    NodeAssignment = 7,
 }
 
 /// <summary>Un bloque de datos detectado dentro de un Excel, ya leído y validado, listo para confirmar.</summary>

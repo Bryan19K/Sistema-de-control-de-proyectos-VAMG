@@ -199,14 +199,14 @@ public class EditableDataTests
     }
 
     [Fact]
-    public async Task La_verificacion_de_carga_sin_datos_dice_que_faltan_los_seis_excel()
+    public async Task La_verificacion_de_carga_sin_datos_dice_que_faltan_los_siete_excel()
     {
         using var db = await TestDb.CreateAsync();
         var result = await new LoadVerificationService(db).VerifyAsync();
 
-        result.Files.Should().HaveCount(6);
+        result.Files.Should().HaveCount(7);
         result.AllLoaded.Should().BeFalse();
-        result.Missing.Should().HaveCount(6);
+        result.Missing.Should().HaveCount(7);
         result.Files.SelectMany(f => f.Checks).Should().Contain(c => c.State == Application.Models.LoadCheckState.Missing);
     }
 

@@ -1439,7 +1439,7 @@ html[data-theme="dark"] .pv-slicer__btn.is-active { background: #2f5f93; border-
 .pv-fill { display: block; height: 100%; border-radius: 999px; background: var(--pv-info); }
 .pv-fill--ok { background: var(--pv-ok); } .pv-fill--bad { background: var(--pv-bad); } .pv-fill--warn { background: var(--pv-warn); }
 .pv-fill--time { background: #9db4d0; } .pv-fill--none { background: var(--v-none); } .pv-fill--info { background: var(--pv-info); }
-.pv-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.pv-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .pv-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--tk-card-border); background: var(--tk-surface-2); }
 .pv-tile__label { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--tk-text-3); }
 .pv-tile__value { font-size: 1.15rem; font-weight: 800; color: var(--tk-heading); font-variant-numeric: tabular-nums; }
@@ -1584,7 +1584,6 @@ html[data-theme="dark"] .pv-closing { background: #1b3a5c; }
     .pv-row--2, .pv-row--2-1, .pv-row--4, .pv-cards { grid-template-columns: minmax(0, 1fr); }
     .pv-hero { padding: 16px; }
     .pv-hero__body { grid-template-columns: minmax(0, 1fr); }
-    .pv-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .pv-gauge__value { font-size: 2.8rem; }
     .pv-context { padding: 12px; }
     .pv-slicer { overflow-x: auto; flex-wrap: nowrap; max-width: 100%; padding-bottom: 4px; }

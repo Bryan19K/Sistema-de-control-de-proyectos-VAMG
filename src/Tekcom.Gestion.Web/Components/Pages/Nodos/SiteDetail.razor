@@ -158,6 +158,15 @@ else
             {
                 <div class="tk-flag"><div><div class="tk-flag__label">Notas</div><div class="tk-flag__help">@site.Notes</div></div></div>
             }
+        </SectionCard>
+        <SectionCard Title="Orden de construcción" Class="mt-6">
+            <div class="tk-flag"><div><div class="tk-flag__label">HP (hogares que pasa)</div></div><strong>@(site.HomesPassed is { } hp ? UiText.Number(hp) : "—")</strong></div>
+            <div class="tk-flag"><div><div class="tk-flag__label">Permisos eléctricos</div></div><strong>@(string.IsNullOrWhiteSpace(site.ElectricalPermitStatus) ? "—" : site.ElectricalPermitStatus)</strong></div>
+            <div class="tk-flag"><div><div class="tk-flag__label">Entrega de materiales</div></div><strong>@YesNoText(site.MaterialsDelivered)</strong></div>
+            <div class="tk-flag"><div><div class="tk-flag__label">KMZ</div></div><strong>@DocText(site.KmzStatus)</strong></div>
+            <div class="tk-flag"><div><div class="tk-flag__label">Consolidado de UM</div></div><strong>@DocText(site.UmConsolidatedStatus)</strong></div>
+            <div class="tk-flag"><div><div class="tk-flag__label">Reporte fotográfico</div></div><strong>@DocText(site.PhotoReportStatus)</strong></div>
+            <div class="tk-flag"><div><div class="tk-flag__label">ATP entregado</div></div><strong>@YesNoText(site.AtpDelivered)</strong></div>
         </SectionCard></div>
     </div>
 
@@ -457,6 +466,15 @@ else
             await LoadAsync();
         }
     }
+
+    private static string YesNoText(bool? value) => value switch { true => "Sí", false => "No", _ => "—" };
+
+    private static string DocText(ClosureDocStatus? status) => status switch
+    {
+        ClosureDocStatus.Validated => "Validada",
+        ClosureDocStatus.PendingContractor => "Pendiente por contratista",
+        _ => "—",
+    };
 
     private async Task RemoveMaterialAsync(MaterialQuantity quantity)
     {

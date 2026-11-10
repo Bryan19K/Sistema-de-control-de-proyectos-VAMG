@@ -274,7 +274,7 @@ public sealed record BrigadeRow(string Name, int Sites, int FinishedSites, decim
 public sealed record NodeMatrixRow(
     int SiteId, string Code, decimal Progress, PaceStatus Pace, int DaysDelta, StageStatus Fusion, StageStatus Measurement,
     bool ReadyToMeasure, bool ReadyToDeliver, decimal FatsInstalled, decimal FatsProjected, decimal CableMeters, decimal Pieces,
-    DateOnly? PlannedEnd, DateOnly? ProjectedEnd, string Brigade)
+    DateOnly? PlannedEnd, DateOnly? ProjectedEnd, string Brigade, int? HomesPassed = null)
 {
     /// <summary>Piezas instaladas por kilómetro de cable tendido (null si aún no hay cable).</summary>
     public decimal? Density => CableMeters <= 0 ? null : Math.Round(Pieces / (CableMeters / 1000m), 1);
