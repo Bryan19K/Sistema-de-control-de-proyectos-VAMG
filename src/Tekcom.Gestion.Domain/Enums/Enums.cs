@@ -46,6 +46,13 @@ public enum MaterialCategory
     Other = 10,
 }
 
+/// <summary>Estado de un documento de cierre del nodo (KMZ, consolidado de UM, reporte fotográfico).</summary>
+public enum ClosureDocStatus
+{
+    PendingContractor = 0,  // "PENDIENTE POR CONTRATISTA"
+    Validated = 1,          // "VALIDADA"
+}
+
 public enum MovementType
 {
     Receipt = 0,    // Ingreso

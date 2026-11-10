@@ -1,0 +1,51 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@inject IMaterialService Materials
+@inject IDeletionService Deletion
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <p class="mb-3">Elija el material con el que <strong>@Source.Name</strong> es el mismo. Todo lo registrado en este material (entregas, instalado, proyectado, devoluciones) pasa al otro y este deja de existir en el catálogo; su nombre queda como alias.</p>
+        <MudAutocomplete T="Material" Value="_target" ValueChanged="m => _target = m" Label="Se conserva este material" SearchFunc="SearchAsync"
+                         ToStringFunc="@(m => m is null ? string.Empty : (string.IsNullOrWhiteSpace(m.Code) ? m.Name : $"{m.Name} ({m.Code})"))"
+                         Variant="Variant.Outlined" Margin="Margin.Dense" ResetValueOnEmptyText="true" Clearable="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" Disabled="_target is null" OnClick="MergeAsync">Unir materiales</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Material Source { get; set; } = default!;
+
+    private Material? _target;
+
+    private async Task<IEnumerable<Material>> SearchAsync(string? text, CancellationToken ct) =>
+        (await Materials.ListAsync(text, null, true)).Where(m => m.Id != Source.Id).Take(25);
+
+    private async Task MergeAsync()
+    {
+        var reason = await DeleteConfirmDialog.AskAsync(Dialogs, "Unir materiales", $"¿Unir «{Source.Name}» dentro de «{_target!.Name}»?",
+            ["Lo registrado en uno pasa al otro y se suma.", "No se puede deshacer desde la pantalla; queda el registro de quién lo hizo."], buttonLabel: "Unir");
+        if (reason is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Deletion.MergeMaterialsAsync(Source.Id, _target.Id);
+            Snackbar.Add($"«{Source.Name}» se unió con «{_target.Name}».", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

@@ -106,6 +106,13 @@ public sealed class SiteService(
         entity.ActualStart = site.ActualStart;
         entity.ActualEnd = site.ActualEnd;
         entity.Notes = string.IsNullOrWhiteSpace(site.Notes) ? null : site.Notes.Trim();
+        entity.HomesPassed = site.HomesPassed is < 0 ? null : site.HomesPassed;
+        entity.ElectricalPermitStatus = string.IsNullOrWhiteSpace(site.ElectricalPermitStatus) ? null : site.ElectricalPermitStatus.Trim();
+        entity.MaterialsDelivered = site.MaterialsDelivered;
+        entity.KmzStatus = site.KmzStatus;
+        entity.UmConsolidatedStatus = site.UmConsolidatedStatus;
+        entity.PhotoReportStatus = site.PhotoReportStatus;
+        entity.AtpDelivered = site.AtpDelivered;
 
         await db.SaveChangesAsync(ct);
 

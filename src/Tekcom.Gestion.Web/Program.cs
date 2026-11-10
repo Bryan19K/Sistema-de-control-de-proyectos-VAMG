@@ -171,10 +171,20 @@ app.MapGet("/exportes/{key}/{format}", async (
     Tekcom.Gestion.Application.Reports.IReportService reports,
     Tekcom.Gestion.Application.Reports.IReportExporter exporter,
     Tekcom.Gestion.Application.Reports.IExportTemplateService templates,
+    Tekcom.Gestion.Application.Reports.ILiquidationFormatService liquidationFormat,
     Tekcom.Gestion.Application.Services.IUserAdminService users) =>
 {
     try
     {
+        // La liquidación en Excel sale con el formato oficial de la empresa (una hoja por nodo).
+        if (key.StartsWith("liquidacion", StringComparison.OrdinalIgnoreCase) && format.Equals("xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            var sheets = await liquidationFormat.SheetsAsync(proyecto, key.Equals("liquidacion", StringComparison.OrdinalIgnoreCase) ? nodo : null);
+            var name = sheets.Count == 1 ? $"LIQUIDACION_{sheets[0].NodeCode}" : "LIQUIDACION_DE_NODOS_FTTH";
+            return Results.File(liquidationFormat.ToOfficialExcel(sheets),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{name}_{DateTime.Today:yyyyMMdd}.xlsx");
+        }
+
         var preparedBy = await users.DisplayNameAsync(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty);
         DateOnly? cutoff = DateOnly.TryParse(corte, out var parsed) ? parsed : null;
         var document = await reports.BuildAsync(new Tekcom.Gestion.Application.Reports.ReportRequest

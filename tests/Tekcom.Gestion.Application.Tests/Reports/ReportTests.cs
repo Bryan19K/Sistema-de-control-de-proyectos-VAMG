@@ -57,7 +57,7 @@ public class ReportTests
         await inventory.InstalledAsync(project.Id, site.Id, nap.Id, 120, db.Clock.Today, null, null);
         await sprints.SaveAsync(new Sprint { ProjectId = project.Id, Name = "Sprint 1", StartDate = db.Clock.Today.AddDays(-5), EndDate = db.Clock.Today.AddDays(9) });
 
-        var reports = new ReportService(projects, inventory, sites, sprints, liquidation, projection, new WorkPlanService(db, sites, db.Clock),
+        var reports = new ReportService(projects, inventory, sites, sprints, liquidation, new LiquidationFormatService(db, projects, sites, quantities, new ConfigurationBuilder().Build(), new FakeEnvironment()), projection, new WorkPlanService(db, sites, db.Clock),
             new EquipmentService(db, db.Clock), new MinuteService(db, db.Clock), new DocumentService(db, new FakeFileStorage()),
             new MeasurementService(db), new FakeUserAdmin(), db.Clock);
         var exporter = new ReportExporter(new ConfigurationBuilder().Build(), new FakeEnvironment());
@@ -137,12 +137,13 @@ public class ReportTests
         var document = await BuildAsync(env, "liquidacion", env.Site.Id);
 
         document.Signatures.Should().HaveCount(3);
-        var row = document.Sections[0].Rows.Single(r => (string?)r[0] == "NAP de paso");
-        row[2].Should().Be(150m, "proyectado");
-        row[3].Should().Be(142m, "entregado");
-        row[4].Should().Be(120m, "instalado");
-        row[5].Should().Be(22m, "sobrante");
-        row[7].Should().Be(22m, "pendiente");
+        document.Sections[0].Columns.Select(c => c.Header).Should().Equal(
+            "ITEMS", "NOMBRE DE MATERIAL", "GRUPO", "UM", "ENTREGADO POR ALMACEN", "UTILIZADO", "TOTAL A DEVOLVER", "DEVOLUCION", "DEBE", "OBSERVACION");
+        var row = document.Sections[0].Rows.Single(r => (string?)r[1] == "NAP DE PASO");
+        row[4].Should().Be(142m, "entregado por almacén");
+        row[5].Should().Be(120m, "utilizado");
+        row[6].Should().Be(22m, "total a devolver");
+        row[8].Should().Be(22m, "debe");
 
         var bytes = env.Exporter.ToExcel(document, await env.Templates.GetAsync(null));
         using var book = new XLWorkbook(new MemoryStream(bytes));

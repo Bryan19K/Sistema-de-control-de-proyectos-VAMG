@@ -2479,6 +2479,9 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("ActualStart")
                         .HasColumnType("date");
 
+                    b.Property<bool?>("AtpDelivered")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("CaesSupervised")
                         .HasColumnType("boolean");
 
@@ -2504,11 +2507,21 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<string>("ElectricalPermitStatus")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
                     b.Property<int>("FeederStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HomesPassed")
                         .HasColumnType("integer");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<int?>("KmzStatus")
+                        .HasColumnType("integer");
 
                     b.Property<double?>("Latitude")
                         .HasColumnType("double precision");
@@ -2522,6 +2535,9 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Property<double?>("Longitude")
                         .HasColumnType("double precision");
 
+                    b.Property<bool?>("MaterialsDelivered")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
@@ -2531,6 +2547,9 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
 
                     b.Property<DateOnly?>("OdnFinalizedOn")
                         .HasColumnType("date");
+
+                    b.Property<int?>("PhotoReportStatus")
+                        .HasColumnType("integer");
 
                     b.Property<DateOnly?>("PlannedEnd")
                         .HasColumnType("date");
@@ -2542,6 +2561,9 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int?>("SupervisorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("UmConsolidatedStatus")
                         .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")

@@ -75,7 +75,13 @@ public interface IMaterialService
 
     /// <summary>Busca por nombre o alias ("SUB-BOX" devuelve "NAP de paso").</summary>
     Task<Material?> ResolveAsync(string name, CancellationToken ct = default);
+
+    /// <summary>Pares de materiales que parecen el mismo escrito distinto (plural, "de"/"para", unidad). El primero es el que conviene conservar.</summary>
+    Task<List<MaterialDuplicate>> DuplicateCandidatesAsync(CancellationToken ct = default);
 }
+
+/// <summary>Dos materiales del catálogo que probablemente son el mismo.</summary>
+public sealed record MaterialDuplicate(Material Keep, Material Remove, int KeepMovements, int RemoveMovements);
 
 public interface IUserAdminService
 {
@@ -451,4 +457,10 @@ public interface IDeletionService
     Task DeleteContractorAsync(int contractorId, CancellationToken ct = default);
 
     Task DeleteSupervisorAsync(int supervisorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Une dos materiales que son el mismo: pasa al material que se conserva todos los movimientos, proyectado, ajustes y justificaciones
+    /// del otro (sumando las líneas de proyección repetidas), deja su nombre como alias y lo borra del catálogo.
+    /// </summary>
+    Task MergeMaterialsAsync(int removeId, int keepId, CancellationToken ct = default);
 }

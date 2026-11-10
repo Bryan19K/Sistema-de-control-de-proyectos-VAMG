@@ -71,6 +71,7 @@
         @if (_isAdmin && _model.Id != 0)
         {
             <MudButton Color="Color.Error" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Delete" OnClick="DeleteAsync" Style="margin-right:auto">Eliminar material</MudButton>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Merge" OnClick="MergeAsync">Unir con otro</MudButton>
         }
         <MudButton OnClick="() => MudDialog.Close(DialogResult.Ok(_changed))">Cerrar</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Guardar</MudButton>
@@ -123,6 +124,17 @@
         catch (BusinessRuleException ex)
         {
             Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task MergeAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<MergeMaterialDialog>("Unir con otro material",
+            new DialogParameters { ["Source"] = _model }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            MudDialog.Close(DialogResult.Ok(true));
         }
     }
 

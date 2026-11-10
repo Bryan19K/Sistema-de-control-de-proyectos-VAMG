@@ -7,6 +7,7 @@ using Tekcom.Gestion.Application.Services;
 using Tekcom.Gestion.Domain.Common;
 using Tekcom.Gestion.Domain.Entities;
 using Tekcom.Gestion.Domain.Enums;
+using Tekcom.Gestion.Domain.Logic;
 using Tekcom.Gestion.Infrastructure.Persistence;
 
 namespace Tekcom.Gestion.Infrastructure.Services;
@@ -187,6 +188,82 @@ public sealed class DeletionService(
 
         SoftDelete(supervisor);
         await db.SaveChangesAsync(ct);
+    }
+
+    // ------------------------------------------------------------------ unir materiales
+
+    private static readonly MethodInfo MoveMaterialMethod = typeof(DeletionService).GetMethod(nameof(MoveMaterial), BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    public async Task MergeMaterialsAsync(int removeId, int keepId, CancellationToken ct = default)
+    {
+        if (removeId == keepId)
+        {
+            throw new BusinessRuleException("Elija dos materiales distintos.");
+        }
+
+        await using var db = factory.CreateDbContext();
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var remove = await db.Materials.Include(m => m.Aliases).FirstOrDefaultAsync(m => m.Id == removeId, ct) ?? throw new BusinessRuleException("El material a unir no existe.");
+        var keep = await db.Materials.Include(m => m.Aliases).FirstOrDefaultAsync(m => m.Id == keepId, ct) ?? throw new BusinessRuleException("El material que se conserva no existe.");
+
+        // Líneas de proyección repetidas en la misma proyección: se suman en una sola.
+        var keepLines = await db.DesignProjectionLines.Where(l => l.MaterialId == keepId).ToListAsync(ct);
+        foreach (var line in await db.DesignProjectionLines.Where(l => l.MaterialId == removeId).ToListAsync(ct))
+        {
+            var twin = keepLines.FirstOrDefault(l => l.DesignProjectionId == line.DesignProjectionId);
+            if (twin is not null)
+            {
+                twin.Quantity += line.Quantity;
+                line.Quantity = 0;
+                SoftDelete(line);
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        // Todo lo demás que apunte al material (movimientos, ajustes, justificaciones…) pasa al que se conserva.
+        foreach (var entityType in db.Model.GetEntityTypes().ToList())
+        {
+            var clr = entityType.ClrType;
+            if (entityType.IsOwned() || !typeof(ISoftDeletable).IsAssignableFrom(clr) || clr == typeof(Material) || clr == typeof(MaterialAlias)
+                || entityType.FindProperty("MaterialId") is null)
+            {
+                continue;
+            }
+
+            await (Task)MoveMaterialMethod.MakeGenericMethod(clr).Invoke(null, [db, removeId, keepId, ct])!;
+        }
+
+        // El nombre y los alias del material unido quedan como alias del que se conserva.
+        foreach (var alias in remove.Aliases.ToList())
+        {
+            alias.MaterialId = keepId;
+        }
+
+        var key = NameNormalizer.Key(remove.Name);
+        if (key.Length > 0 && NameNormalizer.Key(keep.Name) != key && !keep.Aliases.Any(a => a.AliasKey == key))
+        {
+            db.MaterialAliases.Add(new MaterialAlias { MaterialId = keepId, Alias = remove.Name, AliasKey = key });
+        }
+
+        keep.Code = string.IsNullOrWhiteSpace(keep.Code) ? remove.Code : keep.Code;
+        keep.Model = string.IsNullOrWhiteSpace(keep.Model) ? remove.Model : keep.Model;
+        keep.Description = string.IsNullOrWhiteSpace(keep.Description) ? remove.Description : keep.Description;
+        keep.HasSerial |= remove.HasSerial;
+        keep.MinimumStock = Math.Max(keep.MinimumStock, remove.MinimumStock);
+
+        SoftDelete(remove);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
+
+    private static async Task MoveMaterial<T>(ApplicationDbContext db, int fromId, int toId, CancellationToken ct) where T : class
+    {
+        var items = await db.Set<T>().IgnoreQueryFilters().Where(e => EF.Property<int>(e, "MaterialId") == fromId).ToListAsync(ct);
+        foreach (var item in items)
+        {
+            db.Entry(item).Property("MaterialId").CurrentValue = toId;
+        }
     }
 
     // ------------------------------------------------------------------ ayudas

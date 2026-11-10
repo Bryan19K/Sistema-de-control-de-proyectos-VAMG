@@ -33,7 +33,8 @@ else
             {
                 <button type="button" class="tk-btn tk-btn--outline" @onclick="ReturnAsync">+ Devolución</button>
             }
-            <a href="@($"exportar?reporte=liquidacion&nodo={Id}")" class="tk-btn tk-btn--navy">Generar acta</a>
+            <a href="@($"exportes/liquidacion/xlsx?proyecto={_view.Site.ProjectId}&nodo={Id}")" class="tk-btn tk-btn--primary" download>Excel oficial</a>
+            <a href="@($"exportes/liquidacion/pdf?proyecto={_view.Site.ProjectId}&nodo={Id}")" class="tk-btn tk-btn--navy" download>Acta PDF</a>
         </Actions>
     </PageHeader>
 
