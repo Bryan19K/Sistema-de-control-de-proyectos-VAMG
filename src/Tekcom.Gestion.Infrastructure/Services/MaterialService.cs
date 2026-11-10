@@ -130,6 +130,39 @@ public sealed class MaterialService(IDbContextFactory<ApplicationDbContext> fact
         }
     }
 
+    private static readonly HashSet<string> LooseStopWords = ["DE", "DEL", "PARA", "LA", "EL", "LOS", "LAS", "M", "MT", "MTS", "UND", "UN"];
+
+    /// <summary>Clave "floja" de un material: sin acentos, sin "de/para", sin la unidad y con las palabras en singular.</summary>
+    internal static string LooseKey(string? name)
+    {
+        var tokens = NameNormalizer.Key(name).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => !LooseStopWords.Contains(t))
+            .Select(t => t.Length > 3 && t.EndsWith('S') ? t[..^1] : t);
+        return string.Join(' ', tokens);
+    }
+
+    public async Task<List<MaterialDuplicate>> DuplicateCandidatesAsync(CancellationToken ct = default)
+    {
+        await using var db = factory.CreateDbContext();
+        var materials = await db.Materials.AsNoTracking().ToListAsync(ct);
+        var counts = await db.InventoryMovements.AsNoTracking().Where(m => !m.IsVoided)
+            .GroupBy(m => m.MaterialId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+
+        var result = new List<MaterialDuplicate>();
+        foreach (var group in materials.Where(m => LooseKey(m.Name).Length > 0).GroupBy(m => LooseKey(m.Name)).Where(g => g.Count() > 1))
+        {
+            // Se conserva el que tiene código ERP (o, si ninguno, el que más movimientos tiene).
+            var ordered = group.OrderByDescending(m => !string.IsNullOrWhiteSpace(m.Code)).ThenByDescending(m => counts.GetValueOrDefault(m.Id)).ThenBy(m => m.Id).ToList();
+            var keep = ordered[0];
+            foreach (var other in ordered.Skip(1))
+            {
+                result.Add(new MaterialDuplicate(keep, other, counts.GetValueOrDefault(keep.Id), counts.GetValueOrDefault(other.Id)));
+            }
+        }
+
+        return result.OrderBy(d => d.Keep.Name).ToList();
+    }
+
     public async Task<Material?> ResolveAsync(string name, CancellationToken ct = default)
     {
         await using var db = factory.CreateDbContext();

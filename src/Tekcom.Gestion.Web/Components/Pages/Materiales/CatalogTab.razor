@@ -11,6 +11,10 @@
     {
         <button type="button" class="tk-btn tk-btn--primary" @onclick="() => EditAsync(null)">+ Nuevo material</button>
     }
+    @if (_isAdmin)
+    {
+        <button type="button" class="tk-btn tk-btn--outline" @onclick="DuplicatesAsync">Revisar duplicados</button>
+    }
     <MudTextField @bind-Value="_search" Immediate="true" Placeholder="Buscar por nombre, alias o código"
                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                   Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:320px" OnDebounceIntervalElapsed="LoadAsync" DebounceInterval="250" />
@@ -83,6 +87,16 @@
     protected override async Task OnInitializedAsync()
     {
         _canEdit = await Access.CanEditAsync();
+        _isAdmin = await Access.IsAdminAsync();
+        await LoadAsync();
+    }
+
+    private bool _isAdmin;
+
+    private async Task DuplicatesAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<DuplicatesDialog>("Materiales repetidos", new DialogParameters(), new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+        await dialog.Result;
         await LoadAsync();
     }
 

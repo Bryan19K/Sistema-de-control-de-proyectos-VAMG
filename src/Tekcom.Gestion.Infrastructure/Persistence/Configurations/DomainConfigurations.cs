@@ -74,6 +74,7 @@ public sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
         b.Property(x => x.Code).HasMaxLength(40).IsRequired();
         b.Property(x => x.Zone).HasMaxLength(100);
         b.Property(x => x.Notes).HasMaxLength(2000);
+        b.Property(x => x.ElectricalPermitStatus).HasMaxLength(60);
         b.Ignore(x => x.IsReadyToDeliver);
         b.Ignore(x => x.MapUrl);
         b.HasIndex(x => new { x.ProjectId, x.Code });

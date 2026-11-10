@@ -137,9 +137,31 @@ internal sealed partial class MaterialResolver
     private readonly ApplicationDbContext _db;
     private readonly Dictionary<string, Material> _byKey = [];
 
+    // Mismo material escrito distinto ("ALETAS DE NAPS" / "ALETAS PARA NAPS", plural, unidad al final): solo se usa si es único.
+    private readonly Dictionary<string, List<Material>> _loose = [];
+
     public int Created { get; private set; }
 
     private MaterialResolver(ApplicationDbContext db) => _db = db;
+
+    private void AddLoose(Material material)
+    {
+        var key = Services.MaterialService.LooseKey(material.Name);
+        if (key.Length == 0)
+        {
+            return;
+        }
+
+        if (!_loose.TryGetValue(key, out var list))
+        {
+            _loose[key] = list = [];
+        }
+
+        if (!list.Contains(material))
+        {
+            list.Add(material);
+        }
+    }
 
     public static async Task<MaterialResolver> LoadAsync(ApplicationDbContext db, CancellationToken ct)
     {
@@ -149,6 +171,7 @@ internal sealed partial class MaterialResolver
         foreach (var material in materials)
         {
             resolver._byKey[NameNormalizer.Key(material.Name)] = material;
+            resolver.AddLoose(material);
         }
 
         foreach (var alias in await db.MaterialAliases.ToListAsync(ct))
@@ -225,7 +248,8 @@ internal sealed partial class MaterialResolver
             return mpoCable;
         }
 
-        return null;
+        var loose = Services.MaterialService.LooseKey(name);
+        return loose.Length > 0 && _loose.TryGetValue(loose, out var candidates) && candidates.Count == 1 ? candidates[0] : null;
     }
 
     private Material Create(string name, string? unit)
@@ -266,6 +290,7 @@ internal sealed partial class MaterialResolver
         material.TracksStock = true;
         _db.Materials.Add(material);
         _byKey[NameNormalizer.Key(material.Name)] = material;
+        AddLoose(material);
         foreach (var alias in material.Aliases)
         {
             _byKey.TryAdd(alias.AliasKey, material);

@@ -17,6 +17,7 @@ public sealed class ReportService(
     ISiteService sites,
     ISprintService sprints,
     ILiquidationService liquidation,
+    ILiquidationFormatService liquidationFormat,
     IProjectionService projection,
     IWorkPlanService workPlan,
     IEquipmentService equipment,
@@ -31,7 +32,8 @@ public sealed class ReportService(
         new("materiales", "Consolidado de materiales", "Proyectado, recibido, entregado, instalado y stock de cada material."),
         new("entregas", "Entregas por nodo", "Cada entrega a contratista con su nodo, fecha y referencia."),
         new("inventario", "Inventario de bodega", "Stock actual con mínimo y estado de cada material."),
-        new("liquidacion", "Acta de liquidación", "Comparación proyectado, entregado, instalado y devuelto de un nodo, con firmas.", NeedsSite: true),
+        new("liquidacion", "Liquidación de un nodo (formato oficial)", "Formato oficial LIQUIDACION_DE_NODOS_FTTH de un nodo: entregado por almacén, utilizado, total a devolver, devolución y debe, con firmas.", NeedsSite: true),
+        new("liquidacion-proyecto", "Liquidación de todos los nodos (formato oficial)", "Una hoja por nodo en el formato oficial de liquidación, con los materiales que ya se registraron."),
         new("sprints", "Estado de sprints", "Avance, tiempo transcurrido y ritmo de cada sprint."),
         new("avance", "Avance por nodo", "Avance, ritmo, ODN, feeder y etapas de cada nodo."),
         new("plan", "Plan de trabajo", "Fases y actividades con fechas plan y real, avance, ritmo y dependencias."),
@@ -66,7 +68,8 @@ public sealed class ReportService(
             case "materiales": await MaterialsAsync(document, project.Id, ct); break;
             case "entregas": await DeliveriesAsync(document, project.Id, ct); break;
             case "inventario": await InventoryAsync(document, project.Id, ct); break;
-            case "liquidacion": await LiquidationAsync(document, request.SiteId!.Value, ct); break;
+            case "liquidacion": await LiquidationAsync(document, request.ProjectId, request.SiteId!.Value, ct); break;
+            case "liquidacion-proyecto": await LiquidationProjectAsync(document, request.ProjectId, ct); break;
             case "sprints": await SprintsAsync(document, project.Id, ct); break;
             case "avance": await ProgressAsync(document, project.Id, ct); break;
             case "plan": await PlanAsync(document, project.Id, ct); break;
@@ -165,10 +168,34 @@ public sealed class ReportService(
         document.Sections.Add(section);
     }
 
-    private async Task LiquidationAsync(ReportDocument document, int siteId, CancellationToken ct)
+    private static List<ReportColumn> LiquidationColumns() =>
+    [
+        new("Code", "ITEMS", ReportColumnType.Text, 1.7),
+        new("Name", "NOMBRE DE MATERIAL", ReportColumnType.Text, 3.4),
+        new("Group", "GRUPO", ReportColumnType.Text, 1.9),
+        new("Unit", "UM", ReportColumnType.Text, 1.0),
+        new("Delivered", "ENTREGADO POR ALMACEN", ReportColumnType.Decimal, 1.9),
+        new("Used", "UTILIZADO", ReportColumnType.Decimal, 1.5),
+        new("ToReturn", "TOTAL A DEVOLVER", ReportColumnType.Decimal, 1.4),
+        new("Returned", "DEVOLUCION", ReportColumnType.Decimal, 1.7),
+        new("Owed", "DEBE", ReportColumnType.Decimal, 1.0),
+        new("Observation", "OBSERVACION", ReportColumnType.Text, 2.4),
+    ];
+
+    private static void AddLiquidationRows(ReportSection section, LiquidationSheet sheet)
+    {
+        foreach (var l in sheet.Lines)
+        {
+            section.Rows.Add([l.Code, l.Name, l.Group, l.Unit, l.Delivered, l.Used, l.ToReturn, l.Returned, l.Owed, l.Observation]);
+        }
+    }
+
+    /// <summary>Acta de liquidación de un nodo con las columnas del formato oficial de la empresa.</summary>
+    private async Task LiquidationAsync(ReportDocument document, int projectId, int siteId, CancellationToken ct)
     {
         var view = await liquidation.GetAsync(siteId, ct);
         var versions = await projection.VersionsAsync(siteId, ct);
+        var sheet = (await liquidationFormat.SheetsAsync(projectId, siteId, ct)).Single();
 
         document.Subtitle = $"Nodo {view.Site.Code}";
         document.Facts.Add(("Nodo", view.Site.Code));
@@ -177,63 +204,40 @@ public sealed class ReportService(
         document.Facts.Add(("Proyección de diseño", versions.Count == 0 ? "Sin proyección" : $"v{versions[0].Projection.Version} ({versions[0].Projection.Date:dd/MM/yyyy})"));
         document.Facts.Add(("Liquidación", view.IsClosed ? $"Cerrada el {view.Liquidation.ClosedOn:dd/MM/yyyy}" : "Abierta"));
 
-        var materials = new ReportSection
-        {
-            Heading = "Comparación por material",
-            Columns =
-            [
-                new("Material", "Material", ReportColumnType.Text, 3.6),
-                new("Unit", "UM", ReportColumnType.Text, 0.7),
-                new("Projected", "Proyectado", ReportColumnType.Decimal, 1.1),
-                new("Delivered", "Entregado", ReportColumnType.Decimal, 1.1),
-                new("Installed", "Instalado", ReportColumnType.Decimal, 1.1),
-                new("Surplus", "Sobrante", ReportColumnType.Decimal, 1.1),
-                new("Returned", "Devuelto", ReportColumnType.Decimal, 1.1),
-                new("Pending", "Pendiente", ReportColumnType.Decimal, 1.1),
-                new("Justified", "Justificado", ReportColumnType.Decimal, 1.1),
-                new("Variation", "Var. diseño", ReportColumnType.Percent, 1.1),
-            ],
-        };
-
-        foreach (var r in view.Rows.Where(r => r.Quantity.Projected > 0 || r.Quantity.Delivered > 0 || r.Quantity.Returned > 0))
-        {
-            var q = r.Quantity;
-            materials.Rows.Add([q.Material.Name, q.Material.Unit, q.Projected, q.Delivered, q.Installed,
-                Math.Max(0, q.Surplus), q.Returned, Math.Max(0, q.PendingReturn), r.Justified,
-                q.Projected == 0 ? null : q.VariationPercent / 100m]);
-        }
-
+        var materials = new ReportSection { Heading = "Liquidación de materiales", Columns = LiquidationColumns() };
+        AddLiquidationRows(materials, sheet);
         document.Sections.Add(materials);
-
-        if (view.Justifications.Count > 0)
-        {
-            var justifications = new ReportSection
-            {
-                Heading = "Justificaciones del material pendiente",
-                Columns =
-                [
-                    new("Material", "Material", ReportColumnType.Text, 3),
-                    new("Quantity", "Cantidad", ReportColumnType.Decimal, 1),
-                    new("Reason", "Motivo", ReportColumnType.Text, 4),
-                    new("By", "Registró", ReportColumnType.Text, 2),
-                ],
-            };
-            foreach (var j in view.Justifications)
-            {
-                justifications.Rows.Add([j.Material?.Name, j.Quantity, j.Reason, j.CreatedBy]);
-            }
-
-            document.Sections.Add(justifications);
-        }
 
         if (!string.IsNullOrWhiteSpace(view.Liquidation.Observations))
         {
             document.Notes.Add($"Observaciones: {view.Liquidation.Observations}");
         }
 
-        document.Notes.Add($"Sobrante = entregado − instalado · Pendiente = sobrante − devuelto · Precisión de diseño: {view.DesignAccuracy:0}%.");
+        document.Notes.Add("TOTAL A DEVOLVER = entregado por almacén − utilizado · DEBE = total a devolver − devolución (negativo: se utilizó más de lo entregado).");
         document.Signatures.Add("Entregó (TEK-COM)");
         document.Signatures.Add($"Recibió ({view.Site.Contractor?.Name ?? "Contratista"})");
+        document.Signatures.Add("Supervisor");
+    }
+
+    /// <summary>Liquidación de todos los nodos del proyecto: una tabla por nodo, en el formato oficial.</summary>
+    private async Task LiquidationProjectAsync(ReportDocument document, int projectId, CancellationToken ct)
+    {
+        var all = await liquidationFormat.SheetsAsync(projectId, null, ct);
+        document.Subtitle = $"{all.Count} nodos con materiales";
+        foreach (var sheet in all)
+        {
+            var section = new ReportSection
+            {
+                Heading = $"Nodo {sheet.NodeCode}{(string.IsNullOrWhiteSpace(sheet.Contractor) ? string.Empty : $" · Contratista: {sheet.Contractor}")}",
+                Columns = LiquidationColumns(),
+            };
+            AddLiquidationRows(section, sheet);
+            document.Sections.Add(section);
+        }
+
+        document.Notes.Add("TOTAL A DEVOLVER = entregado por almacén − utilizado · DEBE = total a devolver − devolución.");
+        document.Signatures.Add("Entregó (TEK-COM)");
+        document.Signatures.Add("Recibió (Contratista)");
         document.Signatures.Add("Supervisor");
     }
 

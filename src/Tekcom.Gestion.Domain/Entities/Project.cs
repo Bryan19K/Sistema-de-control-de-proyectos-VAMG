@@ -79,6 +79,25 @@ public class Site : AuditableEntity
 
     public string? Notes { get; set; }
 
+    // ----- Orden de construcción (Excel de asignación de nodos) -----
+
+    /// <summary>Hogares que pasa la red del nodo (HP, "homepass").</summary>
+    public int? HomesPassed { get; set; }
+
+    /// <summary>Estatus de los permisos eléctricos (ej. "Aprobado").</summary>
+    public string? ElectricalPermitStatus { get; set; }
+
+    /// <summary>Si ya se entregó el material al contratista (SI / NO del Excel). Null = sin dato.</summary>
+    public bool? MaterialsDelivered { get; set; }
+
+    /// <summary>Información requerida para el cierre: null = aún no se pide o no hay dato.</summary>
+    public ClosureDocStatus? KmzStatus { get; set; }
+    public ClosureDocStatus? UmConsolidatedStatus { get; set; }
+    public ClosureDocStatus? PhotoReportStatus { get; set; }
+
+    /// <summary>El ATP ya se entregó (columna ATP del Excel de asignación). Null = sin dato.</summary>
+    public bool? AtpDelivered { get; set; }
+
     public ICollection<SiteStage> Stages { get; set; } = [];
 
     /// <summary>Un nodo está listo para entregar al cliente con ODN finalizada y feeder finalizado.</summary>

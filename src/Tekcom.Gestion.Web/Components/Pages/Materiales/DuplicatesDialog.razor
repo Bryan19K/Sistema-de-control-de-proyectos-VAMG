@@ -1,0 +1,80 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@inject IMaterialService Materials
+@inject IDeletionService Deletion
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else if (_items.Count == 0)
+        {
+            <p>No hay materiales que parezcan repetidos.</p>
+        }
+        else
+        {
+            <p class="mb-3">Estos materiales parecen el mismo escrito distinto. Al unirlos, lo registrado en el de la derecha pasa al de la izquierda y se suma. La liquidación necesita que cada material sea uno solo para que el «debe» salga bien.</p>
+            <div class="tk-table-wrap">
+                <table class="tk-table tk-table--compact">
+                    <thead><tr><th>Conservar</th><th>Unir dentro del anterior</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var d in _items)
+                        {
+                            var local = d;
+                            <tr>
+                                <td>@local.Keep.Name@(string.IsNullOrWhiteSpace(local.Keep.Code) ? string.Empty : $" · {local.Keep.Code}")<div class="tk-muted tk-code-sm">@local.KeepMovements movimientos</div></td>
+                                <td>@local.Remove.Name<div class="tk-muted tk-code-sm">@local.RemoveMovements movimientos</div></td>
+                                <td><button type="button" class="tk-btn tk-btn--outline" @onclick="() => MergeAsync(local)">Unir</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Close(DialogResult.Ok(_changed))">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private List<MaterialDuplicate> _items = [];
+    private bool _loading = true;
+    private bool _changed;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _items = await Materials.DuplicateCandidatesAsync();
+        _loading = false;
+    }
+
+    private async Task MergeAsync(MaterialDuplicate d)
+    {
+        var ok = await DeleteConfirmDialog.AskAsync(Dialogs, "Unir materiales", $"¿Unir «{d.Remove.Name}» dentro de «{d.Keep.Name}»?",
+            ["Lo registrado en uno pasa al otro y se suma.", "Queda el registro de quién lo hizo."], buttonLabel: "Unir");
+        if (ok is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Deletion.MergeMaterialsAsync(d.Remove.Id, d.Keep.Id);
+            _changed = true;
+            Snackbar.Add("Materiales unidos.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}
