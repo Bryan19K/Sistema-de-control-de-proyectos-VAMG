@@ -6,6 +6,7 @@
 @using Tekcom.Gestion.Domain.Enums
 @using Tekcom.Gestion.Web.Services
 @inject IPresentationService Presentation
+@inject IAppearanceService Appearance
 @inject IJSRuntime JS
 @inject ProjectSelection Selection
 
@@ -82,7 +83,7 @@ else
         var manyNodes = nodesOrdered.Count > 14;
         var valueLabels = nodesOrdered.Count <= 20;
     }
-    <div class="dz">
+    <div class="dz" style="@ColorStyle">
         <aside class="dz-side tk-no-print" aria-label="Filtros del tablero">
             <div class="dz-brandrow">
                 <button type="button" class="dz-menu" @onclick='() => JS.InvokeVoidAsync("tkNav")' aria-label="Mostrar u ocultar el menú del sistema" title="Menú del sistema">☰</button>
@@ -691,8 +692,14 @@ else
         }
     </div>;
 
+    private DashboardColors _colors = DashboardColors.Default;
+
+    /// <summary>Colores de los gráficos que eligió el administrador (Configuración › Apariencia).</summary>
+    private string ColorStyle => $"--dz-done:{_colors.Done};--dz-prog:{_colors.InProgress};--dz-red:{_colors.Alert}";
+
     protected override async Task OnInitializedAsync()
     {
+        _colors = await Appearance.GetColorsAsync();
         _projectId = await Selection.EnsureAsync() ?? 0;
         await LoadAsync();
     }
@@ -999,7 +1006,7 @@ else
         @{
             const double circ = 251.327;
             var t = Math.Max(1, total);
-            var parts = new[] { ("Finalizados", done, "is-ink"), ("En avance", progress, "is-pink"), ("Sin iniciar", pending, "is-gray") };
+            var parts = new[] { ("Finalizados", done, "is-ink"), ("En avance", progress, "is-pink"), ("Sin iniciar", pending, "is-red") };
             var offset = 0.0;
         }
         <svg viewBox="0 0 100 100" role="img" aria-label="Nodos por estado">

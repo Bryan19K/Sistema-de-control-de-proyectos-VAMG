@@ -81,3 +81,13 @@ public sealed class PlanTemplateConfiguration : IEntityTypeConfiguration<PlanTem
         b.Property(x => x.Description).HasMaxLength(500);
     }
 }
+
+public sealed class AppSettingConfiguration : IEntityTypeConfiguration<AppSetting>
+{
+    public void Configure(EntityTypeBuilder<AppSetting> b)
+    {
+        b.Property(x => x.Key).HasMaxLength(100).IsRequired();
+        b.Property(x => x.Value).HasMaxLength(500).IsRequired();
+        b.HasIndex(x => x.Key).IsUnique();
+    }
+}

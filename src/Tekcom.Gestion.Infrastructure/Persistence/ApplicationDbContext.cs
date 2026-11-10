@@ -58,6 +58,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<PriceItem> PriceItems => Set<PriceItem>();
     public DbSet<ContractOrder> ContractOrders => Set<ContractOrder>();
 
+    // Ajustes del sistema
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+
     // Exportes
     public DbSet<ExportTemplate> ExportTemplates => Set<ExportTemplate>();
 
