@@ -173,4 +173,32 @@ public class InsightsServicesTests
         row.Quantities.Should().NotBeNull();
         row.Supervisor.Should().Be("Sin supervisor");
     }
+
+    [Fact]
+    public async Task Los_datos_para_power_bi_traen_las_tablas_del_modelo_con_los_numeros_del_sistema()
+    {
+        using var env = await SetupAsync();
+        var site = await env.Sites.SaveAsync(new Site { ProjectId = env.Project.Id, Code = "SON19" });
+        await using var ctx = env.Db.CreateDbContext();
+        var cable = (await new MaterialService(env.Db).ResolveAsync("FO 100 M"))!;
+        var hub = await ctx.Materials.FirstAsync(m => m.Group == QuantityGroup.HubBox);
+        var projection = new ProjectionService(env.Db);
+        await projection.AdjustAsync(site.Id, cable.Id, 10, "Diseño", env.Today);
+        await projection.AdjustAsync(site.Id, hub.Id, 6, "Diseño", env.Today);
+        await env.Inventory.InstalledAsync(env.Project.Id, site.Id, cable.Id, 4, env.Today, null, null);
+        await env.Inventory.InstalledAsync(env.Project.Id, site.Id, hub.Id, 3, env.Today, null, null);
+
+        var bytes = await new Tekcom.Gestion.Infrastructure.Reports.PowerBiExportService(env.Presentation).BuildAsync(env.Project.Id);
+
+        using var book = new ClosedXML.Excel.XLWorkbook(new MemoryStream(bytes));
+        book.Worksheets.Select(w => w.Name).Should().Contain(["fNodos", "fInstalado", "fPartidas", "fEtapas", "dBrigada", "dSupervisor", "dEstado", "tInfo"]);
+        book.Worksheet("fNodos").Tables.Single().Name.Should().Be("fNodos");
+        var node = book.Worksheet("fNodos").Table("fNodos").DataRange.Rows().Single();
+        node.Cell(1).GetString().Should().Be("SON19");
+        book.Worksheet("fNodos").Table("fNodos").HeadersRow().Cells().Select(c => c.GetString()).Should().Contain(["AvancePct", "FATsInstaladas", "CableMetros", "HP", "XBoxFusionada"]);
+        book.Worksheet("fInstalado").Table("fInstalado").DataRange.RowCount().Should().Be(1);
+        var partidas = book.Worksheet("fPartidas").Table("fPartidas").DataRange.Rows().Select(r => r.Cell(5).GetString()).ToList();
+        partidas.Should().Contain(["Cable FC", "Hub-box"]);
+        book.Worksheet("dEstado").Table("dEstado").DataRange.RowCount().Should().Be(3);
+    }
 }

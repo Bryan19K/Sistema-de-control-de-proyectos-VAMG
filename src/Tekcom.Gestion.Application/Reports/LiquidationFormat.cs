@@ -25,3 +25,9 @@ public interface ILiquidationFormatService
     /// <summary>Excel con el formato oficial LIQUIDACION_DE_NODOS_FTTH: una hoja por nodo.</summary>
     byte[] ToOfficialExcel(IReadOnlyList<LiquidationSheet> sheets);
 }
+
+/// <summary>Excel con las tablas del modelo de Power BI del tablero de despliegue (hechos y dimensiones), armado con los datos del sistema.</summary>
+public interface IPowerBiExportService
+{
+    Task<byte[]> BuildAsync(int projectId, CancellationToken ct = default);
+}

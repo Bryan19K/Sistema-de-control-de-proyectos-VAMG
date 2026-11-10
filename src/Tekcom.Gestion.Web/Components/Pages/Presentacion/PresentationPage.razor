@@ -58,6 +58,7 @@ else
     <div class="tk-viz pv">
     <PageHeader Title="@d.ProjectName" Subtitle="@($"Panel ejecutivo · corte {UiText.LongDate(d.Today)}")">
         <Actions>
+            <a class="tk-btn tk-btn--outline tk-no-print" href="@($"exportes/powerbi?proyecto={_projectId}")" download title="Excel con las tablas del modelo para el tablero de Power BI">Datos para Power BI</a>
             <button type="button" class="tk-btn tk-btn--outline tk-no-print" @onclick="FullscreenAsync">Pantalla completa</button>
             <button type="button" class="tk-btn tk-btn--primary tk-no-print" @onclick="PrintAsync">Descargar PDF</button>
         </Actions>

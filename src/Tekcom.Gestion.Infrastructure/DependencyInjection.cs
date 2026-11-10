@@ -77,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IReportService, Reports.ReportService>();
         services.AddSingleton<IReportExporter, Reports.ReportExporter>();
         services.AddScoped<ILiquidationFormatService, Reports.LiquidationFormatService>();
+        services.AddScoped<IPowerBiExportService, Reports.PowerBiExportService>();
         services.AddScoped<IExportTemplateService, Reports.ExportTemplateService>();
         services.AddScoped<IProjectionImportService, Import.ProjectionImportService>();
         services.AddScoped<IDataPackImporter, Import.WarehouseImportService>();

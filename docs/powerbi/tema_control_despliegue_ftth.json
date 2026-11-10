@@ -1,0 +1,137 @@
+{
+  "name": "Control de Despliegue FTTH",
+  "dataColors": [
+    "#E3262F",
+    "#1F2026",
+    "#C4C6CC",
+    "#8A8D95",
+    "#F07A80",
+    "#4A4C55",
+    "#E9EAED",
+    "#A8151D"
+  ],
+  "background": "#FFFFFF",
+  "foreground": "#1F2026",
+  "tableAccent": "#E3262F",
+  "good": "#2E9E5B",
+  "neutral": "#F2A93B",
+  "bad": "#E3262F",
+  "maximum": "#E3262F",
+  "center": "#F07A80",
+  "minimum": "#FBE4E5",
+  "textClasses": {
+    "callout": {
+      "fontSize": 20,
+      "fontFace": "Segoe UI Bold",
+      "color": "#1F2026"
+    },
+    "title": {
+      "fontSize": 11,
+      "fontFace": "Segoe UI Semibold",
+      "color": "#1F2026"
+    },
+    "header": {
+      "fontSize": 11,
+      "fontFace": "Segoe UI Semibold",
+      "color": "#1F2026"
+    },
+    "label": {
+      "fontSize": 8,
+      "fontFace": "Segoe UI",
+      "color": "#6B6E76"
+    }
+  },
+  "visualStyles": {
+    "*": {
+      "*": {
+        "background": [
+          {
+            "show": false
+          }
+        ],
+        "border": [
+          {
+            "show": false
+          }
+        ],
+        "dropShadow": [
+          {
+            "show": false
+          }
+        ],
+        "visualHeader": [
+          {
+            "show": false
+          }
+        ],
+        "title": [
+          {
+            "show": true,
+            "fontColor": {
+              "solid": {
+                "color": "#1F2026"
+              }
+            },
+            "fontSize": 11,
+            "fontFamily": "Segoe UI Semibold",
+            "alignment": "left"
+          }
+        ]
+      }
+    },
+    "card": {
+      "*": {
+        "title": [
+          {
+            "show": false
+          }
+        ],
+        "labels": [
+          {
+            "color": {
+              "solid": {
+                "color": "#1F2026"
+              }
+            },
+            "fontSize": 20
+          }
+        ],
+        "categoryLabels": [
+          {
+            "show": true,
+            "color": {
+              "solid": {
+                "color": "#4A4C55"
+              }
+            },
+            "fontSize": 8
+          }
+        ]
+      }
+    },
+    "slicer": {
+      "*": {
+        "title": [
+          {
+            "show": false
+          }
+        ],
+        "header": [
+          {
+            "show": false
+          }
+        ],
+        "items": [
+          {
+            "fontColor": {
+              "solid": {
+                "color": "#1F2026"
+              }
+            },
+            "textSize": 9
+          }
+        ]
+      }
+    }
+  }
+}
