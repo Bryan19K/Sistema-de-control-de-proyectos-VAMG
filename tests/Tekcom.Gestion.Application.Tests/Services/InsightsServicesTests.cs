@@ -44,7 +44,7 @@ public class InsightsServicesTests
         var snapshots = new SnapshotService(db, dashboard, projects, db.Clock);
         var attention = new AttentionService(sites, tasks, inventory, minutes, documents, measurements, sprints, db.Clock);
         var presentation = new PresentationService(projects, new ReferenceDataService(db), plan, sites, dashboard, inventory, tasks, new FakeUserAdmin(), sprints,
-            measurements, new LiquidationService(db, quantities, db.CurrentUser, db.Clock), documents, snapshots, attention, db.Clock);
+            measurements, new LiquidationService(db, quantities, db.CurrentUser, db.Clock), documents, snapshots, attention, quantities, new MaterialService(db), db.Clock);
 
         await using var context = db.CreateDbContext();
         var ftth = await context.ProjectTypes.SingleAsync(t => t.Code == "FTTH");
@@ -135,5 +135,39 @@ public class InsightsServicesTests
 
         var all = await env.Dashboard.CompareAllAsync();
         all.Should().ContainSingle().Which.Name.Should().Be("Insights");
+    }
+
+    [Fact]
+    public async Task La_presentacion_calcula_matriz_por_nodo_metros_de_cable_y_produccion_diaria()
+    {
+        using var env = await SetupAsync();
+        var site = await env.Sites.SaveAsync(new Site { ProjectId = env.Project.Id, Code = "SON19" });
+        await using var ctx = env.Db.CreateDbContext();
+        var materials = new MaterialService(env.Db);
+        var cable = (await materials.ResolveAsync("FO 100 M"))!;                       // cable FC de 100 m
+        var hub = await ctx.Materials.FirstAsync(m => m.Group == QuantityGroup.HubBox);
+        var subBox = await ctx.Materials.FirstAsync(m => m.Group == QuantityGroup.SubBox);
+        var projection = new ProjectionService(env.Db);
+        await projection.AdjustAsync(site.Id, cable.Id, 10, "Diseño", env.Today);
+        await projection.AdjustAsync(site.Id, hub.Id, 6, "Diseño", env.Today);
+        await projection.AdjustAsync(site.Id, subBox.Id, 8, "Diseño", env.Today);
+        await env.Inventory.InstalledAsync(env.Project.Id, site.Id, cable.Id, 4, env.Today.AddDays(-1), null, null);   // 400 m ayer
+        await env.Inventory.InstalledAsync(env.Project.Id, site.Id, cable.Id, 2, env.Today, null, null);              // 200 m hoy
+        await env.Inventory.InstalledAsync(env.Project.Id, site.Id, hub.Id, 6, env.Today, null, null);
+        await env.Inventory.InstalledAsync(env.Project.Id, site.Id, subBox.Id, 4, env.Today, null, null);
+
+        var data = await env.Presentation.GetAsync(env.Project.Id);
+
+        var row = data.Matrix.Should().ContainSingle().Subject;
+        row.Code.Should().Be("SON19");
+        (row.FatsInstalled, row.FatsProjected).Should().Be((10m, 14m));
+        row.FatPercent.Should().Be(71m);
+        row.CableMeters.Should().Be(600m, "6 cables de 100 m");
+        row.Density.Should().Be(Math.Round((6m + 6m + 4m) / 0.6m, 1), "piezas por km: cables + hub + sub-box");
+        data.CableMetersInstalled.Should().Be(600m);
+        data.CableMetersProjected.Should().Be(1000m);
+        data.Production.Should().HaveCount(2);
+        data.Production[0].Meters.Should().Be(400m);
+        data.Production[1].Should().Match<DayProduction>(d => d.Meters == 200m && d.Fats == 10m);
     }
 }

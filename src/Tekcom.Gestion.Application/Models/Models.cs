@@ -268,7 +268,21 @@ public sealed record AttentionItem(string Title, string Detail, string Href, Att
 
 public sealed record EvidenceRow(int SiteId, string SiteCode, bool Finalized, bool SignedAtp, bool HasCaes, int Photos, int Documents, List<int> PhotoIds);
 
-public sealed record BrigadeRow(string Name, int Sites, int FinishedSites, decimal AverageProgress, decimal Delivered, decimal Installed);
+public sealed record BrigadeRow(string Name, int Sites, int FinishedSites, decimal AverageProgress, decimal Delivered, decimal Installed, int BehindSites = 0);
+
+/// <summary>Una fila de la matriz técnica por nodo de la Presentación.</summary>
+public sealed record NodeMatrixRow(
+    int SiteId, string Code, decimal Progress, PaceStatus Pace, int DaysDelta, StageStatus Fusion, StageStatus Measurement,
+    bool ReadyToMeasure, bool ReadyToDeliver, decimal FatsInstalled, decimal FatsProjected, decimal CableMeters, decimal Pieces,
+    DateOnly? PlannedEnd, DateOnly? ProjectedEnd, string Brigade)
+{
+    /// <summary>Piezas instaladas por kilómetro de cable tendido (null si aún no hay cable).</summary>
+    public decimal? Density => CableMeters <= 0 ? null : Math.Round(Pieces / (CableMeters / 1000m), 1);
+    public decimal FatPercent => FatsProjected <= 0 ? 0 : Math.Round(FatsInstalled / FatsProjected * 100m, 0);
+}
+
+/// <summary>Lo instalado en un día: metros de cable (FC y MPO), FATs y piezas en unidades.</summary>
+public sealed record DayProduction(DateOnly Date, decimal Meters, decimal Fats, decimal Pieces);
 
 public sealed record WeekInstalled(DateOnly WeekStart, decimal Total, Dictionary<string, decimal> ByBrigade);
 
@@ -305,4 +319,20 @@ public sealed class PresentationData
     public int NotAcceptableFats { get; init; }
     public int ClosedLiquidations { get; init; }
     public int TotalSites { get; init; }
+
+    /// <summary>Matriz técnica: una fila por nodo con su avance, fusión, mediciones, FATs, cable y brigada.</summary>
+    public List<NodeMatrixRow> Matrix { get; init; } = [];
+
+    /// <summary>Lo instalado por día (solo días con registros), para la tendencia diaria, semanal y mensual.</summary>
+    public List<DayProduction> Production { get; init; } = [];
+
+    /// <summary>Metros de cable tendido: FC y MPO de los nodos (unidades × su largo) más la fibra del feeder.</summary>
+    public decimal CableMetersInstalled { get; init; }
+    public decimal CableMetersProjected { get; init; }
+
+    /// <summary>Piezas instaladas en unidades (cajas, herrajes…), sin metros.</summary>
+    public decimal PiecesInstalled { get; init; }
+
+    /// <summary>Avance planificado para hoy según el plan de trabajo (null si no hay plan).</summary>
+    public decimal? PlannedToday { get; init; }
 }
