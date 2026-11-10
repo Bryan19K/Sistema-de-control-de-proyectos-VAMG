@@ -91,6 +91,18 @@ else
     <div class="pbi">
         <aside class="pbi-side tk-no-print" aria-label="Filtros del tablero">
             <div class="pbi-side__title">FILTROS</div>
+            <label class="pbi-field"><span>Año</span>
+                <select class="pbi-select" @bind="_year">
+                    <option value="0">Todos</option>
+                    @foreach (var y in YearOptions(d)) { <option value="@y">@y</option> }
+                </select>
+            </label>
+            <label class="pbi-field"><span>Mes</span>
+                <select class="pbi-select" @bind="_month">
+                    <option value="0">Todos</option>
+                    @for (var m = 1; m <= 12; m++) { <option value="@m">@Culture.DateTimeFormat.GetMonthName(m)</option> }
+                </select>
+            </label>
             <label class="pbi-field"><span>Brigada</span>
                 <select class="pbi-select" @bind="_brigade">
                     <option value="">Todas</option>
@@ -163,7 +175,7 @@ else
             <div class="pbi-grid">
                 <SectionCard Title="Producción: metros de fibra y FATs" Class="pbi-c5">
                     <HeaderActions>
-                        <div class="pv-seg tk-no-print" role="group" aria-label="Período">
+                        <div class="pv-seg tk-no-print" role="group" aria-label="Período" hidden="@HasDateFilter">
                             <button type="button" class="@PeriodClass(Period.Day)" @onclick="() => SetPeriod(Period.Day)">Diaria</button>
                             <button type="button" class="@PeriodClass(Period.Week)" @onclick="() => SetPeriod(Period.Week)">Semanal</button>
                             <button type="button" class="@PeriodClass(Period.Month)" @onclick="() => SetPeriod(Period.Month)">Mensual</button>
@@ -327,6 +339,28 @@ else
                     else
                     {
                         @HBars(stageBars)
+                    }
+                </SectionCard>
+
+                <SectionCard Title="Piezas instaladas por período" Class="pbi-c6">
+                    @if (buckets.All(b => b.Pieces == 0))
+                    {
+                        <EmptyState Title="Sin piezas en este período" Icon="@Icons.Material.Outlined.Construction" Description="Registre lo instalado en los nodos." />
+                    }
+                    else
+                    {
+                        @PiecesColumns(buckets)
+                    }
+                </SectionCard>
+
+                <SectionCard Title="Avance acumulado de FATs" Class="pbi-c6">
+                    @if (fatProjected <= 0)
+                    {
+                        <EmptyState Title="Sin FATs proyectadas" Icon="@Icons.Material.Outlined.DeveloperBoard" Description="Cargue la proyección de los nodos." />
+                    }
+                    else
+                    {
+                        @FatCumulative(buckets, siteIds, d, fatProjected)
                     }
                 </SectionCard>
             </div>
@@ -638,12 +672,20 @@ else
     private string _brigade = string.Empty;
     private string _supervisor = string.Empty;
     private string _state = string.Empty;
+    private int _year;
+    private int _month;
+
+    /// <summary>Año y mes solo mueven los gráficos de producción (lo instalado por fecha); el resto es el estado actual de los nodos.</summary>
+    private bool HasDateFilter => _year > 0 || _month > 0;
+
+    private static List<int> YearOptions(PresentationData d) => d.ProductionBySite.Select(p => p.Date.Year).Append(d.Today.Year).Distinct().OrderByDescending(y => y).ToList();
 
     private bool HasFilters => _brigade.Length > 0 || _supervisor.Length > 0 || _state.Length > 0;
 
     private void ClearFilters()
     {
         _brigade = _supervisor = _state = string.Empty;
+        _year = _month = 0;
         _filter = NodeFilter.All;
     }
 
@@ -880,7 +922,7 @@ else
         </ul>
     </div>;
 
-    private sealed record Bucket(string Label, string Tip, decimal Meters, decimal Fats, decimal Pieces);
+    private sealed record Bucket(string Label, string Tip, decimal Meters, decimal Fats, decimal Pieces, DateOnly Start, DateOnly End);
 
     /// <summary>Producción agrupada por día (14), semana (8) o mes (6), incluyendo los períodos en cero.</summary>
     private List<Bucket> Buckets(PresentationData d, HashSet<int> siteIds)
@@ -890,7 +932,30 @@ else
         Bucket Sum(DateOnly from, DateOnly toExclusive, string label, string tip)
         {
             var items = d.ProductionBySite.Where(p => siteIds.Contains(p.SiteId) && p.Date >= from && p.Date < toExclusive).ToList();
-            return new Bucket(label, tip, items.Sum(p => p.Meters), items.Sum(p => p.Fats), items.Sum(p => p.Pieces));
+            return new Bucket(label, tip, items.Sum(p => p.Meters), items.Sum(p => p.Fats), items.Sum(p => p.Pieces), from, toExclusive);
+        }
+
+        if (HasDateFilter)
+        {
+            var year = _year > 0 ? _year : today.Year;
+            if (_month > 0)
+            {
+                var first = new DateOnly(year, _month, 1);
+                for (var day = first; day.Month == _month; day = day.AddDays(1))
+                {
+                    list.Add(Sum(day, day.AddDays(1), day.Day.ToString(), UiText.ShortDate(day)));
+                }
+            }
+            else
+            {
+                for (var m = 1; m <= 12; m++)
+                {
+                    var start = new DateOnly(year, m, 1);
+                    list.Add(Sum(start, start.AddMonths(1), start.ToString("MMM", Culture).TrimEnd('.'), start.ToString("MMMM yyyy", Culture)));
+                }
+            }
+
+            return list;
         }
 
         switch (_period)
@@ -939,6 +1004,78 @@ else
         return 10 * magnitude;
     }
 
+    /// <summary>Columnas simples de las piezas instaladas por período.</summary>
+    private RenderFragment PiecesColumns(List<Bucket> buckets) => @<div>
+        @{
+            const double w = 640, h = 220, left = 50, right = 14, top = 20, bottom = 28;
+            var plotW = w - left - right; var plotH = h - top - bottom;
+            var max = NiceMax(buckets.Max(b => b.Pieces));
+            var group = plotW / buckets.Count; var bar = Math.Min(26, group * 0.6);
+            double Yp(decimal v) => top + plotH - (double)(v / max) * plotH;
+            var labels = buckets.Count <= 14;
+            var step = buckets.Count > 14 ? 3 : 1;
+        }
+        <svg class="pv-columns" viewBox="0 0 @F(w) @F(h)" role="img" aria-label="Piezas instaladas por período">
+            @for (var i = 0; i <= 4; i++)
+            {
+                var gy = top + plotH * i / 4.0;
+                <line x1="@F(left)" x2="@F(w - right)" y1="@F(gy)" y2="@F(gy)" class="pv-columns__grid" />
+                @Txt(left - 6, gy + 3, "end", "pv-columns__axis", UiText.Number(max * (4 - i) / 4))
+            }
+            @for (var i = 0; i < buckets.Count; i++)
+            {
+                var b = buckets[i];
+                var cx = left + group * (i + 0.5);
+                <g class="pv-columns__group" tabindex="0" data-tip="@($"{UiText.Number(b.Pieces)} piezas|{b.Tip}")">
+                    <rect x="@F(cx - group / 2)" y="@F(top)" width="@F(group)" height="@F(plotH)" class="pv-columns__hit" />
+                    <rect x="@F(cx - bar / 2)" y="@F(Yp(b.Pieces))" width="@F(bar)" height="@F(top + plotH - Yp(b.Pieces))" rx="2" class="pv-columns__bar pv-columns__bar--main" />
+                    @if (labels && b.Pieces > 0) { @Txt(cx, Yp(b.Pieces) - 4, "middle", "pv-columns__label", UiText.Number(b.Pieces)) }
+                    @if (i % step == 0) { @Txt(cx, h - 8, "middle", "pv-columns__axis", b.Label) }
+                </g>
+            }
+        </svg>
+    </div>;
+
+    /// <summary>Línea de FATs instaladas acumuladas contra las proyectadas, al cierre de cada período (solo hasta hoy).</summary>
+    private RenderFragment FatCumulative(List<Bucket> buckets, HashSet<int> siteIds, PresentationData d, decimal projected) => @<div>
+        @{
+            const double w = 640, h = 220, left = 50, right = 18, top = 20, bottom = 28;
+            var plotW = w - left - right; var plotH = h - top - bottom;
+            var group = plotW / buckets.Count;
+            var step = buckets.Count > 14 ? 3 : 1;
+            double Yc(decimal pct) => top + plotH - (double)(Math.Min(100m, pct) / 100m) * plotH;
+            var points = new List<(double X, double Y, decimal Pct, Bucket B)>();
+            for (var i = 0; i < buckets.Count; i++)
+            {
+                var b = buckets[i];
+                if (b.Start > d.Today) { break; }
+                var cum = d.ProductionBySite.Where(p => siteIds.Contains(p.SiteId) && p.Date < b.End).Sum(p => p.Fats);
+                var pct = Math.Round(cum * 100m / projected, 1);
+                points.Add((left + group * (i + 0.5), Yc(pct), pct, b));
+            }
+        }
+        <svg class="pv-columns" viewBox="0 0 @F(w) @F(h)" role="img" aria-label="Avance acumulado de FATs">
+            @foreach (var y in new[] { 0, 25, 50, 75, 100 })
+            {
+                <line x1="@F(left)" x2="@F(w - right)" y1="@F(Yc(y))" y2="@F(Yc(y))" class="pv-columns__grid" />
+                @Txt(left - 6, Yc(y) + 3, "end", "pv-columns__axis", $"{y}%")
+            }
+            @if (points.Count >= 2)
+            {
+                <polyline class="tk-curve__real tk-curve__real--info" points="@string.Join(" ", points.Select(p => $"{F(p.X)},{F(p.Y)}"))" />
+            }
+            @foreach (var p in points)
+            {
+                <circle cx="@F(p.X)" cy="@F(p.Y)" r="4" class="tk-curve__dot tk-curve__dot--info" tabindex="0" data-tip="@($"{p.Pct:0.#}% de las FATs proyectadas|{p.B.Tip}")" />
+            }
+            @for (var i = 0; i < buckets.Count; i++)
+            {
+                if (i % step == 0) { @Txt(left + group * (i + 0.5), h - 8, "middle", "pv-columns__axis", buckets[i].Label) }
+            }
+            @if (points.Count > 0 && buckets.Count <= 14) { var last = points[^1]; @Txt(last.X, last.Y - 9, "middle", "pv-columns__label", $"{last.Pct:0.#}%") }
+        </svg>
+    </div>;
+
     /// <summary>Columnas agrupadas con dos ejes y etiquetas de datos (metros a la izquierda, FATs a la derecha).</summary>
     private RenderFragment Columns(List<Bucket> buckets) => @<div>
         @{
@@ -968,7 +1105,7 @@ else
                     <rect x="@F(cx + 1)" y="@F(YF(b.Fats))" width="@F(bar)" height="@F(top + plotH - YF(b.Fats))" rx="2" class="pv-columns__bar pv-columns__bar--accent" />
                     @if (labels && b.Meters > 0) { @Txt(cx - bar / 2 - 1, YM(b.Meters) - 4, "middle", "pv-columns__label", UiText.Number(b.Meters)) }
                     @if (labels && b.Fats > 0) { @Txt(cx + bar / 2 + 1, YF(b.Fats) - 4, "middle", "pv-columns__label pv-columns__label--accent", UiText.Number(b.Fats)) }
-                    @Txt(cx, h - 10, "middle", "pv-columns__axis", b.Label)
+                    @if (i % (buckets.Count > 14 ? 3 : 1) == 0) { @Txt(cx, h - 10, "middle", "pv-columns__axis", b.Label) }
                 </g>
             }
         </svg>
