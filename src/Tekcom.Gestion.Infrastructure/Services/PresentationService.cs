@@ -24,6 +24,8 @@ public sealed class PresentationService(
     IDocumentService documents,
     ISnapshotService snapshots,
     IAttentionService attention,
+    IQuantityService quantities,
+    IMaterialService materials,
     IDateTimeProvider clock) : IPresentationService
 {
     public async Task<PresentationData> GetAsync(int projectId, CancellationToken ct = default)
@@ -91,13 +93,14 @@ public sealed class PresentationService(
 
         // Brigadas: avance de sus nodos y piezas entregadas/instaladas (solo unidades, no metros).
         var brigadeOf = siteList.ToDictionary(s => s.Site.Id, s => s.Site.Contractor?.Name ?? "Sin brigada");
-        var movements = (await inventory.MovementsAsync(new MovementFilter { ProjectId = projectId, IncludeVoided = false, Take = 5000 }, ct))
-            .Where(m => m.Material?.Unit == "UND" && m.SiteId is not null).ToList();
+        var allMovements = await inventory.MovementsAsync(new MovementFilter { ProjectId = projectId, IncludeVoided = false, Take = 20000 }, ct);
+        var movements = allMovements.Where(m => m.Material?.Unit == "UND" && m.SiteId is not null).ToList();
         var brigades = siteList.GroupBy(s => brigadeOf[s.Site.Id])
             .Select(g => new BrigadeRow(g.Key, g.Count(), g.Count(x => x.Site.OdnFinalized),
                 Math.Round(g.Average(x => x.Site.OdnFinalized ? 100 : x.ProgressPercent), 1),
                 movements.Where(m => m.Type == MovementType.Delivery && brigadeOf.TryGetValue(m.SiteId!.Value, out var b) && b == g.Key).Sum(m => m.Quantity),
-                movements.Where(m => m.Type == MovementType.Installed && brigadeOf.TryGetValue(m.SiteId!.Value, out var b2) && b2 == g.Key).Sum(m => m.Quantity)))
+                movements.Where(m => m.Type == MovementType.Installed && brigadeOf.TryGetValue(m.SiteId!.Value, out var b2) && b2 == g.Key).Sum(m => m.Quantity),
+                g.Count(x => x.Pace.Status == PaceStatus.Behind)))
             .OrderByDescending(b => b.AverageProgress).ToList();
 
         var thisMonday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
@@ -108,6 +111,33 @@ public sealed class PresentationService(
                 return new WeekInstalled(week, inWeek.Sum(m => m.Quantity),
                     inWeek.GroupBy(m => brigadeOf.GetValueOrDefault(m.SiteId!.Value, "Sin brigada")).ToDictionary(g => g.Key, g => g.Sum(m => m.Quantity)));
             }).ToList();
+
+        // Cable tendido en metros: los cables FC y MPO se cuentan por unidad, así que se multiplican por su largo.
+        static decimal MetersOf(InventoryMovement m) =>
+            m.Material is { Group: QuantityGroup.FcCable or QuantityGroup.MpoCable, LengthMeters: { } length } ? m.Quantity * length : 0;
+        static bool IsFat(InventoryMovement m) => m.Material is not null && SiteSummary.VinetaGroups.Contains(m.Material.Group);
+
+        var installedMoves = allMovements.Where(m => m.Type == MovementType.Installed && m.SiteId is not null).ToList();
+        var metersBySite = installedMoves.GroupBy(m => m.SiteId!.Value).ToDictionary(g => g.Key, g => g.Sum(MetersOf));
+        var piecesBySite = installedMoves.Where(m => m.Material?.Unit == "UND").GroupBy(m => m.SiteId!.Value).ToDictionary(g => g.Key, g => g.Sum(m => m.Quantity));
+
+        var matrix = siteList.OrderBy(s => s.Site.Code).Select(s => new NodeMatrixRow(
+            s.Site.Id, s.Site.Code, s.Site.OdnFinalized ? 100 : s.GlobalPercent, s.Pace.Status, s.Pace.DaysDelta,
+            s.Stages.GetValueOrDefault(StageCode.Fusion), s.Stages.GetValueOrDefault(StageCode.FatMeasurements),
+            s.ReadyToMeasure, s.Site.IsReadyToDeliver, s.VinetasInstalled, s.VinetasProjected,
+            metersBySite.GetValueOrDefault(s.Site.Id), piecesBySite.GetValueOrDefault(s.Site.Id),
+            s.Site.PlannedEnd, s.Pace.ProjectedEnd, s.Site.Contractor?.Name ?? "Sin brigada")).ToList();
+
+        var production = installedMoves.GroupBy(m => m.Date).OrderBy(g => g.Key)
+            .Select(g => new DayProduction(g.Key, g.Sum(MetersOf), g.Where(IsFat).Sum(m => m.Quantity), g.Where(m => m.Material?.Unit == "UND").Sum(m => m.Quantity)))
+            .ToList();
+
+        var feederCables = charts.Feeder.Where(f => f.Line.Kind is FeederItemKind.Cable12 or FeederItemKind.Cable24 or FeederItemKind.Cable48 or FeederItemKind.Cable96).ToList();
+        var catalog = (await materials.ListAsync(includeInactive: true, ct: ct)).ToDictionary(m => m.Id);
+        var projectedByMaterial = await quantities.GetProjectedByMaterialAsync(projectId, ct);
+        var odnMetersProjected = projectedByMaterial.Sum(p =>
+            catalog.TryGetValue(p.Key, out var mat) && mat is { Group: QuantityGroup.FcCable or QuantityGroup.MpoCable, LengthMeters: { } len } ? p.Value * len : 0);
+        var curve = BuildCurve(plan, today, history);
 
         var weekAgo = history.Where(h => h.Date <= today.AddDays(-7)).OrderByDescending(h => h.Date).FirstOrDefault();
         var attentionItems = await attention.GetAsync(projectId, ct);
@@ -130,7 +160,13 @@ public sealed class PresentationService(
             Pace = pace,
             PlanStart = plan.IsEmpty ? project.PlannedStart : plan.Start,
             PlanEnd = plan.IsEmpty ? project.PlannedEnd : plan.End,
-            Curve = BuildCurve(plan, today, history),
+            Curve = curve,
+            Matrix = matrix,
+            Production = production,
+            CableMetersInstalled = metersBySite.Values.Sum() + feederCables.Sum(f => f.Installed),
+            CableMetersProjected = odnMetersProjected + feederCables.Sum(f => f.Planned),
+            PiecesInstalled = piecesBySite.Values.Sum(),
+            PlannedToday = curve.FirstOrDefault(p => p.Date == today)?.Planned,
             Nodes = siteList.OrderByDescending(s => s.Site.OdnFinalized ? 100 : s.ProgressPercent).ThenBy(s => s.Site.Code)
                 .Select(s => new NodeBar(s.Site.Code, s.Site.OdnFinalized ? 100 : s.ProgressPercent, s.Pace.Status, s.Site.IsReadyToDeliver)).ToList(),
             StageColumns = stageColumns,

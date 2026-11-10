@@ -29,8 +29,21 @@ else
 {
     var d = _data;
     var tone = PaceTone(d.Pace.Status);
-    <div class="tk-viz">
-    <PageHeader Title="@d.ProjectName" Subtitle="@($"Presentación del avance · {UiText.LongDate(d.Today)}")">
+    var target = d.PlannedToday ?? d.Pace.ElapsedPercent;
+    var matrix = d.Matrix;
+    var measureNodes = matrix.Where(r => r.ReadyToMeasure).ToList();
+    var xboxNodes = matrix.Where(IsXBox).ToList();
+    var deliverNodes = matrix.Where(r => r.ReadyToDeliver).ToList();
+    var behindNodes = matrix.Where(r => r.Pace == PaceStatus.Behind).ToList();
+    var fatInstalled = SiteSummary.VinetaGroups.Sum(g => d.Charts.Installation.GetValueOrDefault(g).Installed);
+    var fatProjected = SiteSummary.VinetaGroups.Sum(g => d.Charts.Installation.GetValueOrDefault(g).Projected);
+    var fatPercent = fatProjected <= 0 ? 0 : Math.Round(fatInstalled / fatProjected * 100m, 1);
+    var cablePercent = d.CableMetersProjected <= 0 ? 0 : Math.Round(d.CableMetersInstalled / d.CableMetersProjected * 100m, 1);
+    decimal? density = d.CableMetersInstalled <= 0 ? null : Math.Round(d.PiecesInstalled / (d.CableMetersInstalled / 1000m), 1);
+    var diff = d.Progress - target;
+
+    <div class="tk-viz pv">
+    <PageHeader Title="@d.ProjectName" Subtitle="@($"Panel ejecutivo · corte {UiText.LongDate(d.Today)}")">
         <Actions>
             <button type="button" class="tk-btn tk-btn--outline tk-no-print" @onclick="FullscreenAsync">Pantalla completa</button>
             <button type="button" class="tk-btn tk-btn--primary tk-no-print" @onclick="PrintAsync">Descargar PDF</button>
@@ -41,130 +54,256 @@ else
         <ProjectPicker Value="_projectId" Changed="OnProjectChanged" />
     </div>
 
-    @* ================= Cifra principal + indicadores ================= *@
-    <div class="tk-card tk-hero">
-        <div class="tk-hero__main">
-            <div class="tk-hero__value">@d.Progress.ToString("0.#")<span>%</span></div>
-            <div class="tk-hero__label">avance general del proyecto</div>
-            <div class="tk-meters">
-                <div class="tk-meter" data-tip="@($"{d.Progress:0.#}%|Avance")" tabindex="0">
-                    <span class="tk-meter__name">Avance</span>
-                    <span class="tk-meter__track"><span class="tk-meter__fill tk-meter__fill--@tone" style="width:@Pct(d.Progress)%"></span></span>
-                    <span class="tk-meter__value">@d.Progress.ToString("0")%</span>
-                </div>
-                <div class="tk-meter" data-tip="@($"{d.Pace.ElapsedPercent:0.#}%|Tiempo transcurrido")" tabindex="0">
-                    <span class="tk-meter__name">Tiempo</span>
-                    <span class="tk-meter__track"><span class="tk-meter__fill tk-meter__fill--time" style="width:@Pct(d.Pace.ElapsedPercent)%"></span></span>
-                    <span class="tk-meter__value">@d.Pace.ElapsedPercent.ToString("0")%</span>
-                </div>
-            </div>
+    @* ============ Barra de contexto y filtro rápido ============ *@
+    <div class="pv-context tk-card">
+        <div class="pv-context__chips">
+            <span class="pv-pill pv-pill--ok"><span class="pv-dot"></span>Línea base: @d.TotalSites nodos</span>
+            @if (measureNodes.Count > 0)
+            {
+                <span class="pv-pill pv-pill--warn">@measureNodes.Count @(measureNodes.Count == 1 ? "nodo listo" : "nodos listos") para medir</span>
+            }
+            @if (d.ProgressWeekAgo is { } weekBefore)
+            {
+                var delta = d.Progress - weekBefore;
+                <span class="pv-pill pv-pill--@(delta > 0 ? "ok" : delta < 0 ? "bad" : "none")">@(delta >= 0 ? "+" : "")@delta.ToString("0.#") pts en 7 días</span>
+            }
         </div>
-        <div class="tk-stats">
-            <div class="tk-stat">
-                <span class="tk-stat__label">Ritmo</span>
-                <span class="tk-stat__value"><PaceChip Pace="d.Pace" /></span>
-                <span class="tk-stat__note">avance menos tiempo transcurrido</span>
-            </div>
-            @if (d.ProgressWeekAgo is { } before)
-            {
-                var delta = d.Progress - before;
-                <div class="tk-stat">
-                    <span class="tk-stat__label">Esta semana</span>
-                    <span class="tk-stat__value tk-stat__value--@(delta > 0 ? "ok" : delta < 0 ? "bad" : "")">@(delta >= 0 ? "+" : "")@delta.ToString("0.#") pts</span>
-                    <span class="tk-stat__note">contra hace 7 días (@before.ToString("0.#")%)</span>
-                </div>
-            }
-            <div class="tk-stat">
-                <span class="tk-stat__label">Cierre planificado</span>
-                <span class="tk-stat__value">@UiText.LongDate(d.PlanEnd)</span>
-            </div>
-            @if (d.Pace.ProjectedEnd is { } projected && d.Pace.Status != PaceStatus.Completed)
-            {
-                <div class="tk-stat">
-                    <span class="tk-stat__label">Cierre proyectado</span>
-                    <span class="tk-stat__value tk-stat__value--@tone">@UiText.LongDate(projected)</span>
-                    <span class="tk-stat__note">al ritmo actual</span>
-                </div>
-            }
-            <div class="tk-stat">
-                <span class="tk-stat__label">Nodos listos para entregar</span>
-                <span class="tk-stat__value">@d.Charts.SitesReady<small> de @d.TotalSites</small></span>
-            </div>
-            <div class="tk-stat">
-                <span class="tk-stat__label">Nodos finalizados</span>
-                <span class="tk-stat__value">@d.Charts.SitesFinished<small> de @d.TotalSites</small></span>
-            </div>
+        <div class="pv-slicer tk-no-print" role="group" aria-label="Filtro rápido de nodos">
+            <span class="pv-slicer__label">Filtro rápido</span>
+            @FilterButton(NodeFilter.All, $"Todos ({matrix.Count})")
+            @FilterButton(NodeFilter.Deliver, $"Listos para entregar ({deliverNodes.Count})")
+            @FilterButton(NodeFilter.Measure, $"Listos para medir ({measureNodes.Count})")
+            @FilterButton(NodeFilter.XBox, $"X-box fusionada ({xboxNodes.Count})")
+            @FilterButton(NodeFilter.Behind, $"Atrasados ({behindNodes.Count})")
         </div>
     </div>
 
-    <div class="tk-chart-grid">
-        @* ================= Requiere atención ================= *@
-        <SectionCard Title="@(d.Attention.Count == 0 ? "Requiere atención" : $"Requiere atención ({d.Attention.Count})")" Class="tk-span-2">
-            <AttentionList Items="d.Attention" />
+    @* ============ Cifra principal + tarjetas clave ============ *@
+    <section class="pv-top">
+        <div class="tk-card pv-hero">
+            <div class="pv-hero__head">
+                <div>
+                    <span class="pv-eyebrow">Avance físico ponderado</span>
+                    <h2 class="pv-title">@d.ProjectName</h2>
+                </div>
+                <PaceChip Pace="d.Pace" />
+            </div>
+            <div class="pv-hero__body">
+                <div class="pv-gauge-wrap">
+                    @Gauge(d.Progress, target, tone)
+                    <div class="pv-gauge__value">@d.Progress.ToString("0.#")<span>%</span></div>
+                    <div class="pv-gauge__label">avance general</div>
+                </div>
+                <div class="pv-hero__meters">
+                    <div class="pv-meter" data-tip="@($"{d.Progress:0.#}%|Avance físico")" tabindex="0">
+                        <div class="pv-meter__row"><span>Avance físico</span><strong>@d.Progress.ToString("0.#")%</strong></div>
+                        <span class="pv-track"><span class="pv-fill pv-fill--@tone" style="width:@Pct(d.Progress)%"></span></span>
+                        <div class="pv-meter__note">Meta planificada al corte: @target.ToString("0.#")% · <b class="pv-text--@(diff >= 0 ? "ok" : "bad")">@(diff >= 0 ? "+" : "")@diff.ToString("0.#") pts</b> contra el plan</div>
+                    </div>
+                    <div class="pv-meter" data-tip="@($"{d.Pace.ElapsedPercent:0.#}%|Tiempo transcurrido")" tabindex="0">
+                        <div class="pv-meter__row"><span>Tiempo transcurrido</span><strong>@d.Pace.ElapsedPercent.ToString("0.#")%</strong></div>
+                        <span class="pv-track"><span class="pv-fill pv-fill--time" style="width:@Pct(d.Pace.ElapsedPercent)%"></span></span>
+                        <div class="pv-meter__note">@(d.Pace.TotalDays > 0 ? $"Día {d.Pace.ElapsedDays} de {d.Pace.TotalDays} · " : string.Empty)Cierre planificado: @UiText.ShortDate(d.PlanEnd)@(d.Pace.ProjectedEnd is { } pe && d.Pace.Status != PaceStatus.Completed ? $" · proyectado: {UiText.ShortDate(pe)}" : string.Empty)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="pv-tiles">
+                <div class="pv-tile" data-tip="@($"{UiText.Number(d.CableMetersInstalled)} m|Cable tendido (FC, MPO y feeder)")" tabindex="0">
+                    <span class="pv-tile__label">Fibra tendida</span>
+                    <strong class="pv-tile__value">@UiText.Number(d.CableMetersInstalled) m</strong>
+                    <span class="pv-tile__note">@(d.CableMetersProjected > 0 ? $"Meta: {UiText.Number(d.CableMetersProjected)} m ({cablePercent:0.#}%)" : "Sin meta cargada")</span>
+                </div>
+                <div class="pv-tile">
+                    <span class="pv-tile__label">Piezas instaladas</span>
+                    <strong class="pv-tile__value">@UiText.Number(d.PiecesInstalled) u</strong>
+                    <span class="pv-tile__note">@(density is { } dn ? $"{dn:0.#} piezas por km" : "Cajas, herrajes y más")</span>
+                </div>
+                <div class="pv-tile">
+                    <span class="pv-tile__label">X-box fusionada</span>
+                    <strong class="pv-tile__value pv-text--accent">@xboxNodes.Count <small>de @d.TotalSites</small></strong>
+                    <span class="pv-tile__note">@(d.TotalSites == 0 ? "—" : $"{xboxNodes.Count * 100m / d.TotalSites:0}% de los nodos")</span>
+                </div>
+                <div class="pv-tile">
+                    <span class="pv-tile__label">FATs instaladas</span>
+                    <strong class="pv-tile__value pv-text--ok">@UiText.Number(fatInstalled) <small>de @UiText.Number(fatProjected)</small></strong>
+                    <span class="pv-tile__note">@fatPercent.ToString("0.#")% completado</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pv-cards">
+            <div class="tk-card pv-kcard">
+                <span class="pv-kcard__icon pv-kcard__icon--ok"><MudIcon Icon="@Icons.Material.Outlined.Sensors" /></span>
+                <div class="pv-kcard__body">
+                    <div class="pv-kcard__head"><h3>Listos para medir</h3><span class="pv-pill pv-pill--ok">@measureNodes.Count @(measureNodes.Count == 1 ? "nodo" : "nodos")</span></div>
+                    <p>@(measureNodes.Count == 0 ? "Ningún nodo llega todavía al % de FATs para medir." : CodeList(measureNodes)) @(measureNodes.Count == 0 ? string.Empty : "con las FATs necesarias para la medición de potencia.")</p>
+                </div>
+            </div>
+            <div class="tk-card pv-kcard">
+                <span class="pv-kcard__icon pv-kcard__icon--info"><MudIcon Icon="@Icons.Material.Outlined.Cable" /></span>
+                <div class="pv-kcard__body">
+                    <div class="pv-kcard__head"><h3>X-box fusionada</h3><span class="pv-pill pv-pill--info">@xboxNodes.Count @(xboxNodes.Count == 1 ? "nodo" : "nodos")</span></div>
+                    <p>@(xboxNodes.Count == 0 ? "Ningún nodo ha terminado todavía las fusiones en X-box." : CodeList(xboxNodes))</p>
+                </div>
+            </div>
+            <div class="tk-card pv-kcard">
+                <span class="pv-kcard__icon pv-kcard__icon--warn"><MudIcon Icon="@Icons.Material.Outlined.DeveloperBoard" /></span>
+                <div class="pv-kcard__body">
+                    <div class="pv-kcard__head"><h3>FATs en red: @UiText.Number(fatInstalled) / @UiText.Number(fatProjected)</h3><span class="pv-pill pv-pill--warn">@fatPercent.ToString("0.#")%</span></div>
+                    <p>@FatBreakdown(d)</p>
+                </div>
+            </div>
+            <div class="tk-card pv-kcard">
+                <span class="pv-kcard__icon pv-kcard__icon--none"><MudIcon Icon="@Icons.Material.Outlined.Architecture" /></span>
+                <div class="pv-kcard__body">
+                    <div class="pv-kcard__head"><h3>Densidad de red</h3><span class="pv-pill pv-pill--none">@(density is { } dn2 ? $"{dn2:0.#} pzs/km" : "—")</span></div>
+                    <p>@(d.CableMetersInstalled > 0 ? $"{UiText.Number(d.CableMetersInstalled)} m de cable tendido con {UiText.Number(d.PiecesInstalled)} piezas instaladas." : "Aparece cuando haya cable tendido registrado.")</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @* ============ Producción y brigadas ============ *@
+    <section class="pv-row pv-row--2">
+        <SectionCard Title="Producción: metros de fibra y FATs instaladas">
+            <HeaderActions>
+                <div class="pv-seg tk-no-print" role="group" aria-label="Período">
+                    <button type="button" class="@PeriodClass(Period.Day)" @onclick="() => SetPeriod(Period.Day)">Diaria</button>
+                    <button type="button" class="@PeriodClass(Period.Week)" @onclick="() => SetPeriod(Period.Week)">Semanal</button>
+                    <button type="button" class="@PeriodClass(Period.Month)" @onclick="() => SetPeriod(Period.Month)">Mensual</button>
+                </div>
+            </HeaderActions>
+            <ChildContent>
+                @{ var buckets = Buckets(d); }
+                @if (buckets.All(b => b.Meters == 0 && b.Fats == 0))
+                {
+                    <EmptyState Title="Sin instalaciones en este período" Icon="@Icons.Material.Outlined.Construction" Description="Registre lo instalado en los nodos para ver la producción." />
+                }
+                else
+                {
+                    <div class="pv-legend">
+                        <span><span class="pv-key pv-key--main"></span> Metros de fibra (eje izquierdo)</span>
+                        <span><span class="pv-key pv-key--accent"></span> FATs (eje derecho)</span>
+                    </div>
+                    @Columns(buckets)
+                    <div class="pv-foot">
+                        <span>Metros en el período: <b>@UiText.Number(buckets.Sum(b => b.Meters)) m</b></span>
+                        <span>FATs: <b>@UiText.Number(buckets.Sum(b => b.Fats))</b></span>
+                        <span>Piezas (unidades): <b>@UiText.Number(buckets.Sum(b => b.Pieces))</b></span>
+                    </div>
+                    <details class="tk-details">
+                        <summary>Ver datos en tabla</summary>
+                        <div class="tk-table-wrap"><table class="tk-table">
+                            <thead><tr><th>@(_period == Period.Day ? "Día" : _period == Period.Week ? "Semana del" : "Mes")</th><th>Metros</th><th>FATs</th><th>Piezas</th></tr></thead>
+                            <tbody>@foreach (var b in buckets) { <tr><td>@b.Tip</td><td class="num">@UiText.Number(b.Meters)</td><td class="num">@UiText.Number(b.Fats)</td><td class="num">@UiText.Number(b.Pieces)</td></tr> }</tbody>
+                        </table></div>
+                    </details>
+                }
+            </ChildContent>
         </SectionCard>
 
-        @* ================= 1. Curva ================= *@
-        <SectionCard Title="Avance real contra planificado" Class="tk-span-2">
-            @if (d.Curve.Count < 2)
+        <SectionCard Title="Brigadas: avance de sus nodos">
+            @if (d.Brigades.Count == 0)
             {
-                <EmptyState Title="Sin plan de trabajo" Icon="@Icons.Material.Outlined.Timeline" Description="Cree el plan de trabajo para ver la curva planificada contra la real." />
+                <EmptyState Title="Sin brigadas" Icon="@Icons.Material.Outlined.Groups" Description="Asigne una brigada a cada nodo para ver su productividad." />
             }
             else
             {
-                var real = RealPoints(d);
-                <div class="tk-legend tk-legend--top">
-                    <span class="tk-legend__item"><span class="tk-key tk-key--planned"></span> Planificado</span>
-                    <span class="tk-legend__item"><span class="tk-key tk-key--@tone"></span> Real</span>
-                    <span class="tk-legend__item"><span class="tk-key tk-key--today"></span> Hoy</span>
+                <div class="pv-bars">
+                    @foreach (var b in d.Brigades)
+                    {
+                        var bt = b.AverageProgress >= 100 ? "ok" : b.BehindSites > 0 && b.AverageProgress < 50 ? "bad" : b.BehindSites > 0 ? "warn" : "info";
+                        <div class="pv-bar" data-tip="@($"{b.AverageProgress:0.#}%|{b.Name}: {b.FinishedSites} de {b.Sites} nodos finalizados · {b.BehindSites} atrasados · {UiText.Number(b.Installed)} de {UiText.Number(b.Delivered)} piezas instaladas")" tabindex="0">
+                            <div class="pv-bar__head"><span class="pv-bar__name">@b.Name</span><span class="pv-bar__meta">@b.FinishedSites/@b.Sites nodos@(b.BehindSites > 0 ? $" · {b.BehindSites} atrasados" : string.Empty)</span></div>
+                            <div class="pv-bar__row"><span class="pv-track pv-track--lg"><span class="pv-fill pv-fill--@bt" style="width:@Pct(b.AverageProgress)%"></span></span><strong>@b.AverageProgress.ToString("0")%</strong></div>
+                        </div>
+                    }
                 </div>
-                <svg class="tk-curve" viewBox="0 0 1000 340" role="img" aria-label="Curva de avance planificado contra real">
-                    @foreach (var y in new[] { 0, 25, 50, 75, 100 })
-                    {
-                        <line x1="@PadL" x2="990" y1="@F(Y(y))" y2="@F(Y(y))" class="tk-curve__grid" />
-                        @SvgText(PadL - 8, Y(y) + 4, "end", $"{y}%")
-                    }
-                    @foreach (var tick in XTicks(d))
-                    {
-                        @SvgText(X(d, tick), 326, "middle", tick.ToString("dd/MM", Culture))
-                    }
-                    @if (real.Count >= 2)
-                    {
-                        <polygon class="tk-curve__area tk-curve__area--@tone" points="@AreaPoints(d, real)" />
-                    }
-                    <polyline class="tk-curve__planned" points="@Points(d, p => p.Planned)" />
-                    @if (real.Count >= 2)
-                    {
-                        <polyline class="tk-curve__real tk-curve__real--@tone" points="@PolyPoints(d, real)" />
-                    }
-                    <line x1="@F(X(d, d.Today))" x2="@F(X(d, d.Today))" y1="14" y2="@(PadT + PlotH)" class="tk-curve__today" />
-                    @SvgText(X(d, d.Today), 10, "middle", "Hoy")
-                    <circle cx="@F(X(d, d.Today))" cy="@F(Y(d.Progress))" r="5" class="tk-curve__dot tk-curve__dot--@tone" />
-                    @SvgText(X(d, d.Today) + 12, Y(d.Progress) - 10, "start", $"{d.Progress:0.#}%", true)
-                    @* Zonas de lectura: una columna por punto, con guía vertical y detalle al pasar el dedo o el cursor *@
-                    @for (var i = 0; i < d.Curve.Count; i++)
-                    {
-                        var p = d.Curve[i];
-                        var left = i == 0 ? X(d, p.Date) : (X(d, d.Curve[i - 1].Date) + X(d, p.Date)) / 2;
-                        var right = i == d.Curve.Count - 1 ? X(d, p.Date) : (X(d, p.Date) + X(d, d.Curve[i + 1].Date)) / 2;
-                        <g class="tk-hit">
-                            <rect x="@F(left)" y="@PadT" width="@F(Math.Max(2, right - left))" height="@PlotH" class="tk-hit__area" tabindex="0"
-                                  data-tip="@CurveTip(p)" />
-                            <line x1="@F(X(d, p.Date))" x2="@F(X(d, p.Date))" y1="@PadT" y2="@(PadT + PlotH)" class="tk-hit__guide" />
-                        </g>
-                    }
-                </svg>
-                <div class="tk-note">@(d.HasSnapshots ? "El avance real sale de la foto diaria que guarda el sistema cada noche y de la de hoy." : "Todavía hay pocas fotos diarias: el avance real se arma con las actividades terminadas (fecha real de fin) y, hoy, con el avance actual del plan. Mejora solo cada día.")</div>
                 <details class="tk-details">
                     <summary>Ver datos en tabla</summary>
                     <div class="tk-table-wrap"><table class="tk-table">
-                        <thead><tr><th>Fecha</th><th>Planificado</th><th>Real</th></tr></thead>
-                        <tbody>@foreach (var p in d.Curve) { <tr><td>@UiText.ShortDate(p.Date)</td><td class="num">@p.Planned.ToString("0.#")%</td><td class="num">@(p.Real is null ? "—" : $"{p.Real:0.#}%")</td></tr> }</tbody>
+                        <thead><tr><th>Brigada</th><th>Nodos</th><th>Finalizados</th><th>Atrasados</th><th>Avance</th><th>Piezas entregadas</th><th>Piezas instaladas</th></tr></thead>
+                        <tbody>@foreach (var b in d.Brigades) { <tr><td>@b.Name</td><td class="num">@b.Sites</td><td class="num">@b.FinishedSites</td><td class="num">@b.BehindSites</td><td class="num">@b.AverageProgress.ToString("0.#")%</td><td class="num">@UiText.Number(b.Delivered)</td><td class="num">@UiText.Number(b.Installed)</td></tr> }</tbody>
                     </table></div>
                 </details>
             }
         </SectionCard>
+    </section>
 
-        <div class="tk-stack">
+    @* ============ Curva en S ============ *@
+    <SectionCard Title="Avance real contra planificado" Class="pv-block">
+        @if (d.Curve.Count < 2)
+        {
+            <EmptyState Title="Sin plan de trabajo" Icon="@Icons.Material.Outlined.Timeline" Description="Cree el plan de trabajo para ver la curva planificada contra la real." />
+        }
+        else
+        {
+            var real = RealPoints(d);
+            var forecast = d.Pace.ProjectedEnd is { } fe && d.Pace.Status != PaceStatus.Completed && fe > d.Today ? fe : (DateOnly?)null;
+            <div class="pv-legend">
+                <span><span class="pv-line pv-line--planned"></span> Planificado</span>
+                <span><span class="pv-line pv-line--real pv-line--@tone"></span> Real (@d.Progress.ToString("0.#")%)</span>
+                @if (forecast is not null) { <span><span class="pv-line pv-line--forecast"></span> Proyección de cierre (@UiText.ShortDate(forecast))</span> }
+                <span><span class="pv-line pv-line--today"></span> Hoy</span>
+            </div>
+            <svg class="tk-curve" viewBox="0 0 1000 340" role="img" aria-label="Curva de avance planificado contra real">
+                <defs>
+                    <linearGradient id="pvArea" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stop-color="currentColor" stop-opacity="0.28"></stop>
+                        <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
+                    </linearGradient>
+                </defs>
+                @foreach (var y in new[] { 0, 25, 50, 75, 100 })
+                {
+                    <line x1="@PadL" x2="990" y1="@F(Y(y))" y2="@F(Y(y))" class="tk-curve__grid" />
+                    @SvgText(PadL - 8, Y(y) + 4, "end", $"{y}%")
+                }
+                @foreach (var tick in XTicks(d, forecast))
+                {
+                    @SvgText(X(d, forecast, tick), 326, "middle", tick.ToString("dd/MM", Culture))
+                }
+                @if (real.Count >= 2)
+                {
+                    <polygon class="pv-curve__area pv-text--@tone" points="@AreaPoints(d, forecast, real)" fill="url(#pvArea)" />
+                }
+                <polyline class="tk-curve__planned" points="@Points(d, forecast, p => p.Planned)" />
+                @if (forecast is { } fdate)
+                {
+                    <polyline class="pv-curve__forecast" points="@($"{F(X(d, forecast, d.Today))},{F(Y(d.Progress))} {F(X(d, forecast, fdate))},{F(Y(100))}")" />
+                    <circle cx="@F(X(d, forecast, fdate))" cy="@F(Y(100))" r="4" class="pv-curve__fdot" />
+                }
+                @if (real.Count >= 2)
+                {
+                    <polyline class="tk-curve__real tk-curve__real--@tone" points="@PolyPoints(d, forecast, real)" />
+                }
+                <line x1="@F(X(d, forecast, d.Today))" x2="@F(X(d, forecast, d.Today))" y1="14" y2="@(PadT + PlotH)" class="tk-curve__today" />
+                @SvgText(X(d, forecast, d.Today), 10, "middle", "Hoy")
+                <circle cx="@F(X(d, forecast, d.Today))" cy="@F(Y(d.Progress))" r="5" class="tk-curve__dot tk-curve__dot--@tone" />
+                @SvgText(X(d, forecast, d.Today) + 12, Y(d.Progress) - 10, "start", $"{d.Progress:0.#}%", true)
+                @for (var i = 0; i < d.Curve.Count; i++)
+                {
+                    var p = d.Curve[i];
+                    var left = i == 0 ? X(d, forecast, p.Date) : (X(d, forecast, d.Curve[i - 1].Date) + X(d, forecast, p.Date)) / 2;
+                    var right = i == d.Curve.Count - 1 ? X(d, forecast, p.Date) : (X(d, forecast, p.Date) + X(d, forecast, d.Curve[i + 1].Date)) / 2;
+                    <g class="tk-hit">
+                        <rect x="@F(left)" y="@PadT" width="@F(Math.Max(2, right - left))" height="@PlotH" class="tk-hit__area" tabindex="0" data-tip="@CurveTip(p)" />
+                        <line x1="@F(X(d, forecast, p.Date))" x2="@F(X(d, forecast, p.Date))" y1="@PadT" y2="@(PadT + PlotH)" class="tk-hit__guide" />
+                    </g>
+                }
+            </svg>
+            <div class="tk-note">@(d.HasSnapshots ? "El avance real sale de la foto diaria que guarda el sistema cada noche y de la de hoy." : "Todavía hay pocas fotos diarias: el avance real se arma con las actividades terminadas (fecha real de fin) y el avance de hoy.") La línea naranja punteada proyecta el cierre al ritmo actual.</div>
+            <details class="tk-details">
+                <summary>Ver datos en tabla</summary>
+                <div class="tk-table-wrap"><table class="tk-table">
+                    <thead><tr><th>Fecha</th><th>Planificado</th><th>Real</th></tr></thead>
+                    <tbody>@foreach (var p in d.Curve) { <tr><td>@UiText.ShortDate(p.Date)</td><td class="num">@p.Planned.ToString("0.#")%</td><td class="num">@(p.Real is null ? "—" : $"{p.Real:0.#}%")</td></tr> }</tbody>
+                </table></div>
+            </details>
+        }
+    </SectionCard>
+
+    @* ============ Dónas: estados ============ *@
+    <section class="pv-row pv-row--4">
         <SectionCard Title="Nodos por estado">
             @if (d.TotalSites == 0)
             {
@@ -172,13 +311,10 @@ else
             }
             else
             {
-                @Segmented(
-                    ("Finalizados", d.Charts.SitesFinished, "ok"),
-                    ("En proceso", d.Charts.SitesInProgress, "info"),
-                    ("Sin iniciar", d.Charts.SitesNotStarted, "none"))
+                @Donut(d.TotalSites.ToString(), "nodos",
+                    ("Finalizados", d.Charts.SitesFinished, "ok"), ("En proceso", d.Charts.SitesInProgress, "info"), ("Sin iniciar", d.Charts.SitesNotStarted, "none"))
             }
         </SectionCard>
-
         <SectionCard Title="Tareas">
             @{ var totalTasks = d.Charts.TasksByStatus.Values.Sum(); }
             @if (totalTasks == 0)
@@ -187,28 +323,39 @@ else
             }
             else
             {
-                @Segmented(
+                @Donut(totalTasks.ToString(), "tareas",
                     ("Hechas", d.Charts.TasksByStatus.GetValueOrDefault(TaskItemStatus.Done), "ok"),
                     ("En proceso", d.Charts.TasksByStatus.GetValueOrDefault(TaskItemStatus.InProgress), "info"),
                     ("En revisión", d.Charts.TasksByStatus.GetValueOrDefault(TaskItemStatus.InReview), "warn"),
                     ("Por hacer", d.Charts.TasksByStatus.GetValueOrDefault(TaskItemStatus.ToDo), "none"))
-                <div class="tk-subtitle mt-4">Por responsable</div>
-                <div class="tk-hbars">
-                    @foreach (var p in d.TasksByPerson)
-                    {
-                        <div class="tk-hbar" data-tip="@($"{p.Count}|{p.Name}")" tabindex="0">
-                            <span class="tk-hbar__label">@p.Name</span>
-                            <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--s1" style="width:@Pct(p.Count * 100m / d.TasksByPerson.Max(x => x.Count))%"></span></span>
-                            <span class="tk-hbar__value">@p.Count</span>
-                        </div>
-                    }
-                </div>
             }
         </SectionCard>
+        <SectionCard Title="Calidad: mediciones de potencia">
+            @if (d.MeasuredFats > 0)
+            {
+                @Donut($"{d.AcceptableFats * 100m / Math.Max(1, d.MeasuredFats):0}%", "aceptables",
+                    ("Aceptables", d.AcceptableFats, "ok"), ("No aceptables", d.NotAcceptableFats, "bad"))
+            }
+            else
+            {
+                <EmptyState Title="Sin mediciones" Icon="@Icons.Material.Outlined.Speed" Description="Todavía no hay mediciones de potencia registradas." />
+            }
+        </SectionCard>
+        <SectionCard Title="Liquidaciones cerradas">
+            @if (d.TotalSites == 0)
+            {
+                <EmptyState Title="Sin nodos" Icon="@Icons.Material.Outlined.Hub" Description="Importe el Excel del proyecto." />
+            }
+            else
+            {
+                @Donut($"{d.ClosedLiquidations}/{d.TotalSites}", "nodos liquidados",
+                    ("Cerradas", d.ClosedLiquidations, "ok"), ("Abiertas", Math.Max(0, d.TotalSites - d.ClosedLiquidations), "none"))
+            }
+        </SectionCard>
+    </section>
 
-        </div>
-
-        @* ================= 3. Instalación por partida ================= *@
+    @* ============ Instalación por partida + tareas por responsable ============ *@
+    <section class="pv-row pv-row--2">
         <SectionCard Title="Instalación por partida">
             @{ var rows = InstallRows(d); }
             @if (rows.Count == 0)
@@ -217,13 +364,12 @@ else
             }
             else
             {
-                <div class="tk-hbars">
+                <div class="pv-bars">
                     @foreach (var row in rows)
                     {
-                        <div class="tk-hbar" data-tip="@($"{row.Percent:0.#}%|{row.Label}: {UiText.Number(row.Installed)} de {UiText.Number(row.Projected)}")" tabindex="0">
-                            <span class="tk-hbar__label">@row.Label</span>
-                            <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--s1" style="width:@Pct(row.Percent)%"></span></span>
-                            <span class="tk-hbar__value">@row.Percent.ToString("0")%</span>
+                        <div class="pv-bar" data-tip="@($"{row.Percent:0.#}%|{row.Label}: {UiText.Number(row.Installed)} de {UiText.Number(row.Projected)}")" tabindex="0">
+                            <div class="pv-bar__head"><span class="pv-bar__name">@row.Label</span><span class="pv-bar__meta">@UiText.Number(row.Installed) de @UiText.Number(row.Projected)</span></div>
+                            <div class="pv-bar__row"><span class="pv-track pv-track--lg"><span class="pv-fill pv-fill--@(row.Percent >= 100 ? "ok" : "info")" style="width:@Pct(row.Percent)%"></span></span><strong>@row.Percent.ToString("0")%</strong></div>
                         </div>
                     }
                 </div>
@@ -237,165 +383,200 @@ else
             }
         </SectionCard>
 
-        @* ================= 4. Mapa de etapas por nodo ================= *@
-        <SectionCard Title="Etapas por nodo" Class="tk-span-2">
-            @if (d.StageRows.Count == 0 || d.StageColumns.Count == 0)
+        <SectionCard Title="@("Requiere atención" + (d.Attention.Count == 0 ? string.Empty : $" ({d.Attention.Count})"))">
+            <AttentionList Items="d.Attention" />
+            @if (d.TasksByPerson.Count > 0)
             {
-                <EmptyState Title="Sin nodos" Icon="@Icons.Material.Outlined.Hub" Description="Importe el Excel del proyecto." />
+                <div class="tk-subtitle mt-4">Tareas por responsable</div>
+                <div class="pv-bars">
+                    @foreach (var p in d.TasksByPerson)
+                    {
+                        <div class="pv-bar" data-tip="@($"{p.Count}|{p.Name}")" tabindex="0">
+                            <div class="pv-bar__row"><span class="pv-bar__name pv-bar__name--fixed">@p.Name</span><span class="pv-track"><span class="pv-fill pv-fill--info" style="width:@Pct(p.Count * 100m / d.TasksByPerson.Max(x => x.Count))%"></span></span><strong>@p.Count</strong></div>
+                        </div>
+                    }
+                </div>
+            }
+        </SectionCard>
+    </section>
+
+    @* ============ Matriz técnica por nodo ============ *@
+    <SectionCard Title="Matriz técnica de despliegue · control nodo por nodo" Class="pv-block">
+        @if (matrix.Count == 0)
+        {
+            <EmptyState Title="Sin nodos" Icon="@Icons.Material.Outlined.Hub" Description="Importe el Excel del proyecto." />
+        }
+        else
+        {
+            var shown = FilteredMatrix(matrix).ToList();
+            <div class="pv-slicer pv-slicer--table tk-no-print" role="group" aria-label="Filtrar la matriz">
+                <span class="pv-slicer__label">Filtrar por estatus</span>
+                @FilterButton(NodeFilter.All, $"Ver todos ({matrix.Count})")
+                @FilterButton(NodeFilter.Deliver, $"Listos para entregar ({deliverNodes.Count})")
+                @FilterButton(NodeFilter.Measure, $"Listos para medir ({measureNodes.Count})")
+                @FilterButton(NodeFilter.XBox, $"X-box fusionada ({xboxNodes.Count})")
+                @FilterButton(NodeFilter.Behind, $"Atrasados ({behindNodes.Count})")
+            </div>
+            @if (_filter == NodeFilter.Deliver && shown.Count > 0)
+            {
+                <div class="pv-banner">
+                    <MudIcon Icon="@Icons.Material.Outlined.AssignmentTurnedIn" />
+                    <div>
+                        <strong>Lote prioritario: @shown.Count @(shown.Count == 1 ? "nodo" : "nodos") en fase de recepción y entrega</strong>
+                        <span>@string.Join(", ", shown.Select(r => r.Code)) · @UiText.Number(shown.Sum(r => r.FatsInstalled)) FATs instaladas · @UiText.Number(shown.Sum(r => r.CableMeters)) m de cable tendido.</span>
+                    </div>
+                    <button type="button" class="tk-btn tk-btn--primary tk-no-print" @onclick="PrintAsync">Exportar PDF</button>
+                </div>
+            }
+            @if (shown.Count == 0)
+            {
+                <EmptyState Title="Ningún nodo cumple este filtro" Icon="@Icons.Material.Outlined.FilterAlt" Description="Cambie el filtro para ver los demás nodos." />
             }
             else
             {
-                <div class="tk-legend tk-legend--top">
-                    <span class="tk-legend__item"><span class="tk-cell tk-cell--ok"></span> Finalizada</span>
-                    <span class="tk-legend__item"><span class="tk-cell tk-cell--info"></span> En proceso</span>
-                    <span class="tk-legend__item"><span class="tk-cell tk-cell--warn"></span> En corrección</span>
-                    <span class="tk-legend__item"><span class="tk-cell tk-cell--none"></span> Pendiente</span>
-                </div>
-                <div class="tk-heat-wrap">
-                    <table class="tk-heat" role="grid" aria-label="Estado de cada etapa en cada nodo">
+                <div class="pv-table-wrap">
+                    <table class="pv-table">
                         <thead>
-                            <tr><th></th>@for (var i = 0; i < d.StageColumns.Count; i++) { <th title="@d.StageColumns[i].Name">@(i + 1)</th> }</tr>
+                            <tr><th>Nodo</th><th>Avance global</th><th>Fusión X-box</th><th>Medición de potencia</th><th class="num">FATs inst. / proy.</th><th class="num">Fibra tendida</th><th class="num">Densidad</th><th>Fecha plan</th><th>Brigada</th></tr>
                         </thead>
                         <tbody>
-                            @foreach (var row in d.StageRows)
+                            @foreach (var r in shown)
                             {
-                                <tr>
-                                    <th scope="row">@row.Site</th>
-                                    @foreach (var col in d.StageColumns)
-                                    {
-                                        var st = row.Stages.TryGetValue(col.Code, out var v) ? v : StageStatus.Pending;
-                                        <td><span class="tk-cell tk-cell--@CellTone(st)" tabindex="0" data-tip="@($"{UiText.StageStatusName(st)}|{row.Site} · {col.Name}")"></span></td>
-                                    }
+                                var rt = r.Progress >= 100 ? "ok" : PaceTone(r.Pace);
+                                <tr class="pv-row-@(r.ReadyToDeliver ? "deliver" : r.Pace == PaceStatus.Behind ? "behind" : "plain")">
+                                    <th scope="row"><a href="@($"nodos/{r.SiteId}")">@r.Code</a>@if (r.ReadyToDeliver) { <span class="pv-tag">ENTREGA</span> }</th>
+                                    <td>
+                                        <span class="pv-databar" data-tip="@($"{r.Progress:0.#}%|{r.Code} · {PaceName(r.Pace)}")" tabindex="0">
+                                            <b>@r.Progress.ToString("0.#")%</b>
+                                            <span class="pv-track"><span class="pv-fill pv-fill--@rt" style="width:@Pct(r.Progress)%"></span></span>
+                                        </span>
+                                    </td>
+                                    <td>@StageChip(r.Fusion)</td>
+                                    <td>@if (r.ReadyToMeasure) { <span class="pv-chip pv-chip--solid">Listo para medir</span> } else { @StageChip(r.Measurement) }</td>
+                                    <td class="num">
+                                        <span class="pv-databar pv-databar--right"><b>@UiText.Number(r.FatsInstalled) / @UiText.Number(r.FatsProjected)</b>
+                                        <span class="pv-track"><span class="pv-fill pv-fill--@(r.FatPercent >= 100 ? "ok" : "info")" style="width:@Pct(r.FatPercent)%"></span></span></span>
+                                    </td>
+                                    <td class="num">@(r.CableMeters > 0 ? $"{UiText.Number(r.CableMeters)} m" : "—")</td>
+                                    <td class="num pv-muted nowrap">@(r.Density is { } dd ? $"{dd:0.#} pzs/km" : "—")</td>
+                                    <td class="nowrap">@UiText.ShortDate(r.PlannedEnd)@if (r.ProjectedEnd is { } pj && r.PlannedEnd is { } pl && pj > pl && r.Progress < 100) { <small class="pv-text--bad"> → @UiText.ShortDate(pj)</small> }</td>
+                                    <td>@r.Brigade</td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
-                <ol class="tk-stage-key">
-                    @for (var i = 0; i < d.StageColumns.Count; i++) { <li><b>@(i + 1)</b> @d.StageColumns[i].Name</li> }
-                </ol>
-            }
-        </SectionCard>
-
-        @* ================= 5. Avance por nodo ================= *@
-        <SectionCard Title="Avance por nodo" Class="tk-span-2">
-            @if (d.Nodes.Count == 0)
-            {
-                <EmptyState Title="Sin nodos" Icon="@Icons.Material.Outlined.Hub" Description="Importe el Excel del proyecto." />
-            }
-            else
-            {
-                <div class="tk-legend tk-legend--top">
-                    <span class="tk-legend__item"><span class="tk-key tk-key--ok"></span> Adelantado o finalizado</span>
-                    <span class="tk-legend__item"><span class="tk-key tk-key--info"></span> En tiempo</span>
-                    <span class="tk-legend__item"><span class="tk-key tk-key--bad"></span> Atrasado</span>
+                <div class="pv-foot">
+                    <span>@shown.Count de @matrix.Count nodos</span>
+                    <span>Densidad del proyecto: <b>@(density is { } dp ? $"{dp:0.#} piezas/km" : "—")</b></span>
+                    <span>FATs instaladas: <b>@UiText.Number(fatInstalled) de @UiText.Number(fatProjected)</b></span>
                 </div>
-                <div class="tk-cols">
-                    <div class="tk-cols__axis"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span></div>
-                    <div class="tk-cols__plot" role="img" aria-label="Avance de cada nodo">
-                        @foreach (var n in d.Nodes)
+            }
+        }
+    </SectionCard>
+
+    @* ============ Etapas por nodo ============ *@
+    <SectionCard Title="Etapas por nodo" Class="pv-block">
+        @if (d.StageRows.Count == 0 || d.StageColumns.Count == 0)
+        {
+            <EmptyState Title="Sin nodos" Icon="@Icons.Material.Outlined.Hub" Description="Importe el Excel del proyecto." />
+        }
+        else
+        {
+            <div class="tk-legend tk-legend--top">
+                <span class="tk-legend__item"><span class="tk-cell tk-cell--ok"></span> Finalizada</span>
+                <span class="tk-legend__item"><span class="tk-cell tk-cell--info"></span> En proceso</span>
+                <span class="tk-legend__item"><span class="tk-cell tk-cell--warn"></span> En corrección</span>
+                <span class="tk-legend__item"><span class="tk-cell tk-cell--none"></span> Pendiente</span>
+            </div>
+            <div class="tk-heat-wrap">
+                <table class="tk-heat" role="grid" aria-label="Estado de cada etapa en cada nodo">
+                    <thead>
+                        <tr><th></th>@for (var i = 0; i < d.StageColumns.Count; i++) { <th title="@d.StageColumns[i].Name">@(i + 1)</th> }</tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in d.StageRows)
                         {
-                            <div class="tk-col" data-tip="@($"{n.Progress:0.#}%|Nodo {n.Code} · {PaceName(n.Pace)}")" tabindex="0">
-                                <span class="tk-col__track"><span class="tk-col__fill tk-col__fill--@PaceTone(n.Pace)" style="height:@Pct(n.Progress)%"></span></span>
-                                <span class="tk-col__label">@n.Code</span>
-                            </div>
+                            <tr>
+                                <th scope="row">@row.Site</th>
+                                @foreach (var col in d.StageColumns)
+                                {
+                                    var st = row.Stages.TryGetValue(col.Code, out var v) ? v : StageStatus.Pending;
+                                    <td><span class="tk-cell tk-cell--@CellTone(st)" tabindex="0" data-tip="@($"{UiText.StageStatusName(st)}|{row.Site} · {col.Name}")"></span></td>
+                                }
+                            </tr>
                         }
-                    </div>
-                </div>
-                <details class="tk-details">
-                    <summary>Ver datos en tabla</summary>
-                    <div class="tk-table-wrap"><table class="tk-table">
-                        <thead><tr><th>Nodo</th><th>Avance</th><th>Ritmo</th><th>Listo para entregar</th></tr></thead>
-                        <tbody>@foreach (var n in d.Nodes) { <tr><td>@n.Code</td><td class="num">@n.Progress.ToString("0.#")%</td><td>@PaceName(n.Pace)</td><td>@(n.Ready ? "Sí" : "No")</td></tr> }</tbody>
-                    </table></div>
-                </details>
-            }
-        </SectionCard>
+                    </tbody>
+                </table>
+            </div>
+            <ol class="tk-stage-key">
+                @for (var i = 0; i < d.StageColumns.Count; i++) { <li><b>@(i + 1)</b> @d.StageColumns[i].Name</li> }
+            </ol>
+        }
+    </SectionCard>
 
-        @* ================= Evidencias ================= *@
-        <SectionCard Title="Evidencias de nodos finalizados" Class="tk-span-2">
-            @if (d.Evidence.Count == 0)
-            {
-                <EmptyState Title="Todavía no hay nodos finalizados" Icon="@Icons.Material.Outlined.VerifiedUser" Description="Cuando un nodo termine su ODN aparece aquí con su ATP firmado, CAES y fotos de cierre." />
-            }
-            else
-            {
-                var signed = d.Evidence.Count(e => e.SignedAtp);
-                <div class="tk-meter tk-meter--wide mb-4" data-tip="@($"{signed} de {d.Evidence.Count}|Nodos finalizados con ATP firmado")" tabindex="0">
-                    <span class="tk-meter__track"><span class="tk-meter__fill tk-meter__fill--@(signed == d.Evidence.Count ? "ok" : "info")" style="width:@Pct(signed * 100m / d.Evidence.Count)%"></span></span>
-                    <span class="tk-meter__value">@signed de @d.Evidence.Count con ATP firmado</span>
-                </div>
-                <div class="tk-evidence">
-                    @foreach (var e in d.Evidence)
+    @* ============ Avance por nodo ============ *@
+    <SectionCard Title="Avance por nodo" Class="pv-block">
+        @if (d.Nodes.Count == 0)
+        {
+            <EmptyState Title="Sin nodos" Icon="@Icons.Material.Outlined.Hub" Description="Importe el Excel del proyecto." />
+        }
+        else
+        {
+            <div class="tk-legend tk-legend--top">
+                <span class="tk-legend__item"><span class="tk-key tk-key--ok"></span> Adelantado o finalizado</span>
+                <span class="tk-legend__item"><span class="tk-key tk-key--info"></span> En tiempo</span>
+                <span class="tk-legend__item"><span class="tk-key tk-key--bad"></span> Atrasado</span>
+            </div>
+            <div class="tk-cols">
+                <div class="tk-cols__axis"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span></div>
+                <div class="tk-cols__plot" role="img" aria-label="Avance de cada nodo">
+                    @foreach (var n in d.Nodes)
                     {
-                        <div class="tk-evidence__row">
-                            <a class="tk-evidence__site" href="@($"documentos?nodo={e.SiteId}")">@e.SiteCode</a>
-                            <span class="tk-chip tk-chip--@(e.SignedAtp ? "success" : "warning")">@(e.SignedAtp ? "ATP firmado" : "Falta ATP firmado")</span>
-                            <span class="tk-chip tk-chip--@(e.HasCaes ? "success" : "neutral")">@(e.HasCaes ? "CAES" : "Sin CAES")</span>
-                            <span class="tk-chip tk-chip--@(e.Photos > 0 ? "info" : "neutral")">@e.Photos foto(s)</span>
-                            <span class="tk-evidence__thumbs">
-                                @foreach (var id in e.PhotoIds) { <a href="@($"archivos/documentos/{id}")" target="_blank" rel="noopener"><img loading="lazy" src="@($"archivos/documentos/{id}")" alt="@($"Foto de cierre del nodo {e.SiteCode}")" /></a> }
-                            </span>
+                        <div class="tk-col" data-tip="@($"{n.Progress:0.#}%|Nodo {n.Code} · {PaceName(n.Pace)}")" tabindex="0">
+                            <span class="tk-col__value">@n.Progress.ToString("0")</span>
+                            <span class="tk-col__track"><span class="tk-col__fill tk-col__fill--@PaceTone(n.Pace)" style="height:@Pct(n.Progress)%"></span></span>
+                            <span class="tk-col__label">@n.Code</span>
                         </div>
                     }
                 </div>
-            }
-        </SectionCard>
+            </div>
+        }
+    </SectionCard>
 
-        @* ================= Brigadas ================= *@
-        <SectionCard Title="Brigadas: avance de sus nodos">
-            @if (d.Brigades.Count == 0)
-            {
-                <EmptyState Title="Sin brigadas" Icon="@Icons.Material.Outlined.Groups" Description="Asigne una brigada a cada nodo para ver su productividad." />
-            }
-            else
-            {
-                <div class="tk-hbars">
-                    @foreach (var b in d.Brigades)
-                    {
-                        <div class="tk-hbar" data-tip="@($"{b.AverageProgress:0.#}%|{b.Name}: {b.FinishedSites} de {b.Sites} nodos finalizados · {UiText.Number(b.Installed)} de {UiText.Number(b.Delivered)} piezas instaladas")" tabindex="0">
-                            <span class="tk-hbar__label">@b.Name</span>
-                            <span class="tk-hbar__track"><span class="tk-hbar__fill tk-hbar__fill--s1" style="width:@Pct(b.AverageProgress)%"></span></span>
-                            <span class="tk-hbar__value">@b.AverageProgress.ToString("0")%</span>
-                        </div>
-                    }
-                </div>
-                <details class="tk-details">
-                    <summary>Ver datos en tabla</summary>
-                    <div class="tk-table-wrap"><table class="tk-table">
-                        <thead><tr><th>Brigada</th><th>Nodos</th><th>Finalizados</th><th>Avance</th><th>Piezas entregadas</th><th>Piezas instaladas</th></tr></thead>
-                        <tbody>@foreach (var b in d.Brigades) { <tr><td>@b.Name</td><td class="num">@b.Sites</td><td class="num">@b.FinishedSites</td><td class="num">@b.AverageProgress.ToString("0.#")%</td><td class="num">@UiText.Number(b.Delivered)</td><td class="num">@UiText.Number(b.Installed)</td></tr> }</tbody>
-                    </table></div>
-                </details>
-            }
-        </SectionCard>
-
-        <SectionCard Title="Piezas instaladas por semana">
-            @if (d.WeeklyInstalled.All(w => w.Total == 0))
-            {
-                <EmptyState Title="Sin instalaciones registradas" Icon="@Icons.Material.Outlined.Construction" Description="Registre lo instalado en los nodos para ver la productividad semanal." />
-            }
-            else
-            {
-                var maxWeek = d.WeeklyInstalled.Max(w => w.Total);
-                <div class="tk-cols tk-cols--short">
-                    <div class="tk-cols__axis"><span>@UiText.Number(maxWeek)</span><span>@UiText.Number(maxWeek / 2)</span><span>0</span></div>
-                    <div class="tk-cols__plot tk-cols__plot--half" role="img" aria-label="Piezas instaladas por semana">
-                        @foreach (var w in d.WeeklyInstalled)
-                        {
-                            <div class="tk-col" data-tip="@($"{UiText.Number(w.Total)} piezas|Semana del {UiText.ShortDate(w.WeekStart)}{(w.ByBrigade.Count == 0 ? string.Empty : " · " + string.Join(", ", w.ByBrigade.Select(b => $"{b.Key}: {UiText.Number(b.Value)}")))}")" tabindex="0">
-                                <span class="tk-col__track"><span class="tk-col__fill tk-col__fill--info" style="height:@Pct(maxWeek <= 0 ? 0 : w.Total * 100m / maxWeek)%"></span></span>
-                                <span class="tk-col__label">@w.WeekStart.ToString("dd/MM", Culture)</span>
-                            </div>
-                        }
+    @* ============ Evidencias ============ *@
+    <SectionCard Title="Evidencias de nodos finalizados" Class="pv-block">
+        @if (d.Evidence.Count == 0)
+        {
+            <EmptyState Title="Todavía no hay nodos finalizados" Icon="@Icons.Material.Outlined.VerifiedUser" Description="Cuando un nodo termine su ODN aparece aquí con su ATP firmado, CAES y fotos de cierre." />
+        }
+        else
+        {
+            var signed = d.Evidence.Count(e => e.SignedAtp);
+            <div class="tk-meter tk-meter--wide mb-4" data-tip="@($"{signed} de {d.Evidence.Count}|Nodos finalizados con ATP firmado")" tabindex="0">
+                <span class="tk-meter__track"><span class="tk-meter__fill tk-meter__fill--@(signed == d.Evidence.Count ? "ok" : "info")" style="width:@Pct(signed * 100m / d.Evidence.Count)%"></span></span>
+                <span class="tk-meter__value">@signed de @d.Evidence.Count con ATP firmado</span>
+            </div>
+            <div class="tk-evidence">
+                @foreach (var e in d.Evidence)
+                {
+                    <div class="tk-evidence__row">
+                        <a class="tk-evidence__site" href="@($"documentos?nodo={e.SiteId}")">@e.SiteCode</a>
+                        <span class="tk-chip tk-chip--@(e.SignedAtp ? "success" : "warning")">@(e.SignedAtp ? "ATP firmado" : "Falta ATP firmado")</span>
+                        <span class="tk-chip tk-chip--@(e.HasCaes ? "success" : "neutral")">@(e.HasCaes ? "CAES" : "Sin CAES")</span>
+                        <span class="tk-chip tk-chip--@(e.Photos > 0 ? "info" : "neutral")">@e.Photos foto(s)</span>
+                        <span class="tk-evidence__thumbs">
+                            @foreach (var id in e.PhotoIds) { <a href="@($"archivos/documentos/{id}")" target="_blank" rel="noopener"><img loading="lazy" src="@($"archivos/documentos/{id}")" alt="@($"Foto de cierre del nodo {e.SiteCode}")" /></a> }
+                        </span>
                     </div>
-                </div>
-                <div class="tk-note">Solo piezas en unidades (cajas, herrajes, etc.); los metros de cable no se suman.</div>
-            }
-        </SectionCard>
+                }
+            </div>
+        }
+    </SectionCard>
 
-        @* ================= 6. Bodega ================= *@
-        <SectionCard Title="Bodega: materiales principales" Class="tk-span-2">
+    @* ============ Bodega y sprints ============ *@
+    <section class="pv-row pv-row--2-1">
+        <SectionCard Title="Bodega: materiales principales">
             @if (d.Materials.Count == 0)
             {
                 <EmptyState Title="Sin movimientos de bodega" Icon="@Icons.Material.Outlined.Inventory2" Description="Registre ingresos y entregas en Materiales." />
@@ -431,7 +612,6 @@ else
             }
         </SectionCard>
 
-        @* ================= 8. Sprints ================= *@
         <SectionCard Title="Sprints">
             @if (d.Sprints.Count == 0)
             {
@@ -448,31 +628,20 @@ else
                 }
             }
         </SectionCard>
+    </section>
 
-        @* ================= 9. Calidad ================= *@
-        <SectionCard Title="Calidad y cierre">
-            <div class="tk-quality tk-quality--stack">
-                <div>
-                    <div class="tk-subtitle">Mediciones de potencia por FAT</div>
-                    @if (d.MeasuredFats > 0)
-                    {
-                        @Segmented(("Aceptables", d.AcceptableFats, "ok"), ("No aceptables", d.NotAcceptableFats, "bad"))
-                    }
-                    else
-                    {
-                        <div class="tk-muted">Todavía no hay mediciones de potencia registradas.</div>
-                    }
-                </div>
-                <div>
-                    <div class="tk-subtitle">Liquidaciones cerradas</div>
-                    <div class="tk-meter tk-meter--wide" data-tip="@($"{d.ClosedLiquidations} de {d.TotalSites}|Liquidaciones cerradas")" tabindex="0">
-                        <span class="tk-meter__track"><span class="tk-meter__fill tk-meter__fill--ok" style="width:@Pct(d.TotalSites == 0 ? 0 : d.ClosedLiquidations * 100m / d.TotalSites)%"></span></span>
-                        <span class="tk-meter__value">@d.ClosedLiquidations de @d.TotalSites</span>
-                    </div>
-                </div>
-            </div>
-        </SectionCard>
-    </div>
+    @* ============ Cierre ============ *@
+    <section class="pv-closing">
+        <div class="pv-closing__icon"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" /></div>
+        <div class="pv-closing__text">
+            <h4>Aseguramiento de calidad y entrega</h4>
+            <p>@d.Charts.SitesFinished de @d.TotalSites nodos finalizados · @d.Evidence.Count(e => e.SignedAtp) con ATP firmado · @d.AcceptableFats de @d.MeasuredFats FATs medidas con potencia aceptable · @d.ClosedLiquidations liquidaciones cerradas.</p>
+        </div>
+        <div class="pv-closing__actions tk-no-print">
+            <a href="documentos" class="tk-btn tk-btn--outline">Ver documentos</a>
+            <button type="button" class="tk-btn tk-btn--accent" @onclick="PrintAsync">Descargar PDF</button>
+        </div>
+    </section>
     </div>
 }
 
@@ -480,9 +649,14 @@ else
     private static readonly CultureInfo Culture = new("es-SV");
     private const int PadL = 44, PadT = 22, PlotW = 940, PlotH = 280;
 
+    private enum NodeFilter { All, Deliver, Measure, XBox, Behind }
+    private enum Period { Day, Week, Month }
+
     private bool _loading = true;
     private int _projectId;
     private PresentationData? _data;
+    private NodeFilter _filter = NodeFilter.All;
+    private Period _period = Period.Week;
 
     protected override async Task OnInitializedAsync()
     {
@@ -504,6 +678,46 @@ else
 
     private async Task FullscreenAsync() => await JS.InvokeVoidAsync("tkFullscreen");
     private async Task PrintAsync() => await JS.InvokeVoidAsync("print");
+    private void SetPeriod(Period period) => _period = period;
+    private string PeriodClass(Period period) => period == _period ? "is-active" : string.Empty;
+
+    // ---------------------------------------------------------------- filtros de nodos
+    private static bool IsXBox(NodeMatrixRow r) => r.Fusion == StageStatus.Finished;
+
+    private IEnumerable<NodeMatrixRow> FilteredMatrix(IEnumerable<NodeMatrixRow> rows) => _filter switch
+    {
+        NodeFilter.Deliver => rows.Where(r => r.ReadyToDeliver),
+        NodeFilter.Measure => rows.Where(r => r.ReadyToMeasure),
+        NodeFilter.XBox => rows.Where(IsXBox),
+        NodeFilter.Behind => rows.Where(r => r.Pace == PaceStatus.Behind),
+        _ => rows,
+    };
+
+    private RenderFragment FilterButton(NodeFilter filter, string text) => @<button type="button" class="pv-slicer__btn @(_filter == filter ? "is-active" : string.Empty)" aria-pressed="@(_filter == filter ? "true" : "false")" @onclick="() => _filter = filter">@text</button>;
+
+    private static string CodeList(List<NodeMatrixRow> rows)
+    {
+        var codes = rows.Take(8).Select(r => r.Code).ToList();
+        return string.Join(", ", codes) + (rows.Count > 8 ? $" y {rows.Count - 8} más" : string.Empty);
+    }
+
+    private static string FatBreakdown(PresentationData d)
+    {
+        var parts = new List<string>();
+        void Add(string name, QuantityGroup group)
+        {
+            var pair = d.Charts.Installation.GetValueOrDefault(group);
+            if (pair.Projected > 0 || pair.Installed > 0) { parts.Add($"{UiText.Number(pair.Installed)} {name}"); }
+        }
+
+        Add("sub-box", QuantityGroup.SubBox);
+        Add("end-box", QuantityGroup.EndBox);
+        Add("hub-box", QuantityGroup.HubBox);
+        Add("x-box", QuantityGroup.XBox);
+        return parts.Count == 0 ? "Aparecen al cargar la proyección de diseño." : "Desglose: " + string.Join(", ", parts) + ".";
+    }
+
+    private RenderFragment StageChip(StageStatus status) => @<span class="pv-chip pv-chip--@(status switch { StageStatus.Finished => "ok", StageStatus.InProgress => "info", StageStatus.InCorrection => "warn", _ => "none" })">@UiText.StageStatusName(status)</span>;
 
     // ---------------------------------------------------------------- utilidades de gráficos
     private static string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
@@ -512,19 +726,23 @@ else
     private static MarkupString SvgText(double x, double y, string anchor, string text, bool strong = false) =>
         new($"<text x=\"{F(x)}\" y=\"{F(y)}\" class=\"tk-curve__axis{(strong ? " tk-curve__axis--strong" : string.Empty)}\" text-anchor=\"{anchor}\">{System.Net.WebUtility.HtmlEncode(text)}</text>");
 
+    private static MarkupString Txt(double x, double y, string anchor, string cssClass, string text) =>
+        new($"<text x=\"{F(x)}\" y=\"{F(y)}\" class=\"{cssClass}\" text-anchor=\"{anchor}\">{System.Net.WebUtility.HtmlEncode(text)}</text>");
+
     private static double Y(decimal percent) => PadT + PlotH - (double)Math.Clamp(percent, 0, 100) / 100 * PlotH;
     private static double Y(int percent) => Y((decimal)percent);
 
-    private static double X(PresentationData d, DateOnly date)
+    /// <summary>El eje de fechas llega hasta el cierre proyectado cuando va más allá del plan.</summary>
+    private static double X(PresentationData d, DateOnly? forecast, DateOnly date)
     {
         var first = d.Curve[0].Date.DayNumber;
-        var last = d.Curve[^1].Date.DayNumber;
+        var last = Math.Max(d.Curve[^1].Date.DayNumber, forecast?.DayNumber ?? 0);
         var span = Math.Max(1, last - first);
         return PadL + (double)(date.DayNumber - first) / span * PlotW;
     }
 
-    private static string Points(PresentationData d, Func<CurvePoint, decimal?> pick) =>
-        string.Join(' ', d.Curve.Where(p => pick(p) is not null).Select(p => $"{F(X(d, p.Date))},{F(Y(pick(p)!.Value))}"));
+    private static string Points(PresentationData d, DateOnly? forecast, Func<CurvePoint, decimal?> pick) =>
+        string.Join(' ', d.Curve.Where(p => pick(p) is not null).Select(p => $"{F(X(d, forecast, p.Date))},{F(Y(pick(p)!.Value))}"));
 
     // El real solo se dibuja donde hay datos: puntos con avance mayor que cero y el de hoy (no se inventa historia).
     private static List<CurvePoint> RealPoints(PresentationData d) =>
@@ -532,13 +750,13 @@ else
             ? d.Curve.Where(p => p.Real is not null).ToList()
             : d.Curve.Where(p => p.Real is > 0 || p.Date == d.Today).Where(p => p.Real is not null).ToList();
 
-    private static string PolyPoints(PresentationData d, List<CurvePoint> pts) =>
-        string.Join(' ', pts.Select(p => $"{F(X(d, p.Date))},{F(Y(p.Real!.Value))}"));
+    private static string PolyPoints(PresentationData d, DateOnly? forecast, List<CurvePoint> pts) =>
+        string.Join(' ', pts.Select(p => $"{F(X(d, forecast, p.Date))},{F(Y(p.Real!.Value))}"));
 
-    private static string AreaPoints(PresentationData d, List<CurvePoint> pts)
+    private static string AreaPoints(PresentationData d, DateOnly? forecast, List<CurvePoint> pts)
     {
         var baseY = F(PadT + PlotH);
-        return $"{F(X(d, pts[0].Date))},{baseY} {PolyPoints(d, pts)} {F(X(d, pts[^1].Date))},{baseY}";
+        return $"{F(X(d, forecast, pts[0].Date))},{baseY} {PolyPoints(d, forecast, pts)} {F(X(d, forecast, pts[^1].Date))},{baseY}";
     }
 
     private static string CurveTip(CurvePoint p) =>
@@ -546,10 +764,10 @@ else
             ? $"{p.Planned:0.#}%|{UiText.ShortDate(p.Date)} · planificado"
             : $"{p.Real:0.#}% real · {p.Planned:0.#}% plan|{UiText.ShortDate(p.Date)}";
 
-    private static IEnumerable<DateOnly> XTicks(PresentationData d)
+    private static IEnumerable<DateOnly> XTicks(PresentationData d, DateOnly? forecast)
     {
         var first = d.Curve[0].Date;
-        var last = d.Curve[^1].Date;
+        var last = forecast is { } f && f > d.Curve[^1].Date ? f : d.Curve[^1].Date;
         var weeks = Math.Max(1, (last.DayNumber - first.DayNumber) / 7);
         var every = Math.Max(1, (int)Math.Ceiling(weeks / 8.0)) * 7;
         for (var date = first; date <= last; date = date.AddDays(every))
@@ -600,7 +818,7 @@ else
 
         Add("Cable FC", QuantityGroup.FcCable);
         Add("Cable MPO", QuantityGroup.MpoCable);
-        Add("FAT (cajas)", QuantityGroup.SubBox, QuantityGroup.EndBox, QuantityGroup.HubBox, QuantityGroup.XBox);
+        Add("FAT (cajas)", SiteSummary.VinetaGroups);
         Add("Fusiones", QuantityGroup.Fusion);
         Add("Cruces americanos", QuantityGroup.Crossing);
         foreach (var f in d.Charts.Feeder.Where(f => f.Planned > 0))
@@ -617,22 +835,134 @@ else
         <span class="tk-hbar__value">@(showValue ? UiText.Number(value) : string.Empty)</span>
     </div>;
 
-    /// <summary>Barra segmentada alta (una sola barra, hasta 6 partes): reemplaza a la dona. El valor va dentro si cabe; la leyenda solo lleva nombres.</summary>
-    private RenderFragment Segmented(params (string Name, int Count, string Tone)[] parts) => @<div>
-        @{ var total = Math.Max(1, parts.Sum(p => p.Count)); }
-        <div class="tk-seg" role="img" aria-label="@string.Join(", ", parts.Select(p => $"{p.Name}: {p.Count}"))">
-            @foreach (var p in parts.Where(p => p.Count > 0))
-            {
-                var share = p.Count * 100.0 / total;
-                <span class="tk-seg__part tk-seg__part--@p.Tone" style="flex:@F(p.Count) 1 0" tabindex="0"
-                      data-tip="@($"{p.Count} ({share:0}%)|{p.Name}")">@(share >= 9 ? p.Count.ToString() : string.Empty)</span>
-            }
+    // ---------------------------------------------------------------- estilo Power BI: medidor, dona y columnas
+
+    /// <summary>Medidor de media luna: el relleno es el avance y la marca es la meta del plan al corte.</summary>
+    private RenderFragment Gauge(decimal value, decimal goal, string tone) => @<svg class="pv-gauge" viewBox="0 0 100 58" role="img" aria-label="@($"Avance {value:0.#}% contra meta {goal:0.#}%")">
+        <path d="M 10 50 A 40 40 0 0 1 90 50" class="pv-gauge__track" pathLength="100" />
+        <path d="M 10 50 A 40 40 0 0 1 90 50" class="pv-gauge__fill pv-gauge__fill--@tone" pathLength="100" stroke-dasharray="@($"{Pct(value)} 100")" />
+        <line x1="@F(GaugeX(goal, 33))" y1="@F(GaugeY(goal, 33))" x2="@F(GaugeX(goal, 47))" y2="@F(GaugeY(goal, 47))" class="pv-gauge__goal"><title>@($"Meta al corte: {goal:0.#}%")</title></line>
+    </svg>;
+
+    private static double GaugeAngle(decimal percent) => Math.PI * (1 - (double)Math.Clamp(percent, 0, 100) / 100);
+    private static double GaugeX(decimal percent, double radius) => 50 + radius * Math.Cos(GaugeAngle(percent));
+    private static double GaugeY(decimal percent, double radius) => 50 - radius * Math.Sin(GaugeAngle(percent));
+
+    /// <summary>Dona con el total al centro y leyenda con cantidades y porcentajes.</summary>
+    private RenderFragment Donut(string center, string caption, params (string Name, int Count, string Tone)[] parts) => @<div class="pv-donut">
+        @{ var total = Math.Max(1, parts.Sum(p => p.Count)); var offset = 0.0; }
+        <div class="pv-donut__chart">
+            <svg viewBox="0 0 42 42" role="img" aria-label="@string.Join(", ", parts.Select(p => $"{p.Name}: {p.Count}"))">
+                <circle cx="21" cy="21" r="15.915" class="pv-donut__ring" />
+                @foreach (var p in parts.Where(p => p.Count > 0))
+                {
+                    var share = p.Count * 100.0 / total;
+                    <circle cx="21" cy="21" r="15.915" class="pv-donut__seg pv-donut__seg--@p.Tone" stroke-dasharray="@($"{F(Math.Max(0, share - 0.6))} {F(100 - Math.Max(0, share - 0.6))}")" stroke-dashoffset="@F(25 - offset)"
+                            tabindex="0" data-tip="@($"{p.Count} ({share:0}%)|{p.Name}")"></circle>
+                    offset += share;
+                }
+            </svg>
+            <div class="pv-donut__center"><strong>@center</strong><span>@caption</span></div>
         </div>
-        <div class="tk-legend mt-2">
+        <ul class="pv-donut__legend">
             @foreach (var p in parts)
             {
-                <span class="tk-legend__item"><span class="tk-key tk-key--@p.Tone"></span> @p.Name <span class="tk-muted">@p.Count</span></span>
+                <li><span class="pv-key pv-key--@p.Tone"></span><span>@p.Name</span><b>@p.Count</b><small>@($"{p.Count * 100.0 / total:0}%")</small></li>
             }
-        </div>
+        </ul>
+    </div>;
+
+    private sealed record Bucket(string Label, string Tip, decimal Meters, decimal Fats, decimal Pieces);
+
+    /// <summary>Producción agrupada por día (14), semana (8) o mes (6), incluyendo los períodos en cero.</summary>
+    private List<Bucket> Buckets(PresentationData d)
+    {
+        var today = d.Today;
+        var list = new List<Bucket>();
+        Bucket Sum(DateOnly from, DateOnly toExclusive, string label, string tip)
+        {
+            var items = d.Production.Where(p => p.Date >= from && p.Date < toExclusive).ToList();
+            return new Bucket(label, tip, items.Sum(p => p.Meters), items.Sum(p => p.Fats), items.Sum(p => p.Pieces));
+        }
+
+        switch (_period)
+        {
+            case Period.Day:
+                for (var i = 13; i >= 0; i--)
+                {
+                    var day = today.AddDays(-i);
+                    list.Add(Sum(day, day.AddDays(1), day.ToString("dd/MM", Culture), UiText.ShortDate(day)));
+                }
+
+                break;
+            case Period.Week:
+                var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+                for (var i = 7; i >= 0; i--)
+                {
+                    var start = monday.AddDays(-7 * i);
+                    list.Add(Sum(start, start.AddDays(7), start.ToString("dd/MM", Culture), UiText.ShortDate(start)));
+                }
+
+                break;
+            default:
+                var firstOfMonth = new DateOnly(today.Year, today.Month, 1);
+                for (var i = 5; i >= 0; i--)
+                {
+                    var start = firstOfMonth.AddMonths(-i);
+                    list.Add(Sum(start, start.AddMonths(1), start.ToString("MMM", Culture).TrimEnd('.'), start.ToString("MMMM yyyy", Culture)));
+                }
+
+                break;
+        }
+
+        return list;
+    }
+
+    /// <summary>Redondea hacia arriba a 1, 2, 2.5, 5 o 10 por una potencia de diez, para ejes limpios.</summary>
+    private static decimal NiceMax(decimal value)
+    {
+        if (value <= 0) { return 1; }
+        var magnitude = (decimal)Math.Pow(10, Math.Floor(Math.Log10((double)value)));
+        foreach (var step in new[] { 1m, 2m, 2.5m, 5m, 10m })
+        {
+            if (value <= step * magnitude) { return step * magnitude; }
+        }
+
+        return 10 * magnitude;
+    }
+
+    /// <summary>Columnas agrupadas con dos ejes y etiquetas de datos (metros a la izquierda, FATs a la derecha).</summary>
+    private RenderFragment Columns(List<Bucket> buckets) => @<div>
+        @{
+            const double w = 640, h = 270, left = 46, right = 40, top = 22, bottom = 30;
+            var plotW = w - left - right; var plotH = h - top - bottom;
+            var maxM = NiceMax(buckets.Max(b => b.Meters)); var maxF = NiceMax(buckets.Max(b => b.Fats));
+            var group = plotW / buckets.Count; var bar = Math.Min(22, group * 0.34);
+            double YM(decimal v) => top + plotH - (double)(v / maxM) * plotH;
+            double YF(decimal v) => top + plotH - (double)(v / maxF) * plotH;
+            var labels = buckets.Count <= 14;
+        }
+        <svg class="pv-columns" viewBox="0 0 @F(w) @F(h)" role="img" aria-label="Producción de metros de fibra y FATs">
+            @for (var i = 0; i <= 4; i++)
+            {
+                var gy = top + plotH * i / 4.0;
+                <line x1="@F(left)" x2="@F(w - right)" y1="@F(gy)" y2="@F(gy)" class="pv-columns__grid" />
+                @Txt(left - 6, gy + 3, "end", "pv-columns__axis", UiText.Number(maxM * (4 - i) / 4))
+                @Txt(w - right + 6, gy + 3, "start", "pv-columns__axis pv-columns__axis--accent", UiText.Number(maxF * (4 - i) / 4))
+            }
+            @for (var i = 0; i < buckets.Count; i++)
+            {
+                var b = buckets[i];
+                var cx = left + group * (i + 0.5);
+                <g class="pv-columns__group" tabindex="0" data-tip="@($"{UiText.Number(b.Meters)} m · {UiText.Number(b.Fats)} FATs|{b.Tip}")">
+                    <rect x="@F(cx - group / 2)" y="@F(top)" width="@F(group)" height="@F(plotH)" class="pv-columns__hit" />
+                    <rect x="@F(cx - bar - 1)" y="@F(YM(b.Meters))" width="@F(bar)" height="@F(top + plotH - YM(b.Meters))" rx="2" class="pv-columns__bar pv-columns__bar--main" />
+                    <rect x="@F(cx + 1)" y="@F(YF(b.Fats))" width="@F(bar)" height="@F(top + plotH - YF(b.Fats))" rx="2" class="pv-columns__bar pv-columns__bar--accent" />
+                    @if (labels && b.Meters > 0) { @Txt(cx - bar / 2 - 1, YM(b.Meters) - 4, "middle", "pv-columns__label", UiText.Number(b.Meters)) }
+                    @if (labels && b.Fats > 0) { @Txt(cx + bar / 2 + 1, YF(b.Fats) - 4, "middle", "pv-columns__label pv-columns__label--accent", UiText.Number(b.Fats)) }
+                    @Txt(cx, h - 10, "middle", "pv-columns__axis", b.Label)
+                </g>
+            }
+        </svg>
     </div>;
 }
