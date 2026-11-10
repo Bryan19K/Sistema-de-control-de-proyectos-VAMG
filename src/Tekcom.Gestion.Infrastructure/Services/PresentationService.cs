@@ -126,10 +126,16 @@ public sealed class PresentationService(
             s.Stages.GetValueOrDefault(StageCode.Fusion), s.Stages.GetValueOrDefault(StageCode.FatMeasurements),
             s.ReadyToMeasure, s.Site.IsReadyToDeliver, s.VinetasInstalled, s.VinetasProjected,
             metersBySite.GetValueOrDefault(s.Site.Id), piecesBySite.GetValueOrDefault(s.Site.Id),
-            s.Site.PlannedEnd, s.Pace.ProjectedEnd, s.Site.Contractor?.Name ?? "Sin brigada", s.Site.HomesPassed)).ToList();
+            s.Site.PlannedEnd, s.Pace.ProjectedEnd, s.Site.Contractor?.Name ?? "Sin brigada", s.Site.HomesPassed,
+            s.Site.Supervisor?.Name ?? "Sin supervisor", s.Quantities)).ToList();
 
         var production = installedMoves.GroupBy(m => m.Date).OrderBy(g => g.Key)
             .Select(g => new DayProduction(g.Key, g.Sum(MetersOf), g.Where(IsFat).Sum(m => m.Quantity), g.Where(m => m.Material?.Unit == "UND").Sum(m => m.Quantity)))
+            .ToList();
+
+        var productionBySite = installedMoves.GroupBy(m => (SiteId: m.SiteId!.Value, m.Date)).OrderBy(g => g.Key.Date)
+            .Select(g => new SiteDayProduction(g.Key.SiteId, g.Key.Date, g.Sum(MetersOf), g.Where(IsFat).Sum(m => m.Quantity),
+                g.Where(m => m.Material?.Unit == "UND").Sum(m => m.Quantity)))
             .ToList();
 
         var feederCables = charts.Feeder.Where(f => f.Line.Kind is FeederItemKind.Cable12 or FeederItemKind.Cable24 or FeederItemKind.Cable48 or FeederItemKind.Cable96).ToList();
@@ -163,6 +169,7 @@ public sealed class PresentationService(
             Curve = curve,
             Matrix = matrix,
             Production = production,
+            ProductionBySite = productionBySite,
             CableMetersInstalled = metersBySite.Values.Sum() + feederCables.Sum(f => f.Installed),
             CableMetersProjected = odnMetersProjected + feederCables.Sum(f => f.Planned),
             PiecesInstalled = piecesBySite.Values.Sum(),

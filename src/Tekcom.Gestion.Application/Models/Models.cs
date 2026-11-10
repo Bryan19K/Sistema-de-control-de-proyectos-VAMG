@@ -274,7 +274,8 @@ public sealed record BrigadeRow(string Name, int Sites, int FinishedSites, decim
 public sealed record NodeMatrixRow(
     int SiteId, string Code, decimal Progress, PaceStatus Pace, int DaysDelta, StageStatus Fusion, StageStatus Measurement,
     bool ReadyToMeasure, bool ReadyToDeliver, decimal FatsInstalled, decimal FatsProjected, decimal CableMeters, decimal Pieces,
-    DateOnly? PlannedEnd, DateOnly? ProjectedEnd, string Brigade, int? HomesPassed = null)
+    DateOnly? PlannedEnd, DateOnly? ProjectedEnd, string Brigade, int? HomesPassed = null, string? Supervisor = null,
+    IReadOnlyDictionary<QuantityGroup, QuantityPair>? Quantities = null)
 {
     /// <summary>Piezas instaladas por kilómetro de cable tendido (null si aún no hay cable).</summary>
     public decimal? Density => CableMeters <= 0 ? null : Math.Round(Pieces / (CableMeters / 1000m), 1);
@@ -283,6 +284,9 @@ public sealed record NodeMatrixRow(
 
 /// <summary>Lo instalado en un día: metros de cable (FC y MPO), FATs y piezas en unidades.</summary>
 public sealed record DayProduction(DateOnly Date, decimal Meters, decimal Fats, decimal Pieces);
+
+/// <summary>Lo instalado por un nodo en un día (para poder filtrar la producción por brigada, supervisor o estado).</summary>
+public sealed record SiteDayProduction(int SiteId, DateOnly Date, decimal Meters, decimal Fats, decimal Pieces);
 
 public sealed record WeekInstalled(DateOnly WeekStart, decimal Total, Dictionary<string, decimal> ByBrigade);
 
@@ -325,6 +329,9 @@ public sealed class PresentationData
 
     /// <summary>Lo instalado por día (solo días con registros), para la tendencia diaria, semanal y mensual.</summary>
     public List<DayProduction> Production { get; init; } = [];
+
+    /// <summary>La misma producción separada por nodo.</summary>
+    public List<SiteDayProduction> ProductionBySite { get; init; } = [];
 
     /// <summary>Metros de cable tendido: FC y MPO de los nodos (unidades × su largo) más la fibra del feeder.</summary>
     public decimal CableMetersInstalled { get; init; }
