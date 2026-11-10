@@ -1,0 +1,79 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@inject IAppearanceService Appearance
+@inject ISnackbar Snackbar
+
+<p class="tk-note">Elija los colores de los gráficos del dashboard de la Presentación. Se aplican a todos los usuarios apenas se guardan.</p>
+
+<div class="tk-appearance">
+    <div>
+        @ColorRow("Finalizado", "Nodos finalizados, 100 % y la serie principal (metros, línea real)", _done, v => _done = v)
+        @ColorRow("En avance", "Nodos en avance y la serie secundaria (FATs, barras)", _progress, v => _progress = v)
+        @ColorRow("Alerta", "Nodos sin iniciar y los números de alerta", _alert, v => _alert = v)
+        <div class="tk-appearance__actions">
+            <button type="button" class="tk-btn tk-btn--primary" @onclick="SaveAsync" disabled="@_busy">Guardar colores</button>
+            <button type="button" class="tk-btn tk-btn--outline" @onclick="ResetAsync" disabled="@_busy">Volver a los colores de referencia</button>
+        </div>
+    </div>
+
+    <div class="dz-preview" style="@($"--dz-done:{Safe(_done)};--dz-prog:{Safe(_progress)};--dz-red:{Safe(_alert)}")" aria-label="Vista previa">
+        <h4>Vista previa</h4>
+        <div class="dz-bar"><span class="dz-bar__name">Finalizado</span><div class="dz-track"><div class="dz-fill is-done" style="width:100%"></div></div><span class="dz-bar__pct">100%</span></div>
+        <div class="dz-bar"><span class="dz-bar__name">En avance</span><div class="dz-track"><div class="dz-fill" style="width:56%"></div></div><span class="dz-bar__pct">56%</span></div>
+        <div class="dz-bar"><span class="dz-bar__name">Sin iniciar</span><div class="dz-track"><div class="dz-fill" style="width:20%;background:var(--dz-red)"></div></div><span class="dz-bar__pct">20%</span></div>
+        <svg viewBox="0 0 100 100" role="img" aria-label="Dona de ejemplo">
+            <g transform="rotate(-90 50 50)" fill="none" stroke-width="13">
+                <circle cx="50" cy="50" r="40" class="dz-donut__seg is-ink" stroke-dasharray="75 176.3" />
+                <circle cx="50" cy="50" r="40" class="dz-donut__seg is-pink" stroke-dasharray="100 151.3" stroke-dashoffset="-75" />
+                <circle cx="50" cy="50" r="40" class="dz-donut__seg is-red" stroke-dasharray="76 175.3" stroke-dashoffset="-175" />
+            </g>
+        </svg>
+        <div class="dz-insight"><span>FATs por instalar</span><strong class="is-alert">800</strong></div>
+    </div>
+</div>
+
+@code {
+    private string _done = DashboardColors.Default.Done;
+    private string _progress = DashboardColors.Default.InProgress;
+    private string _alert = DashboardColors.Default.Alert;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => Load(await Appearance.GetColorsAsync());
+
+    private void Load(DashboardColors c) => (_done, _progress, _alert) = (c.Done, c.InProgress, c.Alert);
+
+    private static string Safe(string value) => System.Text.RegularExpressions.Regex.IsMatch(value ?? string.Empty, "^#[0-9A-Fa-f]{6}$") ? value! : "#999999";
+
+    private RenderFragment ColorRow(string label, string help, string value, Action<string> set) => @<div class="tk-color-row">
+        <input type="color" value="@Safe(value)" @oninput="e => set(e.Value?.ToString() ?? value)" aria-label="@("Color de " + label)" />
+        <div><strong>@label</strong><small>@help</small></div>
+        <input type="text" maxlength="7" value="@value" @oninput="e => set(e.Value?.ToString() ?? value)" aria-label="@("Código del color de " + label)" />
+    </div>;
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Appearance.SaveColorsAsync(new DashboardColors(_done, _progress, _alert));
+            Snackbar.Add("Colores guardados. Se ven en la Presentación al recargarla.", Severity.Success);
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ResetAsync()
+    {
+        _busy = true;
+        await Appearance.ResetColorsAsync();
+        Load(DashboardColors.Default);
+        Snackbar.Add("Se restauraron los colores de referencia.", Severity.Success);
+        _busy = false;
+    }
+}
