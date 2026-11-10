@@ -104,6 +104,16 @@
             document.addEventListener('focusout', hide);
             document.addEventListener('scroll', hide, true);
         })();
+        window.tkNav = function () {
+            document.body.classList.toggle('tk-show-nav');
+            if (!window.tkNavBound) {
+                window.tkNavBound = true;
+                document.addEventListener('click', function (e) {
+                    if (!document.body.classList.contains('tk-show-nav') || !e.target.closest) { return; }
+                    if (e.target.closest('.tk-drawer a') || (!e.target.closest('.tk-drawer') && !e.target.closest('.dz-menu'))) { document.body.classList.remove('tk-show-nav'); }
+                });
+            }
+        };
         window.tkFullscreen = function () {
             var el = document.documentElement;
             if (document.fullscreenElement) { document.exitFullscreen(); }
