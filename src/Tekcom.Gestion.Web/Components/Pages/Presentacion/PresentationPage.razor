@@ -28,13 +28,12 @@ else if (_projectId == 0 || _data is null)
 else
 {
     var d = _data;
-    var tone = PaceTone(d.Pace.Status);
+    var tone = d.Progress >= 100 ? "ok" : "info";
     var target = d.PlannedToday ?? d.Pace.ElapsedPercent;
     var matrix = d.Matrix;
     var measureNodes = matrix.Where(r => r.ReadyToMeasure).ToList();
     var xboxNodes = matrix.Where(IsXBox).ToList();
     var deliverNodes = matrix.Where(r => r.ReadyToDeliver).ToList();
-    var behindNodes = matrix.Where(r => r.Pace == PaceStatus.Behind).ToList();
     var fatInstalled = SiteSummary.VinetaGroups.Sum(g => d.Charts.Installation.GetValueOrDefault(g).Installed);
     var fatProjected = SiteSummary.VinetaGroups.Sum(g => d.Charts.Installation.GetValueOrDefault(g).Projected);
     var fatPercent = fatProjected <= 0 ? 0 : Math.Round(fatInstalled / fatProjected * 100m, 1);
@@ -74,7 +73,6 @@ else
             @FilterButton(NodeFilter.Deliver, $"Listos para entregar ({deliverNodes.Count})")
             @FilterButton(NodeFilter.Measure, $"Listos para medir ({measureNodes.Count})")
             @FilterButton(NodeFilter.XBox, $"X-box fusionada ({xboxNodes.Count})")
-            @FilterButton(NodeFilter.Behind, $"Atrasados ({behindNodes.Count})")
         </div>
     </div>
 
@@ -86,7 +84,6 @@ else
                     <span class="pv-eyebrow">Avance físico ponderado</span>
                     <h2 class="pv-title">@d.ProjectName</h2>
                 </div>
-                <PaceChip Pace="d.Pace" />
             </div>
             <div class="pv-hero__body">
                 <div class="pv-gauge-wrap">
@@ -98,12 +95,12 @@ else
                     <div class="pv-meter" data-tip="@($"{d.Progress:0.#}%|Avance físico")" tabindex="0">
                         <div class="pv-meter__row"><span>Avance físico</span><strong>@d.Progress.ToString("0.#")%</strong></div>
                         <span class="pv-track"><span class="pv-fill pv-fill--@tone" style="width:@Pct(d.Progress)%"></span></span>
-                        <div class="pv-meter__note">Meta planificada al corte: @target.ToString("0.#")% · <b class="pv-text--@(diff >= 0 ? "ok" : "bad")">@(diff >= 0 ? "+" : "")@diff.ToString("0.#") pts</b> contra el plan</div>
+                        <div class="pv-meter__note">Meta planificada al corte: @target.ToString("0.#")% · <b class="@(diff >= 0 ? "pv-text--ok" : "pv-muted")">@(diff >= 0 ? "+" : "")@diff.ToString("0.#") pts</b> contra el plan</div>
                     </div>
                     <div class="pv-meter" data-tip="@($"{d.Pace.ElapsedPercent:0.#}%|Tiempo transcurrido")" tabindex="0">
                         <div class="pv-meter__row"><span>Tiempo transcurrido</span><strong>@d.Pace.ElapsedPercent.ToString("0.#")%</strong></div>
                         <span class="pv-track"><span class="pv-fill pv-fill--time" style="width:@Pct(d.Pace.ElapsedPercent)%"></span></span>
-                        <div class="pv-meter__note">@(d.Pace.TotalDays > 0 ? $"Día {d.Pace.ElapsedDays} de {d.Pace.TotalDays} · " : string.Empty)Cierre planificado: @UiText.ShortDate(d.PlanEnd)@(d.Pace.ProjectedEnd is { } pe && d.Pace.Status != PaceStatus.Completed ? $" · proyectado: {UiText.ShortDate(pe)}" : string.Empty)</div>
+                        <div class="pv-meter__note">@(d.Pace.TotalDays > 0 ? $"Día {d.Pace.ElapsedDays} de {d.Pace.TotalDays} · " : string.Empty)Cierre planificado: @UiText.ShortDate(d.PlanEnd)</div>
                     </div>
                 </div>
             </div>
@@ -222,9 +219,9 @@ else
                 <div class="pv-bars">
                     @foreach (var b in d.Brigades)
                     {
-                        var bt = b.AverageProgress >= 100 ? "ok" : b.BehindSites > 0 && b.AverageProgress < 50 ? "bad" : b.BehindSites > 0 ? "warn" : "info";
-                        <div class="pv-bar" data-tip="@($"{b.AverageProgress:0.#}%|{b.Name}: {b.FinishedSites} de {b.Sites} nodos finalizados · {b.BehindSites} atrasados · {UiText.Number(b.Installed)} de {UiText.Number(b.Delivered)} piezas instaladas")" tabindex="0">
-                            <div class="pv-bar__head"><span class="pv-bar__name">@b.Name</span><span class="pv-bar__meta">@b.FinishedSites/@b.Sites nodos@(b.BehindSites > 0 ? $" · {b.BehindSites} atrasados" : string.Empty)</span></div>
+                        var bt = b.AverageProgress >= 100 ? "ok" : "info";
+                        <div class="pv-bar" data-tip="@($"{b.AverageProgress:0.#}%|{b.Name}: {b.FinishedSites} de {b.Sites} nodos finalizados · {UiText.Number(b.Installed)} de {UiText.Number(b.Delivered)} piezas instaladas")" tabindex="0">
+                            <div class="pv-bar__head"><span class="pv-bar__name">@b.Name</span><span class="pv-bar__meta">@b.FinishedSites/@b.Sites nodos</span></div>
                             <div class="pv-bar__row"><span class="pv-track pv-track--lg"><span class="pv-fill pv-fill--@bt" style="width:@Pct(b.AverageProgress)%"></span></span><strong>@b.AverageProgress.ToString("0")%</strong></div>
                         </div>
                     }
@@ -232,8 +229,8 @@ else
                 <details class="tk-details">
                     <summary>Ver datos en tabla</summary>
                     <div class="tk-table-wrap"><table class="tk-table">
-                        <thead><tr><th>Brigada</th><th>Nodos</th><th>Finalizados</th><th>Atrasados</th><th>Avance</th><th>Piezas entregadas</th><th>Piezas instaladas</th></tr></thead>
-                        <tbody>@foreach (var b in d.Brigades) { <tr><td>@b.Name</td><td class="num">@b.Sites</td><td class="num">@b.FinishedSites</td><td class="num">@b.BehindSites</td><td class="num">@b.AverageProgress.ToString("0.#")%</td><td class="num">@UiText.Number(b.Delivered)</td><td class="num">@UiText.Number(b.Installed)</td></tr> }</tbody>
+                        <thead><tr><th>Brigada</th><th>Nodos</th><th>Finalizados</th><th>Avance</th><th>Piezas entregadas</th><th>Piezas instaladas</th></tr></thead>
+                        <tbody>@foreach (var b in d.Brigades) { <tr><td>@b.Name</td><td class="num">@b.Sites</td><td class="num">@b.FinishedSites</td><td class="num">@b.AverageProgress.ToString("0.#")%</td><td class="num">@UiText.Number(b.Delivered)</td><td class="num">@UiText.Number(b.Installed)</td></tr> }</tbody>
                     </table></div>
                 </details>
             }
@@ -249,7 +246,7 @@ else
         else
         {
             var real = RealPoints(d);
-            var forecast = d.Pace.ProjectedEnd is { } fe && d.Pace.Status != PaceStatus.Completed && fe > d.Today ? fe : (DateOnly?)null;
+            DateOnly? forecast = null; // la presentación no proyecta cierres ni marca atrasos por tiempo
             <div class="pv-legend">
                 <span><span class="pv-line pv-line--planned"></span> Planificado</span>
                 <span><span class="pv-line pv-line--real pv-line--@tone"></span> Real (@d.Progress.ToString("0.#")%)</span>
@@ -301,7 +298,7 @@ else
                     </g>
                 }
             </svg>
-            <div class="tk-note">@(d.HasSnapshots ? "El avance real sale de la foto diaria que guarda el sistema cada noche y de la de hoy." : "Todavía hay pocas fotos diarias: el avance real se arma con las actividades terminadas (fecha real de fin) y el avance de hoy.") La línea naranja punteada proyecta el cierre al ritmo actual.</div>
+            <div class="tk-note">@(d.HasSnapshots ? "El avance real sale de la foto diaria que guarda el sistema cada noche y de la de hoy." : "Todavía hay pocas fotos diarias: el avance real se arma con las actividades terminadas (fecha real de fin) y el avance de hoy.")</div>
             <details class="tk-details">
                 <summary>Ver datos en tabla</summary>
                 <div class="tk-table-wrap"><table class="tk-table">
@@ -393,8 +390,9 @@ else
             }
         </SectionCard>
 
-        <SectionCard Title="@("Requiere atención" + (d.Attention.Count == 0 ? string.Empty : $" ({d.Attention.Count})"))">
-            <AttentionList Items="d.Attention" />
+        @{ var attention = d.Attention.Where(a => !a.Title.Contains("atrasad", StringComparison.OrdinalIgnoreCase)).ToList(); }
+        <SectionCard Title="@("Requiere atención" + (attention.Count == 0 ? string.Empty : $" ({attention.Count})"))">
+            <AttentionList Items="attention" />
             @if (d.TasksByPerson.Count > 0)
             {
                 <div class="tk-subtitle mt-4">Tareas por responsable</div>
@@ -425,7 +423,6 @@ else
                 @FilterButton(NodeFilter.Deliver, $"Listos para entregar ({deliverNodes.Count})")
                 @FilterButton(NodeFilter.Measure, $"Listos para medir ({measureNodes.Count})")
                 @FilterButton(NodeFilter.XBox, $"X-box fusionada ({xboxNodes.Count})")
-                @FilterButton(NodeFilter.Behind, $"Atrasados ({behindNodes.Count})")
             </div>
             @if (_filter == NodeFilter.Deliver && shown.Count > 0)
             {
@@ -452,11 +449,11 @@ else
                         <tbody>
                             @foreach (var r in shown)
                             {
-                                var rt = r.Progress >= 100 ? "ok" : PaceTone(r.Pace);
-                                <tr class="pv-row-@(r.ReadyToDeliver ? "deliver" : r.Pace == PaceStatus.Behind ? "behind" : "plain")">
+                                var rt = r.Progress >= 100 ? "ok" : "info";
+                                <tr class="pv-row-@(r.ReadyToDeliver ? "deliver" : "plain")">
                                     <th scope="row"><a href="@($"nodos/{r.SiteId}")">@r.Code</a>@if (r.ReadyToDeliver) { <span class="pv-tag">ENTREGA</span> }</th>
                                     <td>
-                                        <span class="pv-databar" data-tip="@($"{r.Progress:0.#}%|{r.Code} · {PaceName(r.Pace)}")" tabindex="0">
+                                        <span class="pv-databar" data-tip="@($"{r.Progress:0.#}%|Nodo {r.Code}")" tabindex="0">
                                             <b>@r.Progress.ToString("0.#")%</b>
                                             <span class="pv-track"><span class="pv-fill pv-fill--@rt" style="width:@Pct(r.Progress)%"></span></span>
                                         </span>
@@ -470,7 +467,7 @@ else
                                     <td class="num">@(r.CableMeters > 0 ? $"{UiText.Number(r.CableMeters)} m" : "—")</td>
                                     <td class="num pv-muted nowrap">@(r.Density is { } dd ? $"{dd:0.#} pzs/km" : "—")</td>
                                     <td class="num">@(r.HomesPassed is { } hpr ? UiText.Number(hpr) : "—")</td>
-                                    <td class="nowrap">@UiText.ShortDate(r.PlannedEnd)@if (r.ProjectedEnd is { } pj && r.PlannedEnd is { } pl && pj > pl && r.Progress < 100) { <small class="pv-text--bad"> → @UiText.ShortDate(pj)</small> }</td>
+                                    <td class="nowrap">@UiText.ShortDate(r.PlannedEnd)</td>
                                     <td>@r.Brigade</td>
                                 </tr>
                             }
@@ -535,18 +532,17 @@ else
         else
         {
             <div class="tk-legend tk-legend--top">
-                <span class="tk-legend__item"><span class="tk-key tk-key--ok"></span> Adelantado o finalizado</span>
-                <span class="tk-legend__item"><span class="tk-key tk-key--info"></span> En tiempo</span>
-                <span class="tk-legend__item"><span class="tk-key tk-key--bad"></span> Atrasado</span>
+                <span class="tk-legend__item"><span class="tk-key tk-key--ok"></span> Finalizado</span>
+                <span class="tk-legend__item"><span class="tk-key tk-key--info"></span> En avance</span>
             </div>
             <div class="tk-cols">
                 <div class="tk-cols__axis"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span></div>
                 <div class="tk-cols__plot" role="img" aria-label="Avance de cada nodo">
                     @foreach (var n in d.Nodes)
                     {
-                        <div class="tk-col" data-tip="@($"{n.Progress:0.#}%|Nodo {n.Code} · {PaceName(n.Pace)}")" tabindex="0">
+                        <div class="tk-col" data-tip="@($"{n.Progress:0.#}%|Nodo {n.Code}")" tabindex="0">
                             <span class="tk-col__value">@n.Progress.ToString("0")</span>
-                            <span class="tk-col__track"><span class="tk-col__fill tk-col__fill--@PaceTone(n.Pace)" style="height:@Pct(n.Progress)%"></span></span>
+                            <span class="tk-col__track"><span class="tk-col__fill tk-col__fill--@(n.Progress >= 100 ? "ok" : "info")" style="height:@Pct(n.Progress)%"></span></span>
                             <span class="tk-col__label">@n.Code</span>
                         </div>
                     }
@@ -634,7 +630,7 @@ else
                 {
                     <div class="tk-sprint-row">
                         <div class="tk-sprint-row__head"><strong>@s.Name</strong>@if (s.Closed) { <span class="tk-muted"> · cerrado</span> }</div>
-                        <PaceBar Progress="(int)Math.Round(s.Progress)" Elapsed="(int)Math.Round(s.Elapsed)" />
+                        <div class="pv-bar__row"><span class="pv-track pv-track--lg"><span class="pv-fill pv-fill--@(s.Progress >= 100 ? "ok" : "info")" style="width:@Pct(s.Progress)%"></span></span><strong>@s.Progress.ToString("0")%</strong></div>
                     </div>
                 }
             }
@@ -660,7 +656,7 @@ else
     private static readonly CultureInfo Culture = new("es-SV");
     private const int PadL = 44, PadT = 22, PlotW = 940, PlotH = 280;
 
-    private enum NodeFilter { All, Deliver, Measure, XBox, Behind }
+    private enum NodeFilter { All, Deliver, Measure, XBox }
     private enum Period { Day, Week, Month }
 
     private bool _loading = true;
@@ -700,7 +696,6 @@ else
         NodeFilter.Deliver => rows.Where(r => r.ReadyToDeliver),
         NodeFilter.Measure => rows.Where(r => r.ReadyToMeasure),
         NodeFilter.XBox => rows.Where(IsXBox),
-        NodeFilter.Behind => rows.Where(r => r.Pace == PaceStatus.Behind),
         _ => rows,
     };
 
@@ -787,21 +782,6 @@ else
         }
     }
 
-    private static string PaceTone(PaceStatus status) => status switch
-    {
-        PaceStatus.Behind => "bad",
-        PaceStatus.Ahead or PaceStatus.Completed => "ok",
-        _ => "info",
-    };
-
-    private static string PaceName(PaceStatus status) => status switch
-    {
-        PaceStatus.Ahead => "adelantado",
-        PaceStatus.OnTime => "en tiempo",
-        PaceStatus.Behind => "atrasado",
-        PaceStatus.Completed => "finalizado",
-        _ => "sin fechas",
-    };
 
     private static string CellTone(StageStatus status) => status switch
     {
