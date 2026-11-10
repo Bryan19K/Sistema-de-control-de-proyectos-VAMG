@@ -85,6 +85,7 @@ public static class DependencyInjection
         services.AddScoped<IDataPackImporter, Import.ExpensesImportService>();
         services.AddScoped<IDataPackImporter, Import.PriceListImportService>();
         services.AddScoped<IDataPackImporter, Import.ContractorsImportService>();
+        services.AddScoped<IDataPackImporter, Import.NodeAssignmentImportService>();
         services.AddScoped<IDataImportCoordinator, Import.DataImportCoordinator>();
         services.AddScoped<IFinanceService, FinanceService>();
         services.AddScoped<IBuildingService, BuildingService>();

@@ -113,6 +113,16 @@ else
                     <strong class="pv-tile__value">@UiText.Number(d.CableMetersInstalled) m</strong>
                     <span class="pv-tile__note">@(d.CableMetersProjected > 0 ? $"Meta: {UiText.Number(d.CableMetersProjected)} m ({cablePercent:0.#}%)" : "Sin meta cargada")</span>
                 </div>
+                @if (matrix.Any(r => r.HomesPassed is not null))
+                {
+                    var hpTotal = matrix.Sum(r => r.HomesPassed ?? 0);
+                    var hpDone = matrix.Where(r => r.Progress >= 100).Sum(r => r.HomesPassed ?? 0);
+                    <div class="pv-tile" data-tip="@($"{UiText.Number(hpTotal)}|Hogares que pasa la red (HP)")" tabindex="0">
+                        <span class="pv-tile__label">Home passes (HP)</span>
+                        <strong class="pv-tile__value">@UiText.Number(hpTotal)</strong>
+                        <span class="pv-tile__note">@UiText.Number(hpDone) en nodos finalizados</span>
+                    </div>
+                }
                 <div class="pv-tile">
                     <span class="pv-tile__label">Piezas instaladas</span>
                     <strong class="pv-tile__value">@UiText.Number(d.PiecesInstalled) u</strong>
@@ -437,7 +447,7 @@ else
                 <div class="pv-table-wrap">
                     <table class="pv-table">
                         <thead>
-                            <tr><th>Nodo</th><th>Avance global</th><th>Fusión X-box</th><th>Medición de potencia</th><th class="num">FATs inst. / proy.</th><th class="num">Fibra tendida</th><th class="num">Densidad</th><th>Fecha plan</th><th>Brigada</th></tr>
+                            <tr><th>Nodo</th><th>Avance global</th><th>Fusión X-box</th><th>Medición de potencia</th><th class="num">FATs inst. / proy.</th><th class="num">Fibra tendida</th><th class="num">Densidad</th><th class="num">HP</th><th>Fecha plan</th><th>Brigada</th></tr>
                         </thead>
                         <tbody>
                             @foreach (var r in shown)
@@ -459,6 +469,7 @@ else
                                     </td>
                                     <td class="num">@(r.CableMeters > 0 ? $"{UiText.Number(r.CableMeters)} m" : "—")</td>
                                     <td class="num pv-muted nowrap">@(r.Density is { } dd ? $"{dd:0.#} pzs/km" : "—")</td>
+                                    <td class="num">@(r.HomesPassed is { } hpr ? UiText.Number(hpr) : "—")</td>
                                     <td class="nowrap">@UiText.ShortDate(r.PlannedEnd)@if (r.ProjectedEnd is { } pj && r.PlannedEnd is { } pl && pj > pl && r.Progress < 100) { <small class="pv-text--bad"> → @UiText.ShortDate(pj)</small> }</td>
                                     <td>@r.Brigade</td>
                                 </tr>

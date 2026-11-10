@@ -25,6 +25,7 @@ public sealed class LoadVerificationService(IDbContextFactory<ApplicationDbConte
         "GASTOS PROYECTO FTTH 4.xlsx",
         "PRECIARIO FINAL - CONTRATISTAS.xlsx",
         "BASE DE DATOS CONTRATISTAS FTTH - TEKCOM.xlsx",
+        "ASIGNACION DE NODOS SONSONATE.xlsx",
     ];
 
     public async Task<LoadVerification> VerifyAsync(CancellationToken ct = default)
@@ -100,6 +101,16 @@ public sealed class LoadVerificationService(IDbContextFactory<ApplicationDbConte
         var opticalOk = optical.All(c => !c.IsActive) && !await db.ContractorPeople.AnyAsync(p => p.Contractor!.Name.ToUpper().Contains("OPTICAL"), ct);
         contractors.Add(new LoadCheck(f, "Optical Precision dada de baja y sin personal", "sí", opticalOk ? "sí" : "no", opticalOk ? LoadCheckState.Ok : LoadCheckState.Different));
         result.Files.Add(Summarize(f, "Contratistas y personal con póliza o afiliación", contractors));
+
+        // ------------------------------------------------------------ 7. Asignación de nodos
+        var assignment = new List<LoadCheck>();
+        f = Names[6];
+        var withHp = db.Sites.AsNoTracking().Where(s => s.HomesPassed != null);
+        assignment.Add(Exact(f, "Nodos de Sonsonate con HP", 24, await withHp.CountAsync(s => s.Code.StartsWith("SON"), ct)));
+        assignment.Add(Exact(f, "HP de Sonsonate", 26031, await withHp.Where(s => s.Code.StartsWith("SON")).SumAsync(s => (decimal?)s.HomesPassed, ct) ?? 0));
+        assignment.Add(Exact(f, "Nodos de Izalco con HP", 5, await withHp.CountAsync(s => s.Code.StartsWith("IZA"), ct)));
+        assignment.Add(Exact(f, "HP de Izalco", 6109, await withHp.Where(s => s.Code.StartsWith("IZA")).SumAsync(s => (decimal?)s.HomesPassed, ct) ?? 0));
+        result.Files.Add(Summarize(f, "HP, permisos, brigada, supervisor y documentos de cierre por nodo", assignment));
 
         return result;
     }

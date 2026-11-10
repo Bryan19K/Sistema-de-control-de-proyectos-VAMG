@@ -50,7 +50,7 @@ public sealed class AttentionService(
         }
 
         var docs = await documents.ListAsync(new DocumentFilter { ProjectId = projectId }, ct);
-        var withoutAtp = siteList.Where(s => s.Site.OdnFinalized && !docs.Any(d => d.SiteId == s.Site.Id && d.Kind == DocumentKind.Atp && d.IsSigned))
+        var withoutAtp = siteList.Where(s => s.Site.OdnFinalized && s.Site.AtpDelivered != true && !docs.Any(d => d.SiteId == s.Site.Id && d.Kind == DocumentKind.Atp && d.IsSigned))
             .OrderBy(s => s.Site.Code).ToList();
         if (withoutAtp.Count > 0)
         {

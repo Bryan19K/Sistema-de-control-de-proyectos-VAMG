@@ -32,7 +32,7 @@ public class RealFilesTests(ITestOutputHelper output)
     internal static DataImportCoordinator Coordinator(TestDb db)
     {
         var ftth = new ExcelImportService(db, new QuantityService(db), db.Clock);
-        return new DataImportCoordinator(ftth, new IDataPackImporter[] { new WarehouseImportService(db), new NextWaveControlImportService(db), new NextWaveMaterialsImportService(db), new ExpensesImportService(db), new PriceListImportService(db), new ContractorsImportService(db) });
+        return new DataImportCoordinator(ftth, new IDataPackImporter[] { new WarehouseImportService(db), new NextWaveControlImportService(db), new NextWaveMaterialsImportService(db), new ExpensesImportService(db), new PriceListImportService(db), new ContractorsImportService(db), new NodeAssignmentImportService(db) });
     }
 
     private void Print(ImportReport report)
@@ -229,5 +229,33 @@ public class RealFilesTests(ITestOutputHelper output)
         foreach (var check in result.Files.SelectMany(f => f.Checks)) { output.WriteLine($"[{check.State}] {check.File} · {check.Name}: Excel {check.Expected} / sistema {check.Actual}"); }
         result.AllLoaded.Should().BeTrue(string.Join(", ", result.Missing));
         result.Differences.Should().Be(0, "recién cargados, todas las cifras coinciden con los Excel");
+    }
+
+    [Fact]
+    public async Task Asignacion_de_nodos_real_agrega_los_nodos_que_faltan_y_el_proyecto_de_izalco()
+    {
+        var data = Read("ASIGNACION_DE_NODOS");
+        if (data is null) { return; }
+
+        using var db = await TestDb.CreateAsync();
+        var coordinator = Coordinator(db);
+        var packs = await coordinator.AnalyzeAsync(data, "ASIGNACION_DE_NODOS_SONSONATE_4.xlsx");
+        var pack = packs.Should().ContainSingle(p => p.Kind == PackKind.NodeAssignment).Subject;
+        Print(pack.Report);
+        pack.Report.TotalChecks.Should().OnlyContain(c => c.Matches, "las sumas de los nodos coinciden con la fila TOTAL del Excel");
+
+        var done = await coordinator.ApplyAsync(packs, new ImportTarget(null, null, null));
+        Print(done.Single().Report);
+
+        await using var ctx = db.CreateDbContext();
+        (await ctx.Sites.CountAsync(s => s.Zone == "SONSONATE")).Should().Be(24);
+        (await ctx.Sites.CountAsync(s => s.Zone == "IZALCO")).Should().Be(5);
+        (await ctx.Sites.Where(s => s.Zone == "SONSONATE").SumAsync(s => s.HomesPassed ?? 0)).Should().Be(26031);
+        (await ctx.Projects.CountAsync(p => p.Name.Contains("Izalco"))).Should().Be(1);
+
+        // Repetir no duplica ni cambia nada.
+        var again = await coordinator.ApplyAsync(await coordinator.AnalyzeAsync(data, "ASIGNACION_DE_NODOS_SONSONATE_4.xlsx"), new ImportTarget(null, null, null));
+        again.Single().Report.Counts.SitesCreated.Should().Be(0);
+        (await ctx.Sites.CountAsync()).Should().Be(29);
     }
 }

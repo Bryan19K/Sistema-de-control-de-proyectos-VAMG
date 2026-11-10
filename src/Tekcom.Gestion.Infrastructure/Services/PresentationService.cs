@@ -85,7 +85,7 @@ public sealed class PresentationService(
             {
                 var own = docs.Where(x => x.SiteId == s.Site.Id).ToList();
                 return new EvidenceRow(s.Site.Id, s.Site.Code, true,
-                    own.Any(x => x.Kind == DocumentKind.Atp && x.IsSigned), own.Any(x => x.Kind == DocumentKind.Caes),
+                    s.Site.AtpDelivered == true || own.Any(x => x.Kind == DocumentKind.Atp && x.IsSigned), own.Any(x => x.Kind == DocumentKind.Caes),
                     own.Count(x => x.Kind == DocumentKind.Photo), own.Count,
                     own.Where(x => x.Kind == DocumentKind.Photo && x.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                         .OrderByDescending(x => x.DocumentDate).Take(3).Select(x => x.Id).ToList());
@@ -126,7 +126,7 @@ public sealed class PresentationService(
             s.Stages.GetValueOrDefault(StageCode.Fusion), s.Stages.GetValueOrDefault(StageCode.FatMeasurements),
             s.ReadyToMeasure, s.Site.IsReadyToDeliver, s.VinetasInstalled, s.VinetasProjected,
             metersBySite.GetValueOrDefault(s.Site.Id), piecesBySite.GetValueOrDefault(s.Site.Id),
-            s.Site.PlannedEnd, s.Pace.ProjectedEnd, s.Site.Contractor?.Name ?? "Sin brigada")).ToList();
+            s.Site.PlannedEnd, s.Pace.ProjectedEnd, s.Site.Contractor?.Name ?? "Sin brigada", s.Site.HomesPassed)).ToList();
 
         var production = installedMoves.GroupBy(m => m.Date).OrderBy(g => g.Key)
             .Select(g => new DayProduction(g.Key, g.Sum(MetersOf), g.Where(IsFat).Sum(m => m.Quantity), g.Where(m => m.Material?.Unit == "UND").Sum(m => m.Quantity)))
