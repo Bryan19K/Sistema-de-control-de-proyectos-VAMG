@@ -164,6 +164,20 @@ app.MapGet("/plantillas/proyeccion.xlsx", (Tekcom.Gestion.Application.Import.IPr
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "plantilla-proyeccion.xlsx"))
     .RequireAuthorization();
 
+// Datos para Power BI: Excel con las tablas del modelo (hechos y dimensiones) del tablero de despliegue.
+app.MapGet("/exportes/powerbi", async (int proyecto, Tekcom.Gestion.Application.Reports.IPowerBiExportService powerBi) =>
+{
+    try
+    {
+        return Results.File(await powerBi.BuildAsync(proyecto),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"DATOS_POWER_BI_FTTH_{DateTime.Today:yyyyMMdd}.xlsx");
+    }
+    catch (Tekcom.Gestion.Application.Common.BusinessRuleException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+}).RequireAuthorization();
+
 // Descarga de reportes en Excel o PDF (solo con sesión iniciada).
 app.MapGet("/exportes/{key}/{format}", async (
     string key, string format, int proyecto, int? nodo, string? corte, int? plantilla,
