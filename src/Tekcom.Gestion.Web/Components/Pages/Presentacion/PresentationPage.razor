@@ -42,6 +42,11 @@ else
     var fatInstalled = filtered ? matrix.Sum(r => r.FatsInstalled) : SiteSummary.VinetaGroups.Sum(g => d.Charts.Installation.GetValueOrDefault(g).Installed);
     var fatProjected = filtered ? matrix.Sum(r => r.FatsProjected) : SiteSummary.VinetaGroups.Sum(g => d.Charts.Installation.GetValueOrDefault(g).Projected);
     var fatPercent = fatProjected <= 0 ? 0 : Math.Round(fatInstalled / fatProjected * 100m, 1);
+    var fatParts = new[]
+    {
+        ("Sub-box", GroupPair(d, matrix, filtered, QuantityGroup.SubBox)), ("End-box", GroupPair(d, matrix, filtered, QuantityGroup.EndBox)),
+        ("Hub-box", GroupPair(d, matrix, filtered, QuantityGroup.HubBox)), ("X-box", GroupPair(d, matrix, filtered, QuantityGroup.XBox)),
+    };
     var progress = filtered ? (matrix.Count == 0 ? 0 : Math.Round(matrix.Average(r => r.Progress), 1)) : d.Progress;
     var cableMeters = filtered ? matrix.Sum(r => r.CableMeters) : d.CableMetersInstalled;
     var cableTarget = filtered ? 0m : d.CableMetersProjected;
@@ -132,7 +137,13 @@ else
                 </div>
                 <div class="pbi-kpi">
                     <span class="pbi-kpi__icon"><MudIcon Icon="@Icons.Material.Outlined.DeveloperBoard" /></span>
-                    <div><strong>@UiText.Number(fatInstalled)<small> / @UiText.Number(fatProjected)</small></strong><span>FATs instaladas</span><em>@fatPercent.ToString("0.#")% completado</em></div>
+                    <div><strong>@UiText.Number(fatInstalled)<small> / @UiText.Number(fatProjected)</small></strong><span>FATs instaladas</span><em>@fatPercent.ToString("0.#")% completado</em>
+                    <div class="pbi-split">
+                        @foreach (var (name, pair) in fatParts)
+                        {
+                            <div data-tip="@($"{UiText.Number(pair.Installed)} de {UiText.Number(pair.Projected)}|{name}")" tabindex="0"><span>@name</span><b>@UiText.Number(pair.Installed)<small>/@UiText.Number(pair.Projected)</small></b></div>
+                        }
+                    </div></div>
                 </div>
                 <div class="pbi-kpi">
                     <span class="pbi-kpi__icon"><MudIcon Icon="@Icons.Material.Outlined.Inventory2" /></span>
@@ -792,13 +803,16 @@ else
         public decimal Percent => Projected <= 0 ? 0 : Math.Round(Installed / Projected * 100m, 1);
     }
 
+    /// <summary>Proyectado e instalado de un grupo: de todo el proyecto o, con filtros, solo de los nodos que cumplen.</summary>
+    private static QuantityPair GroupPair(PresentationData d, List<NodeMatrixRow> matrix, bool filtered, QuantityGroup g) => filtered
+        ? new QuantityPair(matrix.Sum(r => r.Quantities is null ? 0 : r.Quantities.GetValueOrDefault(g).Projected),
+            matrix.Sum(r => r.Quantities is null ? 0 : r.Quantities.GetValueOrDefault(g).Installed))
+        : d.Charts.Installation.GetValueOrDefault(g);
+
     private static List<InstallRow> InstallRows(PresentationData d, List<NodeMatrixRow> matrix, bool filtered)
     {
         var rows = new List<InstallRow>();
-        QuantityPair Pair(QuantityGroup g) => filtered
-            ? new QuantityPair(matrix.Sum(r => r.Quantities is null ? 0 : r.Quantities.GetValueOrDefault(g).Projected),
-                matrix.Sum(r => r.Quantities is null ? 0 : r.Quantities.GetValueOrDefault(g).Installed))
-            : d.Charts.Installation.GetValueOrDefault(g);
+        QuantityPair Pair(QuantityGroup g) => GroupPair(d, matrix, filtered, g);
         void Add(string label, params QuantityGroup[] groups)
         {
             var projected = groups.Sum(g => Pair(g).Projected);
