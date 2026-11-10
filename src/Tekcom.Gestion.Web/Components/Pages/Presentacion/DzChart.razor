@@ -1,0 +1,174 @@
+@using System.Globalization
+@using Tekcom.Gestion.Application.Services
+
+@* Gráfico de categorías del dashboard: se dibuja como barras, columnas, dona o pastel según lo configurado. *@
+@if (Items.Count > 0)
+{
+    var max = Max ?? Math.Max(1m, Items.Max(i => i.Value));
+    switch (Kind)
+    {
+        case ChartKind.Columns:
+        {
+            var showValues = Items.Count <= 20;
+            var shortValues = Items.Count > 14;
+            <div class="dz-cols" role="img" aria-label="@Title">
+                @for (var n = 0; n < Items.Count; n++)
+                {
+                    var i = Items[n];
+                    <div class="dz-col @ToneClass(i, n)" data-tip="@i.Tip" tabindex="0">
+                        <span class="dz-col__val">@(showValues ? (shortValues ? (i.ShortText ?? i.ValueText).TrimEnd('%') : (i.ShortText ?? i.ValueText)) : string.Empty)</span>
+                        <div class="dz-col__track"><div class="dz-col__bar" style="height:@Pct(i.Value, max)%"></div></div>
+                        <span class="dz-col__lbl" title="@i.Label">@i.Label</span>
+                    </div>
+                }
+            </div>
+            break;
+        }
+
+        case ChartKind.Donut:
+        case ChartKind.Pie:
+        {
+            var pie = Kind == ChartKind.Pie;
+            var r = pie ? 25.0 : 40.0;
+            var width = pie ? 50.0 : 13.0;
+            var circ = 2 * Math.PI * r;
+            var sum = Items.Sum(i => i.Value);
+            var offset = 0.0;
+            var donutClass = Items.Count > 4 ? "dz-donut dz-donut--many" : "dz-donut";
+            <div class="@donutClass">
+                <svg viewBox="0 0 100 100" role="img" aria-label="@Title">
+                    @if (pie && sum > 0)
+                    {
+                        var angle = -Math.PI / 2;
+                        var visible = Items.Where(i => i.Value > 0).ToList();
+                        @for (var n = 0; n < Items.Count; n++)
+                        {
+                            var i = Items[n];
+                            if (i.Value <= 0) { continue; }
+                            var share = (double)(i.Value / sum);
+                            var tip = ShowShare ? $"{i.ValueText} ({share * 100:0}%)|{i.Label}" : $"{i.ValueText}|{i.Label}";
+                            if (visible.Count == 1)
+                            {
+                                <circle cx="50" cy="50" r="48" class="dz-pie__slice @DonutClass(i, n)" tabindex="0" data-tip="@tip"></circle>
+                            }
+                            else
+                            {
+                                var end = angle + share * 2 * Math.PI;
+                                var large = share > 0.5 ? 1 : 0;
+                                var d = $"M50,50 L{F(50 + 48 * Math.Cos(angle))},{F(50 + 48 * Math.Sin(angle))} A48,48 0 {large} 1 {F(50 + 48 * Math.Cos(end))},{F(50 + 48 * Math.Sin(end))} Z";
+                                <path d="@d" class="dz-pie__slice @DonutClass(i, n)" tabindex="0" data-tip="@tip"></path>
+                                angle = end;
+                            }
+                        }
+                    }
+                    else
+                    {
+                    <g transform="rotate(-90 50 50)" fill="none" stroke-width="@F(width)">
+                        @if (sum <= 0)
+                        {
+                            <circle cx="50" cy="50" r="@F(r)" class="dz-donut__seg dz-c-gray" />
+                        }
+                        else
+                        {
+                            @for (var n = 0; n < Items.Count; n++)
+                            {
+                                var i = Items[n];
+                                var len = (double)(i.Value / sum) * circ;
+                                var share = (double)(i.Value / sum) * 100;
+                                <circle cx="50" cy="50" r="@F(r)" class="dz-donut__seg @DonutClass(i, n)" stroke-dasharray="@($"{F(Math.Max(0, len - (Items.Count > 1 && !pie ? 0.6 : 0)))} {F(circ - Math.Max(0, len - (Items.Count > 1 && !pie ? 0.6 : 0)))}")" stroke-dashoffset="@F(-offset)" tabindex="0" data-tip="@(ShowShare ? $"{i.ValueText} ({share:0}%)|{i.Label}" : $"{i.ValueText}|{i.Label}")"></circle>
+                                offset += len;
+                            }
+                        }
+                    </g>
+                    }
+                    @if (!pie && !string.IsNullOrEmpty(CenterText))
+                    {
+                        @Txt(50, 52, "dz-donut__total", CenterText)
+                        @if (!string.IsNullOrEmpty(CenterCaption)) { @Txt(50, 64, "dz-donut__cap", CenterCaption) }
+                    }
+                </svg>
+                <ul class="dz-donut__legend">
+                    @for (var n = 0; n < Items.Count; n++)
+                    {
+                        var i = Items[n];
+                        var legendShare = sum <= 0 ? 0.0 : (double)(i.Value / sum) * 100;
+                        <li class="@DonutClass(i, n)"><i class="dz-key"></i><span title="@i.Label">@i.Label</span><b>@i.ValueText</b>@if (ShowShare) { <small>@legendShare.ToString("0")%</small> }</li>
+                    }
+                </ul>
+            </div>
+            break;
+        }
+
+        default:
+        {
+            var barsClass = "dz-bars" + (ShowMeta ? " dz-bars--meta" : string.Empty) + (Stacked ? " dz-bars--stacked" : string.Empty);
+            <div class="@barsClass">
+                @for (var n = 0; n < Items.Count; n++)
+                {
+                    var i = Items[n];
+                    if (Stacked)
+                    {
+                        <div class="dz-stage @ToneClass(i, n)" data-tip="@i.Tip" tabindex="0">
+                            <div class="dz-stage__top"><span title="@i.Label">@i.Label</span><em>@i.ValueText</em></div>
+                            <div class="dz-track dz-track--sm"><div class="dz-fill" style="width:@Pct(i.Value, max)%"></div></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="dz-bar @ToneClass(i, n)" data-tip="@i.Tip" tabindex="0">
+                            <span class="dz-bar__name" title="@i.Label">@i.Label</span>
+                            <div class="dz-track"><div class="dz-fill" style="width:@Pct(i.Value, max)%"></div></div>
+                            @if (ShowMeta) { <span class="dz-bar__meta">@i.Meta</span> }
+                            <span class="dz-bar__pct">@i.ValueText</span>
+                        </div>
+                    }
+                }
+            </div>
+            break;
+        }
+    }
+}
+
+@code {
+    /// <summary>Una categoría del gráfico. Tone: done, prog, red o gray; vacío usa la paleta por turnos.</summary>
+    public sealed record ChartItem(string Label, decimal Value, string ValueText, string Meta, string Tip, string Tone, string? ShortText = null);
+
+    [Parameter, EditorRequired] public List<ChartItem> Items { get; set; } = [];
+    [Parameter] public ChartKind Kind { get; set; } = ChartKind.Bars;
+
+    /// <summary>Valor que llena la barra o columna por completo (100 para porcentajes). Vacío usa el mayor valor.</summary>
+    [Parameter] public decimal? Max { get; set; }
+
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public bool ShowMeta { get; set; }
+
+    /// <summary>En dona y pastel: cada categoría usa un color distinto de la paleta en vez del color de su estado.</summary>
+    [Parameter] public bool ByCategory { get; set; }
+
+    /// <summary>En dona y pastel: muestra también la parte de cada categoría sobre el total (no tiene sentido con porcentajes).</summary>
+    [Parameter] public bool ShowShare { get; set; } = true;
+
+    /// <summary>En barras: nombre y valor arriba, barra fina abajo, en dos columnas (las etapas).</summary>
+    [Parameter] public bool Stacked { get; set; }
+
+    [Parameter] public string? CenterText { get; set; }
+    [Parameter] public string? CenterCaption { get; set; }
+
+    private static MarkupString Txt(double x, double y, string cssClass, string text) =>
+        new($"<text x=\"{F(x)}\" y=\"{F(y)}\" class=\"{cssClass}\" text-anchor=\"middle\">{System.Net.WebUtility.HtmlEncode(text)}</text>");
+
+    private static string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static string Pct(decimal value, decimal max) => F(max <= 0 ? 0 : (double)Math.Clamp(value / max * 100m, 0, 100));
+
+    private string DonutClass(ChartItem item, int index) => ByCategory ? $"dz-c-{index % 8}" : ToneClass(item, index);
+
+    private static string ToneClass(ChartItem item, int index) => item.Tone switch
+    {
+        "done" => "dz-c-done",
+        "prog" => "dz-c-prog",
+        "red" => "dz-c-red",
+        "gray" => "dz-c-gray",
+        _ => $"dz-c-{index % 8}",
+    };
+}

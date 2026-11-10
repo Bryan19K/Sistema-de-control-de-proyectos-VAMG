@@ -58,4 +58,30 @@ public class AppearanceTests
 
         Assert.Equal(DashboardColors.Default, await service.GetColorsAsync());
     }
+
+    [Fact]
+    public async Task Chart_types_default_to_factory_values_and_can_be_changed()
+    {
+        using var db = await TestDb.CreateAsync();
+        var service = new AppearanceService(db);
+        Assert.Equal(DashboardCharts.Default, await service.GetChartsAsync());
+
+        var custom = new DashboardCharts(ChartKind.Pie, ChartKind.Donut, ChartKind.Columns, ChartKind.Bars, ChartKind.Pie);
+        await service.SaveChartsAsync(custom);
+        Assert.Equal(custom, await service.GetChartsAsync());
+
+        await service.ResetChartsAsync();
+        Assert.Equal(DashboardCharts.Default, await service.GetChartsAsync());
+    }
+
+    [Fact]
+    public async Task An_unknown_chart_type_is_rejected()
+    {
+        using var db = await TestDb.CreateAsync();
+        var service = new AppearanceService(db);
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            service.SaveChartsAsync(DashboardCharts.Default with { Nodes = (ChartKind)99 }));
+        Assert.Equal(DashboardCharts.Default, await service.GetChartsAsync());
+    }
 }

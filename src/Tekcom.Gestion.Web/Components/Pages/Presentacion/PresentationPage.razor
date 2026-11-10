@@ -80,8 +80,19 @@ else
             ? (_month > 0 ? $"Producción de {Culture.DateTimeFormat.GetMonthName(_month)} {(_year > 0 ? _year : d.Today.Year)}" : $"Producción de {_year}")
             : _period switch { Period.Day => "Producción diaria", Period.Month => "Producción mensual", _ => "Producción semanal" };
         var nodesOrdered = matrix.OrderByDescending(r => r.Progress).ThenBy(r => r.Code).ToList();
-        var manyNodes = nodesOrdered.Count > 14;
-        var valueLabels = nodesOrdered.Count <= 20;
+        string Tone(decimal percent) => percent >= 100 ? "done" : "prog";
+        var installItems = installRows.Select(r => new DzChart.ChartItem(r.Label, r.Percent, $"{r.Percent:0}%", string.Empty,
+            $"{r.Percent:0.#}%|{r.Label}: {UiText.Number(r.Installed)} de {UiText.Number(r.Projected)}", Tone(r.Percent))).ToList();
+        var brigadeItems = brigadeBars.Select(b => new DzChart.ChartItem(b.Label, b.Percent, $"{b.Percent:0}%", b.Meta, b.Tip, Tone(b.Percent))).ToList();
+        var stageItems = stageBars.Select(b => new DzChart.ChartItem(b.Label, b.Percent, $"{b.Meta} · {b.Percent:0}%", string.Empty, b.Tip, Tone(b.Percent), $"{b.Percent:0}%")).ToList();
+        var nodeItems = nodesOrdered.Select(n => new DzChart.ChartItem(n.Code.Replace("SON", string.Empty), n.Progress, $"{n.Progress:0}%", string.Empty,
+            $"{n.Progress:0.#}%|Nodo {n.Code}", Tone(n.Progress))).ToList();
+        var stateItems = new List<DzChart.ChartItem>
+        {
+            new("Finalizados", finishedNodes, finishedNodes.ToString(), string.Empty, $"{finishedNodes} nodos|Finalizados", "done"),
+            new("En avance", inProgress, inProgress.ToString(), string.Empty, $"{inProgress} nodos|En avance", "prog"),
+            new("Sin iniciar", notStarted, notStarted.ToString(), string.Empty, $"{notStarted} nodos|Sin iniciar", "red"),
+        };
     }
     <div class="dz" style="@ColorStyle">
         <aside class="dz-side tk-no-print" aria-label="Filtros del tablero">
@@ -267,8 +278,7 @@ else
                     }
                     else
                     {
-                        @DzBars(installRows.Select(r => new HBarItem(r.Label, string.Empty, r.Percent, r.Percent >= 100 ? "ok" : "info",
-                            $"{r.Percent:0.#}%|{r.Label}: {UiText.Number(r.Installed)} de {UiText.Number(r.Projected)}")).ToList(), false)
+                        <DzChart ShowShare="false" ByCategory="true" Kind="_charts.Installation" Title="Instalación por partida" Max="100" Items="installItems" />
                     }
                 </div>
 
@@ -280,7 +290,7 @@ else
                     }
                     else
                     {
-                        @DzDonut(matrix.Count, finishedNodes, inProgress, notStarted)
+                        <DzChart Kind="_charts.States" Title="Nodos por estado" Items="stateItems" CenterText="@matrix.Count.ToString()" CenterCaption="nodos" />
                     }
                 </div>
             </section>
@@ -294,7 +304,7 @@ else
                     }
                     else
                     {
-                        @DzBars(brigadeBars, true)
+                        <DzChart ShowShare="false" ByCategory="true" Kind="_charts.Brigades" Title="Avance de las brigadas" Max="100" ShowMeta="true" Items="brigadeItems" />
                     }
                 </div>
 
@@ -309,16 +319,7 @@ else
                     }
                     else
                     {
-                        <div class="dz-cols" role="img" aria-label="Avance de cada nodo">
-                            @foreach (var n in nodesOrdered)
-                            {
-                                <div class="dz-col" data-tip="@($"{n.Progress:0.#}%|Nodo {n.Code}")" tabindex="0">
-                                    <span class="dz-col__val">@(!valueLabels ? string.Empty : manyNodes ? n.Progress.ToString("0") : n.Progress.ToString("0") + "%")</span>
-                                    <div class="dz-col__track"><div class="dz-col__bar@(n.Progress >= 100 ? " is-done" : string.Empty)" style="height:@Pct(n.Progress)%"></div></div>
-                                    <span class="dz-col__lbl">@n.Code.Replace("SON", string.Empty)</span>
-                                </div>
-                            }
-                        </div>
+                        <DzChart ShowShare="false" ByCategory="true" Kind="_charts.Nodes" Title="Avance por nodo" Max="100" Items="nodeItems" />
                     }
                 </div>
 
@@ -330,15 +331,7 @@ else
                     }
                     else
                     {
-                        <div class="dz-stages">
-                            @foreach (var b in stageBars)
-                            {
-                                <div class="dz-stage" data-tip="@b.Tip" tabindex="0">
-                                    <div class="dz-stage__top"><span title="@b.Label">@b.Label</span><em>@b.Meta · @b.Percent.ToString("0")%</em></div>
-                                    <div class="dz-track dz-track--sm"><div class="dz-fill@(b.Percent >= 100 ? " is-done" : string.Empty)" style="width:@Pct(b.Percent)%"></div></div>
-                                </div>
-                            }
-                        </div>
+                        <DzChart ShowShare="false" ByCategory="true" Kind="_charts.Stages" Title="Etapas finalizadas" Max="100" Stacked="true" Items="stageItems" />
                     }
                 </div>
             </section>
@@ -693,6 +686,7 @@ else
     </div>;
 
     private DashboardColors _colors = DashboardColors.Default;
+    private DashboardCharts _charts = DashboardCharts.Default;
 
     /// <summary>Colores de los gráficos que eligió el administrador (Configuración › Apariencia).</summary>
     private string ColorStyle => $"--dz-done:{_colors.Done};--dz-prog:{_colors.InProgress};--dz-red:{_colors.Alert}";
@@ -700,6 +694,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         _colors = await Appearance.GetColorsAsync();
+        _charts = await Appearance.GetChartsAsync();
         _projectId = await Selection.EnsureAsync() ?? 0;
         await LoadAsync();
     }
@@ -987,47 +982,6 @@ else
 
         return 10 * magnitude;
     }
-
-    /// <summary>Barras horizontales de una línea: nombre, barra, (nodos) y porcentaje. Al 100 % van en negro.</summary>
-    private RenderFragment DzBars(List<HBarItem> items, bool withMeta) => @<div class="dz-bars@(withMeta ? " dz-bars--meta" : string.Empty)">
-        @foreach (var b in items)
-        {
-            <div class="dz-bar" data-tip="@b.Tip" tabindex="0">
-                <span class="dz-bar__name" title="@b.Label">@b.Label</span>
-                <div class="dz-track"><div class="dz-fill@(b.Percent >= 100 ? " is-done" : string.Empty)" style="width:@Pct(b.Percent)%"></div></div>
-                @if (withMeta) { <span class="dz-bar__meta">@b.Meta</span> }
-                <span class="dz-bar__pct">@b.Percent.ToString("0")%</span>
-            </div>
-        }
-    </div>;
-
-    /// <summary>Dona de nodos por estado (negro, rosado y gris) con el total al centro y la leyenda abajo.</summary>
-    private RenderFragment DzDonut(int total, int done, int progress, int pending) => @<div class="dz-donut">
-        @{
-            const double circ = 251.327;
-            var t = Math.Max(1, total);
-            var parts = new[] { ("Finalizados", done, "is-ink"), ("En avance", progress, "is-pink"), ("Sin iniciar", pending, "is-red") };
-            var offset = 0.0;
-        }
-        <svg viewBox="0 0 100 100" role="img" aria-label="Nodos por estado">
-            <g transform="rotate(-90 50 50)" fill="none" stroke-width="13">
-                @foreach (var (name, count, tone) in parts)
-                {
-                    var len = count * circ / t;
-                    <circle cx="50" cy="50" r="40" class="dz-donut__seg @tone" stroke-dasharray="@($"{F(len)} {F(circ - len)}")" stroke-dashoffset="@F(-offset)" tabindex="0" data-tip="@($"{count} ({count * 100.0 / t:0}%)|{name}")"></circle>
-                    offset += len;
-                }
-            </g>
-            @Txt(50, 52, "middle", "dz-donut__total", total.ToString())
-            @Txt(50, 64, "middle", "dz-donut__cap", "nodos")
-        </svg>
-        <ul class="dz-donut__legend">
-            @foreach (var (name, count, tone) in parts)
-            {
-                <li><i class="dz-key @tone"></i><span>@name</span><b>@count</b><small>@($"{count * 100.0 / t:0}%")</small></li>
-            }
-        </ul>
-    </div>;
 
     /// <summary>Columnas agrupadas con dos ejes y etiquetas de datos (metros a la izquierda, FATs a la derecha).</summary>
     private RenderFragment Columns(List<Bucket> buckets) => @<div>

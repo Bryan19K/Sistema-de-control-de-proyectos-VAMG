@@ -1734,14 +1734,14 @@ html[data-theme="dark"] .dz-kpi--dark { background: #0c0d10; }
 .dz-bar__pct { text-align: right; font-weight: 700; }
 .dz-track { height: 7px; background: var(--dz-track); border-radius: 4px; overflow: hidden; }
 .dz-track--sm { height: 6px; border-radius: 3px; margin-top: 3px; }
-.dz-fill { height: 100%; background: var(--dz-prog); border-radius: inherit; }
+.dz-fill { height: 100%; background: var(--c, var(--dz-prog)); border-radius: inherit; }
 .dz-fill.is-done { background: var(--dz-done); }
 
 /* dona */
 .dz-donut { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
 .dz-donut svg { width: 118px; height: 118px; flex: none; }
-.dz-donut__seg { stroke: var(--dz-gray); }
-.dz-donut__seg.is-ink { stroke: var(--dz-done); } .dz-donut__seg.is-pink { stroke: var(--dz-prog); } .dz-donut__seg.is-gray { stroke: var(--dz-gray); } .dz-donut__seg.is-red { stroke: var(--dz-red); }
+.dz-donut__seg { stroke: var(--c, var(--dz-gray)); }
+.dz-donut__legend .dz-key { background: var(--c, var(--dz-gray)); }
 .dz-donut__total { font-size: 20px; font-weight: 800; fill: var(--dz-ink); }
 .dz-donut__cap { font-size: 8px; fill: var(--dz-sub); }
 .dz-donut__legend { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 3px; font-size: 11px; }
@@ -1753,8 +1753,7 @@ html[data-theme="dark"] .dz-kpi--dark { background: #0c0d10; }
 .dz-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
 .dz-col__val { font-size: 8.5px; letter-spacing: -.3px; font-weight: 700; line-height: 12px; height: 12px; white-space: nowrap; }
 .dz-col__track { flex: 1 1 auto; width: 100%; min-height: 0; display: flex; align-items: flex-end; border-bottom: 1px solid var(--dz-kpi); }
-.dz-col__bar { width: 100%; background: var(--dz-prog); border-radius: 3px 3px 0 0; }
-.dz-col__bar.is-done { background: var(--dz-done); }
+.dz-col__bar { width: 100%; background: var(--c, var(--dz-prog)); border-radius: 3px 3px 0 0; }
 .dz-col__lbl { font-size: 8px; color: var(--dz-sub); line-height: 12px; height: 12px; margin-top: 2px; white-space: nowrap; }
 .dz-col:hover .dz-col__bar, .dz-col:focus .dz-col__bar { filter: brightness(1.15); }
 
@@ -1816,3 +1815,28 @@ html[data-theme="dark"] .dz-kpi--dark { background: #0c0d10; }
 .dz-preview h4 { margin: 0; font-size: 12px; font-weight: 700; }
 .dz-preview .dz-bar { grid-template-columns: 78px minmax(0, 1fr) 34px; }
 .dz-preview svg { width: 110px; height: 110px; align-self: center; }
+
+/* tipos de gráfico: colores por categoría */
+.dz-c-done, .dz-c-0 { --c: var(--dz-done); } .dz-c-prog, .dz-c-1 { --c: var(--dz-prog); } .dz-c-red, .dz-c-2 { --c: var(--dz-red); } .dz-c-gray { --c: var(--dz-gray); }
+.dz-c-3 { --c: color-mix(in srgb, var(--dz-done) 55%, #000); } .dz-c-4 { --c: color-mix(in srgb, var(--dz-prog) 55%, #000); }
+.dz-c-5 { --c: color-mix(in srgb, var(--dz-red) 55%, #000); } .dz-c-6 { --c: color-mix(in srgb, var(--dz-done) 45%, #fff); } .dz-c-7 { --c: color-mix(in srgb, var(--dz-red) 45%, #fff); }
+.dz-bars--stacked { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 14px; align-content: start; font-size: 10.5px; }
+.dz-donut__legend { overflow-y: auto; min-height: 0; flex: 0 1 auto; max-height: 100%; }
+.dz-donut--many { flex-direction: row; justify-content: flex-start; align-items: center; gap: 12px; }
+.dz-donut--many svg { width: 96px; height: 96px; }
+.dz-donut--many .dz-donut__legend { font-size: 10.5px; gap: 2px; flex: 1 1 0; min-width: 0; max-height: 100%; }
+.dz-col__lbl { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.dz-col__val { overflow: hidden; }
+.dz-donut__legend li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.dz-donut__legend li { grid-template-columns: 12px minmax(0, 1fr) auto 34px; }
+
+/* Configuración › Apariencia: tipos de gráfico */
+.tk-appearance__section { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--tk-line); max-width: 900px; }
+.tk-appearance__section h3 { margin: 0 0 4px; font-size: 1rem; color: var(--tk-heading); }
+.tk-chart-row { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 4px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--tk-line); max-width: 640px; }
+.tk-chart-row strong { display: block; font-size: .9rem; color: var(--tk-heading); }
+.tk-chart-row small { color: var(--tk-text-3); }
+.tk-chart-row select { font: inherit; font-size: .88rem; padding: 9px 10px; border: 1px solid var(--tk-card-border); border-radius: 8px; background: var(--tk-surface); color: var(--tk-text); width: 100%; }
+
+.dz-pie__slice { fill: var(--c, var(--dz-gray)); stroke: var(--dz-panel); stroke-width: .8; }
+.dz-pie__slice:hover, .dz-pie__slice:focus { filter: brightness(1.12); outline: none; }

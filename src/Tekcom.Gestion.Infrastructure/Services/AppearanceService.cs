@@ -14,6 +14,12 @@ public sealed partial class AppearanceService(IDbContextFactory<ApplicationDbCon
     private const string InProgressKey = "dashboard.color.progress";
     private const string AlertKey = "dashboard.color.alert";
 
+    private const string InstallationKey = "dashboard.chart.installation";
+    private const string BrigadesKey = "dashboard.chart.brigades";
+    private const string StagesKey = "dashboard.chart.stages";
+    private const string NodesKey = "dashboard.chart.nodes";
+    private const string StatesKey = "dashboard.chart.states";
+
     [GeneratedRegex("^#[0-9A-Fa-f]{6}$")]
     private static partial Regex HexColor();
 
@@ -47,6 +53,42 @@ public sealed partial class AppearanceService(IDbContextFactory<ApplicationDbCon
         await Upsert(db, AlertKey, colors.Alert.ToUpperInvariant(), ct);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<DashboardCharts> GetChartsAsync(CancellationToken ct = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var rows = await db.AppSettings.AsNoTracking().Where(s => s.Key.StartsWith("dashboard.chart.")).ToListAsync(ct);
+        ChartKind Pick(string key, ChartKind fallback)
+        {
+            var value = rows.FirstOrDefault(r => r.Key == key)?.Value;
+            return Enum.TryParse<ChartKind>(value, out var kind) && Enum.IsDefined(kind) ? kind : fallback;
+        }
+
+        var d = DashboardCharts.Default;
+        return new DashboardCharts(Pick(InstallationKey, d.Installation), Pick(BrigadesKey, d.Brigades), Pick(StagesKey, d.Stages),
+            Pick(NodesKey, d.Nodes), Pick(StatesKey, d.States));
+    }
+
+    public async Task SaveChartsAsync(DashboardCharts charts, CancellationToken ct = default)
+    {
+        foreach (var kind in new[] { charts.Installation, charts.Brigades, charts.Stages, charts.Nodes, charts.States })
+        {
+            if (!Enum.IsDefined(kind))
+            {
+                throw new BusinessRuleException("Ese tipo de gráfico no existe. Use barras, columnas, dona o pastel.");
+            }
+        }
+
+        await using var db = await factory.CreateDbContextAsync(ct);
+        await Upsert(db, InstallationKey, charts.Installation.ToString(), ct);
+        await Upsert(db, BrigadesKey, charts.Brigades.ToString(), ct);
+        await Upsert(db, StagesKey, charts.Stages.ToString(), ct);
+        await Upsert(db, NodesKey, charts.Nodes.ToString(), ct);
+        await Upsert(db, StatesKey, charts.States.ToString(), ct);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public Task ResetChartsAsync(CancellationToken ct = default) => SaveChartsAsync(DashboardCharts.Default, ct);
 
     public Task ResetColorsAsync(CancellationToken ct = default) => SaveColorsAsync(DashboardColors.Default, ct);
 
