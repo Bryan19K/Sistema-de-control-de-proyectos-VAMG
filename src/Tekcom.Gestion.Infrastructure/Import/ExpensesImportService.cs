@@ -16,6 +16,9 @@ internal sealed record ExEntry(string Key, string? FundKey, ExpenseKind Kind, Da
 
 internal sealed class ExpenseData
 {
+    /// <summary>Llaves de los fondos que vienen de hojas CC / CCV (un fondo por hoja): este Excel es la fuente y reemplaza lo cargado antes.</summary>
+    public HashSet<string> SyncedFundKeys { get; } = [];
+
     public List<ExFund> Funds { get; } = [];
     public List<ExEntry> Entries { get; } = [];
     public decimal? ExcelPurchaseSubtotal { get; set; }
@@ -42,7 +45,8 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
         var purchases = book.Worksheets.FirstOrDefault(s => NameNormalizer.Key(s.Name) == "GASTOS");
         var petty = book.Worksheets.FirstOrDefault(s => NameNormalizer.Key(s.Name).StartsWith("CONTROL DE CAJA CHICA", StringComparison.Ordinal));
         var travel = book.Worksheets.FirstOrDefault(s => NameNormalizer.Key(s.Name).StartsWith("VIATICOS", StringComparison.Ordinal));
-        if (purchases is null && petty is null && travel is null)
+        var fundSheets = book.Worksheets.Where(s => s != petty && s != travel && IsFundSheet(s)).ToList();
+        if (purchases is null && petty is null && travel is null && fundSheets.Count == 0)
         {
             return Task.FromResult<PackAnalysis?>(null);
         }
@@ -63,6 +67,18 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
         if (travel is not null)
         {
             ReadFunds(travel, "VIAT", "Viáticos", ExpenseKind.Travel, itemCol: 2, dateCol: 3, invoiceCol: 4, commerceCol: 5, descCol: 6, costCol: 7, amountCol: 8, data, report);
+        }
+
+        foreach (var sheet in fundSheets)
+        {
+            ReadFundSheet(sheet, data, report);
+        }
+
+        if (data.SyncedFundKeys.Count > 0)
+        {
+            report.Issues.Add(new ImportIssue(ImportSeverity.Info, "Caja chica y viáticos", null, null,
+                "Este Excel trae un fondo por hoja y reemplaza lo cargado antes de caja chica y viáticos: los gastos que ya estaban se actualizan, " +
+                "los nuevos se agregan y los que ya no aparecen en el Excel se retiran (no se pierde el historial, queda como borrado)."));
         }
 
         var incomplete = data.Entries.Where(e => e.Kind == ExpenseKind.PettyCash && (e.Invoice is null || e.Invoice.TrimEnd('-', ' ', 'D', 'T', 'E') == string.Empty)).ToList();
@@ -108,6 +124,114 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
             Report = report,
             Payload = data,
         });
+    }
+
+
+    /// <summary>Hoja de un fondo: encabezado ITEM · FECHA · NUMERO DE FACTURA · COMERCIO · DESCRIPCION · CENTRO DE COSTO · MONTO en las columnas A a G.</summary>
+    private static bool IsFundSheet(IXLWorksheet sheet) => FindFundHeader(sheet) > 0
+        && NameNormalizer.Key(Xl.Text(sheet, 1, 1)).Contains("CAJA CHICA", StringComparison.Ordinal);
+
+    private static int FindFundHeader(IXLWorksheet sheet)
+    {
+        var last = Math.Min(sheet.LastRowUsed()?.RowNumber() ?? 0, 12);
+        for (var r = 1; r <= last; r++)
+        {
+            if (NameNormalizer.Key(Xl.Text(sheet, r, 1)) == "ITEM" && NameNormalizer.Key(Xl.Text(sheet, r, 2)) == "FECHA"
+                && NameNormalizer.Key(Xl.Text(sheet, r, 7)) == "MONTO")
+            {
+                return r;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>Nombre del fondo a partir del nombre de la hoja: "CC - 210926" es la liquidación del 21/09/2026; "CC - 2408262" es la segunda del 24/08/2026.</summary>
+    internal static string FundName(string sheetName, ExpenseKind kind)
+    {
+        var label = kind == ExpenseKind.Travel ? "Viáticos" : "Caja chica";
+        var digits = new string(sheetName.Where(char.IsDigit).ToArray());
+        DateOnly? date = null;
+        var extra = string.Empty;
+        if (digits.Length == 7 && digits.EndsWith("2026", StringComparison.Ordinal)
+            && int.TryParse(digits[..1], out var d1) && int.TryParse(digits.Substring(1, 2), out var m1) && m1 is >= 1 and <= 12)
+        {
+            date = new DateOnly(2026, m1, d1);
+        }
+        else if (digits.Length is 6 or 7
+            && int.TryParse(digits[..2], out var d2) && int.TryParse(digits.Substring(2, 2), out var m2) && int.TryParse(digits.Substring(4, 2), out var y2)
+            && m2 is >= 1 and <= 12 && d2 is >= 1 and <= 31)
+        {
+            date = new DateOnly(2000 + y2, m2, Math.Min(d2, DateTime.DaysInMonth(2000 + y2, m2)));
+            extra = digits.Length == 7 ? $" ({digits[6]})" : string.Empty;
+        }
+
+        return date is null ? $"{label} · {sheetName.Trim()}" : $"{label} · {date:dd/MM/yyyy}{extra}";
+    }
+
+    private static void ReadFundSheet(IXLWorksheet sheet, ExpenseData data, ImportReport report)
+    {
+        var header = FindFundHeader(sheet);
+        var kind = NameNormalizer.Key(Xl.Text(sheet, 1, 1)).Contains("VIATICO", StringComparison.Ordinal) ? ExpenseKind.Travel : ExpenseKind.PettyCash;
+        var sheetKey = NameNormalizer.Key(sheet.Name).Replace(" ", string.Empty, StringComparison.Ordinal);
+        var prefix = kind == ExpenseKind.Travel ? "CCV" : "CC";
+        var fundKey = $"{prefix}:{sheetKey}";
+
+        decimal assigned = 0;
+        for (var r = 1; r < header; r++)
+        {
+            if (NameNormalizer.Key(Xl.Text(sheet, r, 7)).StartsWith("ASIGNADO", StringComparison.Ordinal) && Xl.Number(sheet, r + 1, 7) is { } a)
+            {
+                assigned = a;
+            }
+        }
+
+        var last = sheet.LastRowUsed()?.RowNumber() ?? 0;
+        var entries = new List<ExEntry>();
+        decimal? excelSpent = null;
+        for (var r = header + 1; r <= last; r++)
+        {
+            if (NameNormalizer.Key(Xl.Text(sheet, r, 5)) == "TOTAL")
+            {
+                excelSpent = Xl.Number(sheet, r, 7);
+                break;
+            }
+
+            var item = Xl.Number(sheet, r, 1);
+            var description = Xl.Text(sheet, r, 5);
+            var date = Xl.Date(sheet, r, 2);
+            var amount = Xl.Number(sheet, r, 7);
+            if (date is null && amount is null && description.Length == 0)
+            {
+                continue; // renglón numerado sin llenar
+            }
+
+            if (item is null || date is null || amount is null)
+            {
+                report.Issues.Add(new ImportIssue(ImportSeverity.Warning, sheet.Name, r, null, $"Gasto sin número, fecha o monto ('{description}'): se omite."));
+                continue;
+            }
+
+            var invoice = Xl.Text(sheet, r, 3).NullIfEmpty();
+            var commerce = Xl.Text(sheet, r, 4).NullIfEmpty();
+            entries.Add(new ExEntry($"{fundKey}:{(int)item}", fundKey, kind, date.Value, description, null, commerce is "-" ? null : commerce,
+                invoice is "-" ? null : invoice, null, null, null, null, null, amount.Value, null, null, CostCenter(Xl.Text(sheet, r, 6))));
+        }
+
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var dup in entries.GroupBy(e => (e.Date, e.Total, Text: NameNormalizer.Key(e.Description))).Where(g => g.Count() > 1))
+        {
+            report.Issues.Add(new ImportIssue(ImportSeverity.Warning, sheet.Name, null, "DESCRIPCION",
+                $"Gasto repetido {dup.Count()} veces el {dup.Key.Date:dd/MM/yyyy} por ${dup.Key.Total:N2}: {dup.First().Description}. Revise si es un duplicado."));
+        }
+
+        data.Funds.Add(new ExFund(fundKey, FundName(sheet.Name, kind), kind, assigned, excelSpent));
+        data.SyncedFundKeys.Add(fundKey);
+        data.Entries.AddRange(entries);
     }
 
     private static string? CostCenter(string text)
@@ -277,9 +401,12 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
         var funds = await db.ExpenseFunds.ToListAsync(ct);
         var created = 0;
         var updated = 0;
+        var kept = 0;
+        var retired = 0;
         foreach (var item in data.Funds)
         {
             var fund = funds.FirstOrDefault(f => f.SourceKey == item.Key);
+            var isNew = fund is null;
             if (fund is null)
             {
                 fund = new ExpenseFund { SourceKey = item.Key };
@@ -287,7 +414,8 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
                 funds.Add(fund);
             }
 
-            if (fund.Id != 0)
+            // Un fondo que ya estaba solo se actualiza si viene de una hoja por fondo (CC / CCV), que es la fuente.
+            if (!isNew && !data.SyncedFundKeys.Contains(item.Key))
             {
                 continue;
             }
@@ -300,20 +428,56 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
         await db.SaveChangesAsync(ct);
 
         var existing = (await db.ExpenseEntries.ToListAsync(ct)).ToDictionary(e => e.SourceKey);
+
+        // Lo cargado antes del formato por fondo (CAJA:n y VIAT:n) se reconoce por fecha, monto y descripción para no duplicarlo.
+        var legacy = existing.Values.Where(e => e.Kind != ExpenseKind.Purchase && (e.SourceKey.StartsWith("CAJA:", StringComparison.Ordinal)
+            || e.SourceKey.StartsWith("VIAT:", StringComparison.Ordinal))).ToList();
+        var claimed = new HashSet<ExpenseEntry>();
+        static string Sig(string text) => NameNormalizer.Key(text).Replace(" ", string.Empty, StringComparison.Ordinal) is { Length: > 18 } t ? t[..18] : NameNormalizer.Key(text).Replace(" ", string.Empty, StringComparison.Ordinal);
+
+        ExpenseEntry? FindLegacy(ExEntry item)
+        {
+            var sig = Sig(item.Description);
+            var pool = legacy.Where(e => !claimed.Contains(e) && e.Kind == item.Kind).ToList();
+            return pool.FirstOrDefault(e => e.Date == item.Date && e.Total == item.Total && Sig(e.Description) == sig)
+                ?? pool.FirstOrDefault(e => e.Date == item.Date && Sig(e.Description) == sig)
+                ?? pool.FirstOrDefault(e => e.Total == item.Total && Sig(e.Description) == sig);
+        }
+
         foreach (var item in data.Entries)
         {
             var project = item.CostCenter is null ? null : projects.FirstOrDefault(p => string.Equals(p.Code, item.CostCenter, StringComparison.OrdinalIgnoreCase));
             var fundId = item.FundKey is null ? (int?)null : funds.First(f => f.SourceKey == item.FundKey).Id;
-            if (existing.ContainsKey(item.Key))
-            {
-                updated++;
-                continue;
-            }
+            var synced = item.FundKey is not null && data.SyncedFundKeys.Contains(item.FundKey);
 
-            var entry = new ExpenseEntry { SourceKey = item.Key };
-            db.ExpenseEntries.Add(entry);
-            existing[item.Key] = entry;
-            created++;
+            ExpenseEntry? entry;
+            if (existing.TryGetValue(item.Key, out entry))
+            {
+                if (!synced)
+                {
+                    kept++;
+                    continue;
+                }
+
+                claimed.Add(entry);
+                updated++;
+            }
+            else if (synced && FindLegacy(item) is { } old)
+            {
+                claimed.Add(old);
+                existing.Remove(old.SourceKey);
+                old.SourceKey = item.Key;
+                existing[item.Key] = old;
+                entry = old;
+                updated++;
+            }
+            else
+            {
+                entry = new ExpenseEntry { SourceKey = item.Key };
+                db.ExpenseEntries.Add(entry);
+                existing[item.Key] = entry;
+                created++;
+            }
 
             entry.Kind = item.Kind;
             entry.FundId = fundId;
@@ -332,6 +496,23 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
             entry.PaidBy = item.PaidBy;
             entry.CostCenter = item.CostCenter;
             entry.ProjectId = project?.Id;
+        }
+
+        // Lo de la carga anterior que ya no está en el Excel se retira (borrado lógico) y los fondos viejos que quedan vacíos también.
+        if (data.SyncedFundKeys.Count > 0)
+        {
+            foreach (var gone in legacy.Where(e => !claimed.Contains(e)))
+            {
+                db.ExpenseEntries.Remove(gone);
+                retired++;
+            }
+
+            var stillUsed = existing.Values.Where(e => !legacy.Contains(e) || claimed.Contains(e)).Select(e => e.FundId).ToHashSet();
+            foreach (var oldFund in funds.Where(f => f.Id != 0 && (f.SourceKey.StartsWith("CAJA:", StringComparison.Ordinal)
+                || f.SourceKey.StartsWith("VIAT:", StringComparison.Ordinal)) && !stillUsed.Contains(f.Id)))
+            {
+                db.ExpenseFunds.Remove(oldFund);
+            }
         }
 
         await db.SaveChangesAsync(ct);
@@ -356,7 +537,17 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
 
         var linked = saved.Count(e => e.ProjectId is not null);
         report.Summary.Add(new("Gastos nuevos", created.ToString(CultureInfo.InvariantCulture)));
-        report.Summary.Add(new("Gastos que ya estaban (no se tocan)", updated.ToString(CultureInfo.InvariantCulture)));
+        if (data.SyncedFundKeys.Count > 0)
+        {
+            report.Summary.Add(new("Gastos actualizados con el Excel", updated.ToString(CultureInfo.InvariantCulture)));
+            report.Summary.Add(new("Gastos retirados (ya no están en el Excel)", retired.ToString(CultureInfo.InvariantCulture)));
+            report.Summary.Add(new("Gastos que ya estaban (no se tocan)", kept.ToString(CultureInfo.InvariantCulture)));
+        }
+        else
+        {
+            report.Summary.Add(new("Gastos que ya estaban (no se tocan)", (updated + kept).ToString(CultureInfo.InvariantCulture)));
+        }
+
         report.Summary.Add(new("Enlazados a un proyecto por centro de costos", $"{linked} de {saved.Count}"));
         report.Applied = true;
         return report;

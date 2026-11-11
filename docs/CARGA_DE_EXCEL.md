@@ -8,6 +8,7 @@ Todo se sube desde **Importar Excel** (solo administrador). El sistema detecta q
 | `TEK-COM - CONTROL DE PROYECTOS...xlsx` | Cinco proyectos de edificios (centro de costos = código): fases, apartamentos, infraestructura, niveles y materiales |
 | `PROYECTOS NEXT-WAVE...xlsx` | Control de materiales por proyecto (reemplaza al resumen del control de proyectos) |
 | `GASTOS PROYECTO FTTH...xlsx` | Compras con IVA, caja chica y viáticos con saldo por fondo (se enlazan al proyecto por centro de costos) |
+| `CONTROL_CAJA_CHICA_...xlsx` | Un fondo por hoja (`CC - ddmmaa` caja chica, `CCV - ddmmaa` viáticos) con asignado, gastos y total. **Reemplaza** lo cargado antes de caja chica y viáticos: actualiza lo que cambió, agrega lo nuevo y retira (borrado lógico) lo que ya no está en el Excel. Lo que se escribió a mano en el sistema no se toca. Se puede subir de nuevo sin duplicar. |
 | `PRECIARIO FINAL...xlsx` | Precios target, órdenes por nodo y códigos ERP del catálogo |
 | `BASE DE DATOS CONTRATISTAS...xlsx` | Contratistas y su personal con póliza o afiliación (Optical Precision no se carga y se da de baja) |
 | `ASIGNACION DE NODOS SONSONATE...xlsx` | Orden de construcción por nodo (una hoja por zona: Sonsonate, Izalco…): HP, permisos eléctricos, brigada, supervisor, cajas, entrega de materiales, documentos de cierre (KMZ, consolidado de UM, reporte fotográfico), fecha de inicio, estado y ATP, más el seguimiento de la bitácora por supervisor. Agrega los nodos que falten y crea el proyecto de una zona nueva (Izalco) |

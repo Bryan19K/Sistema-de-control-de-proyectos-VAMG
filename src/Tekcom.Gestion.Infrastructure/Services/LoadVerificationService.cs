@@ -75,11 +75,11 @@ public sealed class LoadVerificationService(IDbContextFactory<ApplicationDbConte
         var entries = db.ExpenseEntries.AsNoTracking().Where(e => !e.SourceKey.StartsWith("MANUAL"));
         expenses.Add(Exact(f, "Compras", 16, await entries.CountAsync(e => e.Kind == ExpenseKind.Purchase, ct)));
         expenses.Add(Exact(f, "Compras con IVA ($)", 2132.02m, await entries.Where(e => e.Kind == ExpenseKind.Purchase).SumAsync(e => (decimal?)e.Total, ct) ?? 0));
-        expenses.Add(Exact(f, "Gastos de caja chica", 57, await entries.CountAsync(e => e.Kind == ExpenseKind.PettyCash, ct)));
-        expenses.Add(Exact(f, "Caja chica ($)", 1529.02m, await entries.Where(e => e.Kind == ExpenseKind.PettyCash).SumAsync(e => (decimal?)e.Total, ct) ?? 0));
-        expenses.Add(Exact(f, "Viáticos", 13, await entries.CountAsync(e => e.Kind == ExpenseKind.Travel, ct)));
-        expenses.Add(Exact(f, "Viáticos ($)", 339m, await entries.Where(e => e.Kind == ExpenseKind.Travel).SumAsync(e => (decimal?)e.Total, ct) ?? 0));
-        expenses.Add(Exact(f, "Fondos", 7, await db.ExpenseFunds.CountAsync(x => !x.SourceKey.StartsWith("MANUAL"), ct)));
+        expenses.Add(Exact(f, "Gastos de caja chica", 71, await entries.CountAsync(e => e.Kind == ExpenseKind.PettyCash, ct)));
+        expenses.Add(Exact(f, "Caja chica ($)", 2283.12m, await entries.Where(e => e.Kind == ExpenseKind.PettyCash).SumAsync(e => (decimal?)e.Total, ct) ?? 0));
+        expenses.Add(Exact(f, "Viáticos", 15, await entries.CountAsync(e => e.Kind == ExpenseKind.Travel, ct)));
+        expenses.Add(Exact(f, "Viáticos ($)", 426m, await entries.Where(e => e.Kind == ExpenseKind.Travel).SumAsync(e => (decimal?)e.Total, ct) ?? 0));
+        expenses.Add(Exact(f, "Fondos", 11, await db.ExpenseFunds.CountAsync(x => !x.SourceKey.StartsWith("MANUAL"), ct)));
         result.Files.Add(Summarize(f, "Compras, caja chica y viáticos", expenses));
 
         // ------------------------------------------------------------ 5. Preciario
