@@ -201,9 +201,9 @@ public sealed class ExpensesImportService(IDbContextFactory<ApplicationDbContext
             var description = Xl.Text(sheet, r, 5);
             var date = Xl.Date(sheet, r, 2);
             var amount = Xl.Number(sheet, r, 7);
-            if (date is null && amount is null && description.Length == 0)
+            if (date is null && amount is not > 0 && description.Length == 0)
             {
-                continue; // renglón numerado sin llenar
+                continue; // renglón numerado sin llenar (con el monto vacío o en 0)
             }
 
             if (item is null || date is null || amount is null)

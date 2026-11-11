@@ -39,7 +39,8 @@ public class CashFundImportTests
         Fund(book, "CC - 210926", "CONTROL DE CAJA CHICA - JUAN LANDAVERDE", 500,
             (1, new DateTime(2026, 9, 19), "DTE-4987", "POLLO CAMPERO ", "DESAYUNO PERSONAL TEKCOM ", "2601-2607", 33.9m),
             (2, new DateTime(2026, 9, 21), "DTE-32574", "DLC ", "GASOLINA JC - SONSONATE (RECEPCION DE EQUIPOS)", "2601-2607", secondAmount),
-            (3, null, null, null, string.Empty, "-", null));
+            (3, null, null, null, string.Empty, "-", null),
+            (4, null, null, null, string.Empty, "-", 0m));
         if (withThird)
         {
             Fund(book, "CCV - 031026", "CONTROL DE CAJA CHICA PARA VIATICOS - JUAN LANDAVERDE", 150,
