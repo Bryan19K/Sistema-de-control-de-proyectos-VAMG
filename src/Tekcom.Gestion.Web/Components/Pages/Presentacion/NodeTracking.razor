@@ -12,7 +12,8 @@
         @Chip("", "Total de nodos", Rows.Count, "nt-total")
         @Chip("pending", "Sin iniciar", Rows.Count(r => r.Progress <= 0), "nt-gray")
         @Chip("progress", "En avance", Rows.Count(r => r.Progress > 0 && r.Progress < 100), "nt-prog")
-        @Chip("done", "Finalizados", Rows.Count(r => r.Progress >= 100), "nt-done")
+        @Chip("done", "Finalizados", Rows.Count(r => r.Completed), "nt-done")
+        @Chip("built", "Obra terminada", Rows.Count(r => r.BuiltOnly), "nt-built")
         @Chip("measure", "Listos para medir", Rows.Count(r => r.ReadyToMeasure), "nt-measure")
         @Chip("deliver", "Listos para entregar", Rows.Count(r => r.ReadyToDeliver), "nt-deliver")
     </div>
@@ -144,7 +145,8 @@
     {
         "pending" => r.Progress <= 0,
         "progress" => r.Progress > 0 && r.Progress < 100,
-        "done" => r.Progress >= 100,
+        "done" => r.Completed,
+        "built" => r.BuiltOnly,
         "measure" => r.ReadyToMeasure,
         "deliver" => r.ReadyToDeliver,
         _ => true,

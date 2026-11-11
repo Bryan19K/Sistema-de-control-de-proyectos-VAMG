@@ -52,15 +52,15 @@ else
     var pieces = filtered ? matrix.Sum(r => r.Pieces) : d.PiecesInstalled;
     decimal? density = cableMeters <= 0 ? null : Math.Round(pieces / (cableMeters / 1000m), 1);
     var hpTotal = matrix.Sum(r => r.HomesPassed ?? 0);
-    var hpDone = matrix.Where(r => r.Progress >= 100).Sum(r => r.HomesPassed ?? 0);
+    var hpDone = matrix.Where(r => r.Completed).Sum(r => r.HomesPassed ?? 0);
 
     <div class="tk-viz pv">
     @* ============ Dashboard en una sola pantalla: filtros, cifras, gráficos e insights ============ *@
     @{
         var buckets = Buckets(d, siteIds);
         var brigadeBars = matrix.GroupBy(r => r.Brigade)
-            .Select(g => new HBarItem(g.Key, $"{g.Count(x => x.Progress >= 100)}/{g.Count()}", Math.Round(g.Average(x => x.Progress), 1),
-                g.Average(x => x.Progress) >= 100 ? "ok" : "info", $"{g.Average(x => x.Progress):0.#}%|{g.Key}: {g.Count(x => x.Progress >= 100)} de {g.Count()} nodos finalizados"))
+            .Select(g => new HBarItem(g.Key, $"{g.Count(x => x.Completed)}/{g.Count()}", Math.Round(g.Average(x => x.Progress), 1),
+                g.Average(x => x.Progress) >= 100 ? "ok" : "info", $"{g.Average(x => x.Progress):0.#}%|{g.Key}: {g.Count(x => x.Completed)} de {g.Count()} nodos finalizados"))
             .OrderByDescending(b => b.Percent).ToList();
         var installRows = InstallRows(d, matrix, filtered).OrderByDescending(r => r.Percent).Take(10).ToList();
         var stageBars = d.StageColumns.Select((c, i) =>
@@ -70,7 +70,8 @@ else
             return new HBarItem($"{i + 1}. {c.Name}", done.ToString(), pct, pct >= 100 ? "ok" : "info", $"{pct:0.#}%|{c.Name}: {done} de {stageRows.Count} nodos");
         }).ToList();
         var inProgress = matrix.Count(r => r.Progress > 0 && r.Progress < 100);
-        var finishedNodes = matrix.Count(r => r.Progress >= 100);
+        var finishedNodes = matrix.Count(r => r.Completed);
+        var builtNodes = matrix.Count(r => r.BuiltOnly);
         var notStarted = matrix.Count(r => r.Progress <= 0);
         var topNode = matrix.Where(r => r.Progress < 100).OrderByDescending(r => r.Progress).FirstOrDefault();
         var topBrigade = brigadeBars.FirstOrDefault();
@@ -87,7 +88,8 @@ else
             $"{n.Progress:0.#}%|Nodo {n.Code}", Tone(n.Progress))).ToList();
         var stateItems = new List<DzChart.ChartItem>
         {
-            new("Finalizados", finishedNodes, finishedNodes.ToString(), string.Empty, $"{finishedNodes} nodos|Finalizados", "done"),
+            new("Finalizados", finishedNodes, finishedNodes.ToString(), string.Empty, $"{finishedNodes} nodos|Finalizados (con mediciones terminadas)", "done"),
+            new("Obra terminada", builtNodes, builtNodes.ToString(), string.Empty, $"{builtNodes} nodos|Todo instalado, faltan las mediciones", "built"),
             new("En avance", inProgress, inProgress.ToString(), string.Empty, $"{inProgress} nodos|En avance", "prog"),
             new("Sin iniciar", notStarted, notStarted.ToString(), string.Empty, $"{notStarted} nodos|Sin iniciar", "red"),
         };
@@ -129,6 +131,7 @@ else
                 <select class="dz-select" @bind="_state">
                     <option value="">Todos</option>
                     <option value="done">Finalizados</option>
+                    <option value="built">Obra terminada (faltan mediciones)</option>
                     <option value="progress">En avance</option>
                     <option value="pending">Sin iniciar</option>
                 </select>
@@ -310,7 +313,7 @@ else
                 <div class="dz-panel">
                     <div class="dz-ph">
                         <h3>Avance por nodo</h3>
-                        <div class="dz-legend"><span><i class="dz-key dz-key--ink"></i> Finalizado</span><span><i class="dz-key dz-key--pink"></i> En avance</span></div>
+                        <div class="dz-legend"><span><i class="dz-key dz-key--ink"></i> Obra terminada</span><span><i class="dz-key dz-key--pink"></i> En avance</span></div>
                     </div>
                     @if (matrix.Count == 0)
                     {
@@ -666,7 +669,8 @@ else
         .Where(r => _supervisor.Length == 0 || (r.Supervisor ?? "Sin supervisor") == _supervisor)
         .Where(r => _state switch
         {
-            "done" => r.Progress >= 100,
+            "done" => r.Completed,
+            "built" => r.BuiltOnly,
             "progress" => r.Progress > 0 && r.Progress < 100,
             "pending" => r.Progress <= 0,
             _ => true,

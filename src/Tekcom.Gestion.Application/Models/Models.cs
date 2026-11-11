@@ -275,8 +275,14 @@ public sealed record NodeMatrixRow(
     int SiteId, string Code, decimal Progress, PaceStatus Pace, int DaysDelta, StageStatus Fusion, StageStatus Measurement,
     bool ReadyToMeasure, bool ReadyToDeliver, decimal FatsInstalled, decimal FatsProjected, decimal CableMeters, decimal Pieces,
     DateOnly? PlannedEnd, DateOnly? ProjectedEnd, string Brigade, int? HomesPassed = null, string? Supervisor = null,
-    IReadOnlyDictionary<QuantityGroup, QuantityPair>? Quantities = null)
+    IReadOnlyDictionary<QuantityGroup, QuantityPair>? Quantities = null, bool OdnClosed = false)
 {
+    /// <summary>Finalizado de verdad: ODN cerrada, o todo instalado y con las mediciones de FATs terminadas.</summary>
+    public bool Completed => Progress >= 100 && (OdnClosed || Measurement == StageStatus.Finished);
+
+    /// <summary>Todo instalado, pero todavía faltan las mediciones: obra terminada, no finalizado.</summary>
+    public bool BuiltOnly => Progress >= 100 && !Completed;
+
     /// <summary>Piezas instaladas por kilómetro de cable tendido (null si aún no hay cable).</summary>
     public decimal? Density => CableMeters <= 0 ? null : Math.Round(Pieces / (CableMeters / 1000m), 1);
     public decimal FatPercent => FatsProjected <= 0 ? 0 : Math.Round(FatsInstalled / FatsProjected * 100m, 0);
