@@ -74,7 +74,7 @@ else
                                 <td class="num">@r.Pace.ElapsedPercent.ToString("0.#")%</td>
                                 <td class="num">@(r.Sites == 0 ? "—" : $"{r.ReadySites}/{r.Sites}")</td>
                                 <td class="num @(r.OverdueTasks > 0 ? "text-danger" : "")">@r.OverdueTasks</td>
-                                <td class="tk-no-print"><button type="button" class="tk-attn__link" @onclick="() => OpenAsync(r.ProjectId)">Presentación</button></td>
+                                <td class="tk-no-print"><button type="button" class="tk-attn__link" @onclick="() => OpenAsync(r.ProjectId)">Dashboard</button></td>
                             </tr>
                         }
                     </tbody>
@@ -109,6 +109,6 @@ else
     private void OpenAsync(int projectId)
     {
         Selection.Select(projectId);
-        Nav.NavigateTo("presentacion");
+        Nav.NavigateTo("dashboard");
     }
 }

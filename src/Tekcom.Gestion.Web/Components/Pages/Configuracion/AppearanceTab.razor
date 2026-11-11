@@ -3,7 +3,7 @@
 @inject IAppearanceService Appearance
 @inject ISnackbar Snackbar
 
-<p class="tk-note">Elija los colores de los gráficos del dashboard de la Presentación. Se aplican a todos los usuarios apenas se guardan.</p>
+<p class="tk-note">Elija los colores de los gráficos del Dashboard. Se aplican a todos los usuarios apenas se guardan.</p>
 
 <div class="tk-appearance">
     <div>
@@ -81,7 +81,7 @@
         try
         {
             await Appearance.SaveColorsAsync(new DashboardColors(_done, _progress, _alert));
-            Snackbar.Add("Colores guardados. Se ven en la Presentación al recargarla.", Severity.Success);
+            Snackbar.Add("Colores guardados. Se ven en el Dashboard al recargarlo.", Severity.Success);
         }
         catch (BusinessRuleException ex)
         {
@@ -126,7 +126,7 @@
         try
         {
             await Appearance.SaveChartsAsync(new DashboardCharts(_installation, _brigades, _stages, _nodes, _states));
-            Snackbar.Add("Tipos de gráfico guardados. Se ven en la Presentación al recargarla.", Severity.Success);
+            Snackbar.Add("Tipos de gráfico guardados. Se ven en el Dashboard al recargarlo.", Severity.Success);
         }
         catch (BusinessRuleException ex)
         {

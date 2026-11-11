@@ -1,0 +1,8 @@
+@page "/presentacion"
+@attribute [Authorize]
+@inject NavigationManager Navigation
+
+@code {
+    // La sección se llamaba Presentación: los enlaces guardados siguen funcionando.
+    protected override void OnInitialized() => Navigation.NavigateTo("dashboard", replace: true);
+}

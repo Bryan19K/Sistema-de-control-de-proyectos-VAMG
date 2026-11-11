@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Identity
 @using Tekcom.Gestion.Infrastructure.Identity
 @using Tekcom.Gestion.Application.Common.Interfaces
+@using Tekcom.Gestion.Application.Common
 @using Tekcom.Gestion.Application.Models
 @using Tekcom.Gestion.Application.Services
 @using Tekcom.Gestion.Domain.Enums
@@ -196,7 +197,8 @@ else
 
 @code {
     private static readonly CultureInfo Culture = new("es-SV");
-    private string firstName = string.Empty;
+    private string? fullName;
+    private string? userEmail;
     private DashboardData? _data;
     private ProjectCharts? _charts;
     private List<AttentionItem> _attention = [];
@@ -251,9 +253,7 @@ else
     {
         get
         {
-            var hour = TimeZoneInfo.ConvertTime(Clock.UtcNow, LocalTimeZone).Hour;
-            var salute = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
-            return string.IsNullOrEmpty(firstName) ? salute : $"{salute}, {firstName}";
+            return DashboardMath.Welcome(fullName, userEmail);
         }
     }
 
@@ -300,9 +300,7 @@ else
         }
 
         var user = await UserManager.FindByIdAsync(userId);
-        var fullName = user?.FullName;
-        firstName = string.IsNullOrWhiteSpace(fullName)
-            ? string.Empty
-            : fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+        fullName = user?.FullName;
+        userEmail = user?.Email;
     }
 }
