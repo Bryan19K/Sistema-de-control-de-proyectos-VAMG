@@ -1,0 +1,166 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Components.Pages.Gastos
+@using Tekcom.Gestion.Web.Services
+@inject IFinanceService Finance
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+@* Editor de todo desde el dashboard: gastos, fondos, órdenes y precios con buscar, agregar, editar y quitar. *@
+<MudDialog>
+    <DialogContent>
+        <div class="dm-bar">
+            <input type="search" class="dm-search" placeholder="Buscar…" @bind="_search" @bind:event="oninput" aria-label="Buscar" />
+            <button type="button" class="tk-btn tk-btn--primary" @onclick="AddAsync">+ Agregar</button>
+        </div>
+        <MudTabs Elevation="0" Rounded="true" Color="Color.Primary" @bind-ActivePanelIndex="_tab" ApplyEffectsToContainer="true" TabPanelsClass="pt-3">
+            <MudTabPanel Text="@($"Gastos ({_entries.Count})")" />
+            <MudTabPanel Text="@($"Fondos ({_funds.Count})")" />
+            <MudTabPanel Text="@($"Órdenes ({_orders.Count})")" />
+            <MudTabPanel Text="@($"Precios ({_prices.Count})")" />
+        </MudTabs>
+        <div class="tk-table-wrap dm-wrap">
+            @if (_tab == 0)
+            {
+                <table class="tk-table">
+                    <thead><tr><th>Fecha</th><th>Descripción</th><th>Tipo</th><th>Proveedor</th><th class="num">Total</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var e in _entries.Where(e => Has(e.Description, e.Supplier, e.Category, e.InvoiceNumber, e.Fund?.Name)).OrderByDescending(e => e.Date).Take(300))
+                        {
+                            <tr>
+                                <td>@UiText.ShortDate(e.Date)</td><td title="@e.Description">@e.Description</td>
+                                <td>@(e.Kind == ExpenseKind.PettyCash ? "Caja chica" : e.Kind == ExpenseKind.Travel ? "Viáticos" : e.Category ?? "Compra")</td>
+                                <td>@(e.Supplier ?? "—")</td><td class="num">@UiText.Money(e.Total)</td>
+                                <td class="dm-act"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditExpenseAsync(e)" aria-label="Editar" /><MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => DeleteAsync(e.Description, () => Finance.DeleteExpenseAsync(e.Id))" aria-label="Quitar" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (_tab == 1)
+            {
+                <table class="tk-table">
+                    <thead><tr><th>Fondo</th><th>Tipo</th><th class="num">Asignado</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var f in _funds.Where(f => Has(f.Name)).OrderBy(f => f.Name))
+                        {
+                            <tr>
+                                <td>@f.Name</td><td>@(f.Kind == ExpenseKind.Travel ? "Viáticos" : "Caja chica")</td><td class="num">@UiText.Money(f.AssignedAmount)</td>
+                                <td class="dm-act"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditFundAsync(f)" aria-label="Editar" /><MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => DeleteAsync(f.Name, () => Finance.DeleteFundAsync(f.Id))" aria-label="Quitar" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (_tab == 2)
+            {
+                <table class="tk-table">
+                    <thead><tr><th>Orden</th><th>Brigada</th><th class="num">Total con IVA</th><th>Liquidación</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var o in _orders.Where(o => Has(o.Code, o.ContractorName, o.OrderNumber)).OrderBy(o => o.Code))
+                        {
+                            <tr>
+                                <td>@o.Code</td><td>@(o.ContractorName ?? "—")</td><td class="num">@UiText.Money(o.Total)</td><td>@(o.LiquidationStatus ?? "—")</td>
+                                <td class="dm-act"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditOrderAsync(o)" aria-label="Editar" /><MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => DeleteAsync(o.Code, () => Finance.DeleteOrderAsync(o.Id))" aria-label="Quitar" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <table class="tk-table">
+                    <thead><tr><th>Sección</th><th>Rubro</th><th>Tipo</th><th>Unidad</th><th class="num">Precio</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var p in _prices.Where(p => Has(p.Section, p.Item, p.Type)).OrderBy(p => p.SortOrder))
+                        {
+                            <tr>
+                                <td>@p.Section</td><td>@p.Item</td><td>@(p.Type ?? "—")</td><td>@(p.Unit ?? "—")</td><td class="num">@UiText.Money(p.TargetPrice)</td>
+                                <td class="dm-act"><MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditPriceAsync(p)" aria-label="Editar" /><MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="() => DeleteAsync(p.Item, () => Finance.DeletePriceAsync(p.Id))" aria-label="Quitar" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int ProjectId { get; set; }
+    [Parameter] public int StartTab { get; set; }
+
+    private int _tab;
+    private string _search = string.Empty;
+    private bool _changed;
+    private List<ExpenseEntry> _entries = [];
+    private List<ExpenseFund> _funds = [];
+    private List<ContractOrder> _orders = [];
+    private List<PriceItem> _prices = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tab = StartTab;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _entries = await Finance.ExpensesAsync(null, null);
+        _funds = await Finance.FundsAsync();
+        _orders = ProjectId == 0 ? [] : await Finance.OrdersAsync(ProjectId);
+        _prices = ProjectId == 0 ? [] : await Finance.PricesAsync(ProjectId);
+    }
+
+    private bool Has(params string?[] texts) =>
+        string.IsNullOrWhiteSpace(_search) || texts.Any(t => t is not null && t.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private async Task ShowAsync<TDialog>(string title, DialogParameters parameters, MaxWidth width = MaxWidth.Medium) where TDialog : Microsoft.AspNetCore.Components.IComponent
+    {
+        var dialog = await Dialogs.ShowAsync<TDialog>(title, parameters, new DialogOptions { MaxWidth = width, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            _changed = true;
+            await LoadAsync();
+        }
+    }
+
+    private Task AddAsync() => _tab switch
+    {
+        0 => ShowAsync<ExpenseDialog>("Nuevo gasto", new DialogParameters { ["Model"] = null, ["DefaultKind"] = ExpenseKind.Purchase }),
+        1 => ShowAsync<FundDialog>("Nuevo fondo", new DialogParameters { ["Model"] = null }, MaxWidth.Small),
+        2 => ShowAsync<OrderDialog>("Nueva orden", new DialogParameters { ["ProjectId"] = ProjectId, ["Model"] = null }),
+        _ => ShowAsync<PriceDialog>("Nuevo precio", new DialogParameters { ["ProjectId"] = ProjectId, ["Model"] = null }),
+    };
+
+    private Task EditExpenseAsync(ExpenseEntry e) => ShowAsync<ExpenseDialog>("Editar gasto", new DialogParameters { ["Model"] = e, ["DefaultKind"] = e.Kind });
+    private Task EditFundAsync(ExpenseFund f) => ShowAsync<FundDialog>("Editar fondo", new DialogParameters { ["Model"] = f }, MaxWidth.Small);
+    private Task EditOrderAsync(ContractOrder o) => ShowAsync<OrderDialog>("Editar orden", new DialogParameters { ["ProjectId"] = ProjectId, ["Model"] = o });
+    private Task EditPriceAsync(PriceItem p) => ShowAsync<PriceDialog>("Editar precio", new DialogParameters { ["ProjectId"] = ProjectId, ["Model"] = p });
+
+    private async Task DeleteAsync(string what, Func<Task> action)
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Quitar", $"¿Quitar «{what}»?", yesText: "Quitar", cancelText: "Cancelar") != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await action();
+            _changed = true;
+            await LoadAsync();
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(_changed));
+}

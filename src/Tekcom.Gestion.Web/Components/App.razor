@@ -104,6 +104,28 @@
             document.addEventListener('focusout', hide);
             document.addEventListener('scroll', hide, true);
         })();
+        window.tkCountUp = function () {
+            if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) { return; }
+            document.querySelectorAll('[data-count]').forEach(function (el) {
+                var target = parseFloat(el.getAttribute('data-count'));
+                if (isNaN(target) || el._counted === target) { return; }
+                el._counted = target;
+                var fmt = el.getAttribute('data-fmt');
+                var show = function (v) {
+                    if (fmt === 'money') { return (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+                    if (fmt === 'pct') { return Math.round(v) + '%'; }
+                    return Math.round(v).toLocaleString('en-US');
+                };
+                var start = null;
+                var step = function (ts) {
+                    if (start === null) { start = ts; }
+                    var p = Math.min(1, (ts - start) / 800);
+                    el.textContent = show(target * (1 - Math.pow(1 - p, 3)));
+                    if (p < 1) { requestAnimationFrame(step); } else { el.textContent = show(target); }
+                };
+                requestAnimationFrame(step);
+            });
+        };
         window.tkNav = function () {
             document.body.classList.toggle('tk-show-nav');
             if (!window.tkNavBound) {
