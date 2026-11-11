@@ -1955,3 +1955,39 @@ html[data-theme="dark"] .gx { --gx-ink: #E9EAED; --gx-sub: #A9ACB4; --gx-shadow:
 .nt-state { font-size: 10px; font-weight: 700; padding: 2px 9px; border-radius: 999px; color: #fff; } .nt-state.is-done { background: var(--dz-done); } .nt-state.is-prog { background: var(--dz-prog); color: #1F2026; } .nt-state.is-red { background: var(--dz-red); } .nt-state.is-gray { background: var(--dz-gray); color: #1F2026; }
 .nt-key-plan { background: color-mix(in srgb, var(--dz-gray) 80%, transparent); } .nt-legend { margin-top: 8px; }
 @media print { .nt-chips, .nt-list { display: none; } }
+
+/* Gastos y precios: editable y con movimiento */
+.gx-head-right { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: flex-end; }
+.gx-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.gx-actions button { border: 0; border-radius: 999px; padding: 7px 14px; font: 600 11.5px Poppins, Inter, sans-serif; color: var(--gx-navy-a); background: var(--dz-panel); box-shadow: var(--gx-shadow); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
+html[data-theme="dark"] .gx-actions button { color: var(--gx-ink); }
+.gx-actions button:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(30, 60, 110, .18); }
+.gx-actions button.is-main { background: linear-gradient(135deg, var(--gx-navy-a), var(--gx-navy-b)); color: #fff; }
+.gx-edit { border: 0; background: var(--dz-track); color: var(--gx-sub); width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 13px; line-height: 1; opacity: .55; transition: opacity .15s, background .15s, transform .15s; flex: none; }
+.gx-card:hover .gx-edit, .gx-edit:focus-visible { opacity: 1; } .gx-edit:hover { background: var(--gx-teal); color: #fff; transform: rotate(-12deg) scale(1.08); }
+.gx-click { cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
+.gx-click:hover { transform: translateY(-2px); } tr.gx-click:hover { transform: none; background: color-mix(in srgb, var(--gx-teal) 10%, transparent); }
+.gx-click:focus-visible { outline: 2px solid var(--gx-teal); outline-offset: 2px; }
+.gx-card--navy.gx-click:hover { box-shadow: 0 10px 24px rgba(20, 48, 95, .35); }
+.gx-card:not(.gx-click):hover { box-shadow: 0 10px 26px rgba(30, 60, 110, .14); }
+.gx-col.is-picked .gx-col__bar { outline: 2px solid var(--gx-navy-a); outline-offset: 1px; }
+.gx-col { cursor: pointer; }
+.gx-range { border: 0; border-radius: 8px; padding: 6px 10px; font: 600 11px Inter, sans-serif; background: rgba(255, 255, 255, .16); color: #fff; cursor: pointer; text-align: left; }
+.gx-range:hover { background: rgba(255, 255, 255, .26); }
+.dm-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; } .dm-search { flex: 1; font: inherit; padding: 9px 12px; border: 1px solid var(--tk-card-border); border-radius: 8px; background: var(--tk-surface); color: var(--tk-text); }
+.dm-wrap { max-height: 56vh; overflow: auto; } .dm-act { white-space: nowrap; text-align: right; }
+
+@keyframes gx-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes gx-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes gx-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes gx-pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes gx-fade { from { opacity: 0; } to { opacity: 1; } }
+.gx-row > .gx-card, .gx-row > .gx-stack > .gx-card { animation: gx-rise .55s cubic-bezier(.2, .8, .2, 1) both; }
+.gx-row > :nth-child(2) { animation-delay: .08s; } .gx-row > :nth-child(3) { animation-delay: .16s; } .gx-row > .gx-stack > .gx-card:nth-child(2) { animation-delay: .1s; }
+.gx-col__bar { transform-origin: bottom; animation: gx-grow-y .7s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 60ms + .15s); }
+.gx-col .gx-chip { animation: gx-pop .4s ease both; animation-delay: calc(var(--i, 0) * 60ms + .5s); }
+.gx-progress span, .gx-mini span, .gx-price .dz-fill { transform-origin: left; animation: gx-grow-x .9s cubic-bezier(.2, .8, .2, 1) both; animation-delay: .2s; }
+.gx-seg.is-on { animation: gx-fade .35s ease both; animation-delay: calc(var(--i, 0) * 45ms + .2s); }
+.gx-top li { animation: gx-rise .5s ease both; } .gx-top li:nth-child(2) { animation-delay: .1s; } .gx-top li:nth-child(3) { animation-delay: .2s; }
+.gx-table tbody tr { animation: gx-fade .5s ease both; } .gx-table tbody tr:nth-child(2) { animation-delay: .06s; } .gx-table tbody tr:nth-child(3) { animation-delay: .12s; } .gx-table tbody tr:nth-child(4) { animation-delay: .18s; } .gx-table tbody tr:nth-child(5) { animation-delay: .24s; }
+@media (prefers-reduced-motion: reduce) { .gx *, .gx *::before { animation: none !important; transition: none !important; } }
