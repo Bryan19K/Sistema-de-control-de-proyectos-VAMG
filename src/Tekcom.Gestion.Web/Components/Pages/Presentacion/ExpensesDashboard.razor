@@ -1,0 +1,363 @@
+@using System.Globalization
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Web.Services
+@inject IFinanceService Finance
+@inject ProjectSelection Selection
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    var list = Filtered();
+    var kindFundOnly = _entries.Where(e => KindOk(e) && FundOk(e)).ToList();
+    var total = list.Sum(e => e.Total);
+    var purchases = list.Where(e => e.Kind == ExpenseKind.Purchase).Sum(e => e.Total);
+    var (totalChip, purchaseChip) = MonthChips(kindFundOnly);
+    var visibleFunds = _funds.Where(f => _fund == 0 || f.Id == _fund).Where(f => _kind < 0 || (int)f.Kind == _kind).ToList();
+    var assigned = visibleFunds.Sum(f => f.AssignedAmount);
+    var fundSpent = list.Where(e => e.FundId is not null && visibleFunds.Any(f => f.Id == e.FundId)).Sum(e => e.Total);
+    var used = DashboardMath.UsedPercent(fundSpent, assigned);
+    var liquidated = _orders.Where(o => DashboardMath.IsLiquidated(o.LiquidationStatus)).ToList();
+    var ordersTotal = _orders.Sum(o => o.Total);
+    var liquidatedTotal = liquidated.Sum(o => o.Total);
+    var buckets = Buckets(list);
+    var top = list.OrderByDescending(e => e.Total).Take(3).ToList();
+    var prices = _prices.OrderByDescending(p => p.TargetPrice).Take(8).ToList();
+    var orders = _orders.OrderByDescending(o => o.Total).Take(5).ToList();
+    var maxOrder = orders.Count == 0 ? 1 : orders.Max(o => o.Total);
+
+    <div class="dz gx">
+        <aside class="dz-side tk-no-print" aria-label="Filtros de gastos y precios">
+            <div class="dz-brandrow">
+                <button type="button" class="dz-menu" @onclick='() => JS.InvokeVoidAsync("tkNav")' aria-label="Mostrar u ocultar el menú del sistema" title="Menú del sistema">☰</button>
+                <div class="dz-brand"><img src="branding/logo.png" alt="TEK-COM" /></div>
+            </div>
+            <DashTabs Current="gastos" />
+            <div class="dz-side__head"><div class="dz-side__title">FILTROS</div><span class="dz-rule"></span></div>
+            <div class="dz-field dz-field--project"><span>PROYECTO</span><ProjectPicker Value="_projectId" Changed="OnProjectChanged" /></div>
+            <label class="dz-field"><span>AÑO</span>
+                <select class="dz-select" @bind="_year">
+                    <option value="0">Todos</option>
+                    @foreach (var y in _entries.Select(e => e.Date.Year).Distinct().OrderByDescending(x => x)) { <option value="@y">@y</option> }
+                </select>
+            </label>
+            <label class="dz-field"><span>MES</span>
+                <select class="dz-select" @bind="_month">
+                    <option value="0">Todos</option>
+                    @for (var m = 1; m <= 12; m++) { <option value="@m">@Culture.DateTimeFormat.GetMonthName(m)</option> }
+                </select>
+            </label>
+            <label class="dz-field"><span>TIPO DE GASTO</span>
+                <select class="dz-select" @bind="_kind">
+                    <option value="-1">Todos</option>
+                    <option value="0">Compras</option>
+                    <option value="1">Caja chica</option>
+                    <option value="2">Viáticos</option>
+                </select>
+            </label>
+            <label class="dz-field"><span>FONDO</span>
+                <select class="dz-select" @bind="_fund">
+                    <option value="0">Todos</option>
+                    @foreach (var f in _funds.OrderBy(f => f.Name)) { <option value="@f.Id">@f.Name</option> }
+                </select>
+            </label>
+            <div class="dz-side__count"><strong>@list.Count</strong> de @_entries.Count gastos</div>
+            <div class="dz-side__grow"></div>
+            <div class="dz-acts">
+                <button type="button" @onclick="FullscreenAsync">Pantalla completa</button>
+                <a href="gastos">Editar gastos y precios</a>
+                <a href="exportar">Exportar</a>
+            </div>
+            <button type="button" class="dz-clear" @onclick="Clear">LIMPIAR FILTROS</button>
+        </aside>
+
+        <div class="dz-main gx-main">
+            <header class="dz-head">
+                <div>
+                    <h1>Gastos y precios</h1>
+                    <div class="dz-sub"><span class="dz-rule"></span><span>Resumen de lo gastado, los fondos y los precios</span></div>
+                </div>
+                <div class="dz-updated"><MudIcon Icon="@Icons.Material.Outlined.CalendarMonth" Size="Size.Small" /><div>Actualizado al <strong>@UiText.ShortDate(DateOnly.FromDateTime(DateTime.Today))</strong></div></div>
+            </header>
+
+            <section class="gx-row gx-row--1">
+                <div class="gx-stack">
+                    <div class="gx-card gx-card--navy">
+                        <div class="gx-card__top"><h3>Total gastado</h3></div>
+                        <div class="gx-big">@UiText.Money(total)</div>
+                        <div class="gx-sub">@(totalChip is null ? "Compras, caja chica y viáticos" : "último mes vs anterior") @if (totalChip is not null) { <span class="gx-chip @ChipClass(totalChip)">@DashboardMath.ChangeText(totalChip)</span> }</div>
+                    </div>
+                    <div class="gx-card">
+                        <div class="gx-card__top"><h3>Compras con IVA</h3></div>
+                        <div class="gx-big">@UiText.Money(purchases)</div>
+                        <div class="gx-sub">@(purchaseChip is null ? $"{list.Count(e => e.Kind == ExpenseKind.Purchase)} compras" : "último mes vs anterior") @if (purchaseChip is not null) { <span class="gx-chip @ChipClass(purchaseChip)">@DashboardMath.ChangeText(purchaseChip)</span> }</div>
+                    </div>
+                </div>
+
+                <div class="gx-card">
+                    <div class="gx-card__top"><h3>Avance de liquidación</h3></div>
+                    @if (_orders.Count == 0)
+                    {
+                        <EmptyState Title="Sin órdenes" Icon="@Icons.Material.Outlined.Receipt" Description="Suba el preciario para ver las órdenes por nodo." />
+                    }
+                    else
+                    {
+                        <div class="gx-big">@liquidated.Count <small>de @_orders.Count órdenes</small></div>
+                        <div class="gx-progress" role="img" aria-label="Valor liquidado"><span style="width:@Pct(liquidatedTotal, ordersTotal)%"></span></div>
+                        <div class="gx-sub gx-sub--between"><span>Liquidado <b>@UiText.Money(liquidatedTotal)</b></span><span>Por liquidar <b>@UiText.Money(ordersTotal - liquidatedTotal)</b></span></div>
+                    }
+                </div>
+
+                <div class="gx-card">
+                    <div class="gx-card__top"><h3>Uso de los fondos</h3></div>
+                    @if (assigned <= 0)
+                    {
+                        <EmptyState Title="Sin fondos" Icon="@Icons.Material.Outlined.AccountBalanceWallet" Description="Cambie los filtros o cree un fondo." />
+                    }
+                    else
+                    {
+                        @Gauge(used)
+                        <div class="gx-sub gx-sub--center">@(assigned - fundSpent >= 0 ? "Saldo disponible" : "Sobregiro") <b>@UiText.Money(Math.Abs(assigned - fundSpent))</b></div>
+                    }
+                </div>
+            </section>
+
+            <section class="gx-row gx-row--2">
+                <div class="gx-card">
+                    <div class="gx-card__top">
+                        <h3>Gasto por @(_byWeek ? "semana" : "mes")</h3>
+                        <div class="gx-pills" role="group" aria-label="Período">
+                            <button type="button" class="@(_byWeek ? "is-active" : string.Empty)" @onclick="() => _byWeek = true">Semana</button>
+                            <button type="button" class="@(!_byWeek ? "is-active" : string.Empty)" @onclick="() => _byWeek = false">Mes</button>
+                        </div>
+                    </div>
+                    @if (buckets.Count == 0 || buckets.All(b => b.Value == 0))
+                    {
+                        <EmptyState Title="Sin gastos" Icon="@Icons.Material.Outlined.Receipt" Description="No hay gastos con estos filtros." />
+                    }
+                    else
+                    {
+                        var lastChange = buckets.Count >= 2 ? DashboardMath.PercentChange(buckets[^1].Value, buckets[^2].Value) : null;
+                        var maxBucket = buckets.Max(b => b.Value);
+                        <div class="gx-stats">
+                            <div class="gx-stats__lead"><strong class="@(lastChange is < 0 ? "is-down" : string.Empty)">@(lastChange is null ? "—" : DashboardMath.ChangeText(lastChange))</strong><span>Variación del último período contra el anterior</span></div>
+                            <div class="gx-cols" role="img" aria-label="Gasto por período">
+                                @for (var i = 0; i < buckets.Count; i++)
+                                {
+                                    var b = buckets[i];
+                                    var change = i == 0 ? null : DashboardMath.PercentChange(b.Value, buckets[i - 1].Value);
+                                    <div class="gx-col@(b.Value == maxBucket ? " is-max" : string.Empty)" data-tip="@($"{UiText.Money(b.Value)}|{b.Tip}")" tabindex="0">
+                                        <span class="gx-chip gx-chip--sm @ChipClass(change)">@(change is null ? "·" : DashboardMath.ChangeText(change))</span>
+                                        <div class="gx-col__track"><div class="gx-col__bar" style="height:@Pct(b.Value, maxBucket)%"></div></div>
+                                        <span class="gx-col__lbl">@b.Label</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="gx-card gx-card--soft">
+                    <div class="gx-card__top"><h3>Mayores gastos</h3></div>
+                    @if (top.Count == 0)
+                    {
+                        <EmptyState Title="Sin gastos" Icon="@Icons.Material.Outlined.Receipt" Description="No hay gastos con estos filtros." />
+                    }
+                    else
+                    {
+                        <ul class="gx-top">
+                            @for (var i = 0; i < top.Count; i++)
+                            {
+                                var e = top[i];
+                                var who = e.Supplier ?? e.Category ?? e.Fund?.Name ?? "Gasto";
+                                <li>
+                                    <div class="gx-top__item" data-tip="@($"{UiText.Money(e.Total)}|{e.Description}")" tabindex="0">
+                                        <span class="gx-avatar">@(who.Trim().Length == 0 ? "G" : who.Trim()[..1].ToUpperInvariant())</span>
+                                        <div><b>@UiText.Money(e.Total)</b><small>@e.Description</small></div>
+                                    </div>
+                                    <span class="gx-rank"><i>@(i + 1)</i>@KindLabel(e)</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </section>
+
+            <section class="gx-row gx-row--3">
+                <div class="gx-card">
+                    <div class="gx-card__top"><h3>Precios target por rubro</h3></div>
+                    @if (prices.Count == 0)
+                    {
+                        <EmptyState Title="Sin precios" Icon="@Icons.Material.Outlined.Sell" Description="Suba el preciario para ver los precios target." />
+                    }
+                    else
+                    {
+                        var maxPrice = prices.Max(p => p.TargetPrice);
+                        <div class="dz-bars">
+                            @foreach (var p in prices)
+                            {
+                                <div class="dz-bar gx-price" data-tip="@($"{UiText.Money(p.TargetPrice)} por {p.Unit}|{p.Section} · {p.Item}")" tabindex="0">
+                                    <span class="dz-bar__name" title="@($"{p.Section} · {p.Item} {p.Type}")">@p.Item @p.Type</span>
+                                    <div class="dz-track"><div class="dz-fill" style="width:@Pct(p.TargetPrice, maxPrice)%"></div></div>
+                                    <span class="dz-bar__pct">@UiText.Money(p.TargetPrice)<small>/@p.Unit</small></span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="gx-card">
+                    <div class="gx-card__top"><h3>Órdenes por nodo</h3><span class="dz-note">las de mayor valor</span></div>
+                    @if (orders.Count == 0)
+                    {
+                        <EmptyState Title="Sin órdenes" Icon="@Icons.Material.Outlined.Receipt" Description="Suba el preciario para ver las órdenes." />
+                    }
+                    else
+                    {
+                        <table class="gx-table">
+                            <thead><tr><th>Orden</th><th>Brigada</th><th class="num">Valor con IVA</th><th>Estado</th></tr></thead>
+                            <tbody>
+                                @foreach (var o in orders)
+                                {
+                                    var done = DashboardMath.IsLiquidated(o.LiquidationStatus);
+                                    <tr>
+                                        <td><b>@o.Code</b><div class="gx-mini"><span style="width:@Pct(o.Total, maxOrder)%"></span></div></td>
+                                        <td title="@o.ContractorName">@(string.IsNullOrWhiteSpace(o.ContractorName) ? "—" : o.ContractorName)</td>
+                                        <td class="num">@UiText.Money(o.Total)</td>
+                                        <td><span class="gx-state@(done ? " is-done" : string.Empty)">@(done ? "Liquidada" : "Por liquidar")</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </section>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private static readonly CultureInfo Culture = new("es-SV");
+
+    private bool _loading = true;
+    private int _projectId;
+    private List<ExpenseEntry> _entries = [];
+    private List<ExpenseFund> _funds = [];
+    private List<ContractOrder> _orders = [];
+    private List<PriceItem> _prices = [];
+    private int _year;
+    private int _month;
+    private int _kind = -1;
+    private int _fund;
+    private bool _byWeek = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _projectId = await Selection.EnsureAsync() ?? 0;
+        _entries = await Finance.ExpensesAsync(null, null);
+        _funds = await Finance.FundsAsync();
+        await LoadProjectAsync();
+        _loading = false;
+    }
+
+    private async Task OnProjectChanged(int id)
+    {
+        _projectId = id;
+        await LoadProjectAsync();
+    }
+
+    private async Task LoadProjectAsync()
+    {
+        _orders = _projectId == 0 ? [] : await Finance.OrdersAsync(_projectId);
+        _prices = _projectId == 0 ? [] : await Finance.PricesAsync(_projectId);
+    }
+
+    private void Clear() => (_year, _month, _kind, _fund) = (0, 0, -1, 0);
+
+    private Task FullscreenAsync() => JS.InvokeVoidAsync("tkFullscreen").AsTask();
+
+    private bool KindOk(ExpenseEntry e) => _kind < 0 || (int)e.Kind == _kind;
+    private bool FundOk(ExpenseEntry e) => _fund == 0 || e.FundId == _fund;
+
+    private List<ExpenseEntry> Filtered() => _entries
+        .Where(e => KindOk(e) && FundOk(e) && (_year == 0 || e.Date.Year == _year) && (_month == 0 || e.Date.Month == _month))
+        .ToList();
+
+    /// <summary>Último mes con gastos contra el anterior (total y compras).</summary>
+    private static (decimal? Total, decimal? Purchases) MonthChips(List<ExpenseEntry> rows)
+    {
+        if (rows.Count == 0) { return (null, null); }
+        var last = rows.Max(e => e.Date);
+        var current = new DateOnly(last.Year, last.Month, 1);
+        var previous = current.AddMonths(-1);
+        decimal Sum(DateOnly month, bool onlyPurchases) => rows.Where(e => e.Date.Year == month.Year && e.Date.Month == month.Month && (!onlyPurchases || e.Kind == ExpenseKind.Purchase)).Sum(e => e.Total);
+        return (DashboardMath.PercentChange(Sum(current, false), Sum(previous, false)), DashboardMath.PercentChange(Sum(current, true), Sum(previous, true)));
+    }
+
+    private sealed record Bucket(string Label, string Tip, decimal Value);
+
+    private List<Bucket> Buckets(List<ExpenseEntry> rows)
+    {
+        var list = new List<Bucket>();
+        if (rows.Count == 0) { return list; }
+        var last = rows.Max(e => e.Date);
+        if (_byWeek)
+        {
+            var monday = last.AddDays(-(((int)last.DayOfWeek + 6) % 7));
+            for (var i = 6; i >= 0; i--)
+            {
+                var start = monday.AddDays(-7 * i);
+                var value = rows.Where(e => e.Date >= start && e.Date < start.AddDays(7)).Sum(e => e.Total);
+                list.Add(new Bucket(start.ToString("dd/MM", Culture), $"Semana del {UiText.ShortDate(start)}", value));
+            }
+        }
+        else
+        {
+            var first = new DateOnly(last.Year, last.Month, 1);
+            for (var i = 6; i >= 0; i--)
+            {
+                var start = first.AddMonths(-i);
+                var value = rows.Where(e => e.Date.Year == start.Year && e.Date.Month == start.Month).Sum(e => e.Total);
+                list.Add(new Bucket(start.ToString("MMM", Culture).TrimEnd('.'), start.ToString("MMMM yyyy", Culture), value));
+            }
+        }
+
+        return list;
+    }
+
+    private static string ChipClass(decimal? change) => change is null ? "is-flat" : change >= 0 ? "is-up" : "is-down";
+
+    private static string Pct(decimal value, decimal max) => (max <= 0 ? 0 : (double)Math.Clamp(value / max * 100m, 0, 100)).ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static string KindLabel(ExpenseEntry e) => e.Kind switch
+    {
+        ExpenseKind.PettyCash => "Caja chica",
+        ExpenseKind.Travel => "Viáticos",
+        _ => string.IsNullOrWhiteSpace(e.Category) ? "Compra" : e.Category!,
+    };
+
+    /// <summary>Medidor semicircular segmentado: cada segmento es el 5 % del fondo.</summary>
+    private RenderFragment Gauge(decimal usedPercent) => @<div class="gx-gauge">
+        @{
+            const int segments = 20;
+            var filled = (int)Math.Round((double)Math.Min(100m, usedPercent) / 100.0 * segments);
+        }
+        <svg viewBox="0 0 200 112" role="img" aria-label="@($"{usedPercent:0}% de los fondos usado")">
+            @for (var i = 0; i < segments; i++)
+            {
+                var a0 = Math.PI + Math.PI * i / segments + 0.02;
+                var a1 = Math.PI + Math.PI * (i + 1) / segments - 0.02;
+                string P(double r, double a) => $"{(100 + r * Math.Cos(a)).ToString("0.##", CultureInfo.InvariantCulture)},{(104 + r * Math.Sin(a)).ToString("0.##", CultureInfo.InvariantCulture)}";
+                var d = $"M{P(92, a0)} A92,92 0 0 1 {P(92, a1)} L{P(60, a1)} A60,60 0 0 0 {P(60, a0)} Z";
+                <path d="@d" class="@(i < filled ? $"gx-seg is-on gx-seg--{i * 4 / segments}" : "gx-seg")"></path>
+            }
+        </svg>
+        <div class="gx-gauge__value"><strong>@usedPercent.ToString("0")%</strong><span>usado</span></div>
+    </div>;
+}

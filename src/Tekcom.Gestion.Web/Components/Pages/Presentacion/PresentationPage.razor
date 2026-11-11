@@ -1,4 +1,3 @@
-@page "/presentacion"
 @attribute [Authorize]
 @using System.Globalization
 @using Tekcom.Gestion.Application.Models
@@ -10,7 +9,6 @@
 @inject IJSRuntime JS
 @inject ProjectSelection Selection
 
-<PageTitle>Presentación · TEK-COM</PageTitle>
 
 @if (_loading)
 {
@@ -18,7 +16,7 @@
 }
 else if (_projectId == 0 || _data is null)
 {
-    <PageHeader Title="Presentación" Subtitle="Gráficos del avance del proyecto para reuniones y reportes" />
+    <PageHeader Title="Dashboard" Subtitle="Gráficos del avance del proyecto para reuniones y reportes" />
     <SectionCard>
         <EmptyState Title="Todavía no hay proyectos" Icon="@Icons.Material.Outlined.Slideshow"
                     Description="Importe el Excel o cree un proyecto para ver aquí sus gráficos.">
@@ -100,6 +98,7 @@ else
                 <button type="button" class="dz-menu" @onclick='() => JS.InvokeVoidAsync("tkNav")' aria-label="Mostrar u ocultar el menú del sistema" title="Menú del sistema">☰</button>
                 <div class="dz-brand"><img src="branding/logo.png" alt="TEK-COM" /></div>
             </div>
+            <DashTabs Current="fttf" />
             <div class="dz-side__head"><div class="dz-side__title">FILTROS</div><span class="dz-rule"></span></div>
             <div class="dz-field dz-field--project"><span>PROYECTO</span><ProjectPicker Value="_projectId" Changed="OnProjectChanged" /></div>
             <label class="dz-field"><span>AÑO</span>

@@ -1,0 +1,15 @@
+@using Tekcom.Gestion.Web.Services
+
+@* Pestañas del Dashboard (con subrayado). "Gastos y precios" solo la ve el administrador. *@
+<nav class="dz-tabs tk-no-print" aria-label="Vistas del dashboard">
+    <a href="dashboard" class="@Class("fttf")">Despliegue FTTH</a>
+    <AuthorizeView Roles="@AppRoles.Admin">
+        <a href="dashboard?vista=gastos" class="@Class("gastos")">Gastos y precios</a>
+    </AuthorizeView>
+</nav>
+
+@code {
+    [Parameter, EditorRequired] public string Current { get; set; } = "fttf";
+
+    private string Class(string tab) => tab == Current ? "is-active" : string.Empty;
+}
