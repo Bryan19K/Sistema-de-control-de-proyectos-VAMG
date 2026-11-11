@@ -348,6 +348,8 @@ else
         </div>
     </div>
 
+    <NodeTracking Rows="matrix" Colors="_colors" />
+
     @* ============ Requiere atención ============ *@
     <section class="pv-row pv-row--1">
         @{ var attention = d.Attention.Where(a => !a.Title.Contains("atrasad", StringComparison.OrdinalIgnoreCase)).ToList(); }

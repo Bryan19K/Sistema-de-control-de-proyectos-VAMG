@@ -1,0 +1,185 @@
+@using System.Globalization
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Entities
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+@inject ISiteService Sites
+
+@* Seguimiento por nodo: fichas de estado de colores, lista de nodos con anillo de % y el cronograma de las etapas del nodo elegido. *@
+<section class="nt dz" style="@ColorStyle" aria-label="Seguimiento por nodo">
+    <div class="nt-chips">
+        @Chip("", "Total de nodos", Rows.Count, "nt-total")
+        @Chip("pending", "Sin iniciar", Rows.Count(r => r.Progress <= 0), "nt-gray")
+        @Chip("progress", "En avance", Rows.Count(r => r.Progress > 0 && r.Progress < 100), "nt-prog")
+        @Chip("done", "Finalizados", Rows.Count(r => r.Progress >= 100), "nt-done")
+        @Chip("measure", "Listos para medir", Rows.Count(r => r.ReadyToMeasure), "nt-measure")
+        @Chip("deliver", "Listos para entregar", Rows.Count(r => r.ReadyToDeliver), "nt-deliver")
+    </div>
+
+    @{
+        var shown = Rows.Where(Match).OrderByDescending(r => r.Progress).ThenBy(r => r.Code).ToList();
+    }
+    <div class="nt-body">
+        <div class="nt-list" role="listbox" aria-label="Nodos">
+            @if (shown.Count == 0)
+            {
+                <EmptyState Title="Sin nodos" Icon="@Icons.Material.Outlined.Hub" Description="Cambie los filtros o la ficha elegida." />
+            }
+            @foreach (var n in shown)
+            {
+                <button type="button" role="option" aria-selected="@(n.SiteId == _selected)" class="@NodeClass(n.SiteId)" @onclick="() => SelectAsync(n.SiteId)">
+                    <span class="nt-ring" style="@RingStyle(n.Progress)"><b>@n.Progress.ToString("0")%</b></span>
+                    <span class="nt-node__text"><strong>@n.Code</strong><small>@n.Brigade</small></span>
+                    <span class="nt-dots">
+                        <span title="FATs instaladas de las proyectadas"><i class="d-done"></i>@UiText.Number(n.FatsInstalled)<small>/@UiText.Number(n.FatsProjected)</small></span>
+                        <span title="Metros de cable tendido"><i class="d-prog"></i>@UiText.Number(n.CableMeters) m</span>
+                        <span title="Piezas instaladas"><i class="d-gray"></i>@UiText.Number(n.Pieces)</span>
+                    </span>
+                </button>
+            }
+        </div>
+
+        <div class="nt-detail">
+            @{
+                var node = Rows.FirstOrDefault(r => r.SiteId == _selected);
+            }
+            @if (node is null)
+            {
+                <EmptyState Title="Elija un nodo" Icon="@Icons.Material.Outlined.Timeline" Description="Toque un nodo de la lista para ver el cronograma de sus etapas." />
+            }
+            else
+            {
+                <div class="nt-detail__head">
+                    <h3><MudIcon Icon="@Icons.Material.Outlined.Folder" Size="Size.Small" /> @node.Code</h3>
+                    <span>@node.Brigade@(string.IsNullOrWhiteSpace(node.Supervisor) ? string.Empty : $" · {node.Supervisor}")@(node.HomesPassed is { } hp ? $" · {UiText.Number(hp)} HP" : string.Empty)</span>
+                </div>
+                @if (_loading)
+                {
+                    <MudProgressLinear Indeterminate="true" />
+                }
+                else if (_stages.Count == 0)
+                {
+                    <EmptyState Title="Sin etapas" Icon="@Icons.Material.Outlined.Timeline" Description="Este nodo todavía no tiene etapas." />
+                }
+                else
+                {
+                    var dates = _stages.SelectMany(s => new[] { s.PlannedStart, s.PlannedEnd, s.ActualStart, s.ActualEnd }).Where(d => d is not null).Select(d => d!.Value).ToList();
+                    DateOnly? from = dates.Count == 0 ? null : dates.Min();
+                    DateOnly? to = dates.Count == 0 ? null : dates.Max();
+                    var span = from is null ? 1 : Math.Max(1, to!.Value.DayNumber - from.Value.DayNumber + 1);
+                    <div class="nt-table-wrap">
+                        <table class="nt-table">
+                            <thead>
+                                <tr><th>#</th><th>Etapa</th><th>Estado</th><th class="nt-gantt-head">@(from is null ? "Sin fechas" : $"{UiText.ShortDate(from)} – {UiText.ShortDate(to)}")</th></tr>
+                            </thead>
+                            <tbody>
+                                @for (var i = 0; i < _stages.Count; i++)
+                                {
+                                    var s = _stages[i];
+                                    <tr>
+                                        <td>@(i + 1)</td>
+                                        <td title="@(s.Definition?.Name)">@(s.Definition?.Name ?? s.Code.ToString())</td>
+                                        <td><span class="nt-state @StateClass(s.Status)">@UiText.StageStatusName(s.Status)</span></td>
+                                        <td class="nt-gantt">
+                                            @if (from is not null)
+                                            {
+                                                @Bar(s.PlannedStart, s.PlannedEnd, from.Value, span, "plan", $"Plan {UiText.ShortDate(s.PlannedStart)} – {UiText.ShortDate(s.PlannedEnd)}")
+                                                @Bar(s.ActualStart, s.ActualEnd ?? (s.Status == StageStatus.InProgress ? DateOnly.FromDateTime(DateTime.Today) : null), from.Value, span, "real", $"Real {UiText.ShortDate(s.ActualStart)} – {UiText.ShortDate(s.ActualEnd)}")
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="dz-legend nt-legend"><span><i class="dz-key nt-key-plan"></i> Planificado</span><span><i class="dz-key dz-key--ink"></i> Real</span></div>
+                }
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public List<NodeMatrixRow> Rows { get; set; } = [];
+    [Parameter] public DashboardColors Colors { get; set; } = DashboardColors.Default;
+
+    private int _selected;
+    private string _filter = string.Empty;
+    private bool _loading;
+    private List<SiteStage> _stages = [];
+
+    private string ColorStyle => $"--dz-done:{Colors.Done};--dz-prog:{Colors.InProgress};--dz-red:{Colors.Alert}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_selected == 0 || Rows.All(r => r.SiteId != _selected))
+        {
+            var first = Rows.OrderByDescending(r => r.Progress).ThenBy(r => r.Code).FirstOrDefault();
+            _selected = first?.SiteId ?? 0;
+            await LoadAsync();
+        }
+    }
+
+    private async Task SelectAsync(int id)
+    {
+        _selected = id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_selected == 0)
+        {
+            _stages = [];
+            return;
+        }
+
+        _loading = true;
+        _stages = (await Sites.StagesAsync(_selected)).OrderBy(s => s.Definition?.SortOrder ?? (int)s.Code).ToList();
+        _loading = false;
+    }
+
+    private bool Match(NodeMatrixRow r) => _filter switch
+    {
+        "pending" => r.Progress <= 0,
+        "progress" => r.Progress > 0 && r.Progress < 100,
+        "done" => r.Progress >= 100,
+        "measure" => r.ReadyToMeasure,
+        "deliver" => r.ReadyToDeliver,
+        _ => true,
+    };
+
+    private RenderFragment Chip(string key, string label, int count, string cls) => @<button type="button" class="@ChipClass(cls, key)" aria-pressed="@(_filter == key)" @onclick="() => _filter = key">
+        <small>@label</small><strong>@count</strong>
+    </button>;
+
+    private string NodeClass(int id) => id == _selected ? "nt-node is-selected" : "nt-node";
+
+    private string ChipClass(string cls, string key) => _filter == key ? $"nt-chip {cls} is-active" : $"nt-chip {cls}";
+
+    private static string RingStyle(decimal progress) =>
+        $"background: conic-gradient(var(--dz-{(progress >= 100 ? "done" : "prog")}) {Math.Clamp(progress, 0, 100).ToString("0.#", CultureInfo.InvariantCulture)}%, var(--dz-track) 0)";
+
+    private static string StateClass(StageStatus s) => s switch
+    {
+        StageStatus.Finished => "is-done",
+        StageStatus.InProgress => "is-prog",
+        StageStatus.InCorrection => "is-red",
+        _ => "is-gray",
+    };
+
+    private static MarkupString Bar(DateOnly? start, DateOnly? end, DateOnly from, int span, string kind, string tip)
+    {
+        if (start is null)
+        {
+            return new MarkupString(string.Empty);
+        }
+
+        var last = end ?? start.Value;
+        var left = (start.Value.DayNumber - from.DayNumber) * 100.0 / span;
+        var width = Math.Max(1.5, (Math.Max(last.DayNumber, start.Value.DayNumber) - start.Value.DayNumber + 1) * 100.0 / span);
+        string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+        return new MarkupString($"<span class=\"nt-bar nt-bar--{kind}\" style=\"left:{F(left)}%;width:{F(width)}%\" title=\"{System.Net.WebUtility.HtmlEncode(tip)}\"></span>");
+    }
+}
