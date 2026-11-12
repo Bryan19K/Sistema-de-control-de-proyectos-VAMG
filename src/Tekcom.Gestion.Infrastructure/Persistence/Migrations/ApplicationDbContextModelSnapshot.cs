@@ -2588,6 +2588,9 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Property<bool?>("MaterialsDelivered")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("MunicipalPermitStatus")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");

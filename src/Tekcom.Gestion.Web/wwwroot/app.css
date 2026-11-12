@@ -2049,3 +2049,5 @@ html[data-theme="dark"] .gx-actions button { color: var(--gx-ink); }
 .hg-col.is-met .hg-col__bar { background: var(--dz-done); } .hg-col.is-now .hg-col__bar { outline: 2px dashed var(--dz-ink); outline-offset: 1px; }
 .hg-col__lbl { font-size: 9.5px; color: var(--dz-sub); height: 14px; margin-top: 3px; }
 .hg-goal { position: absolute; left: 12px; right: 12px; border-top: 2px dashed var(--dz-red); z-index: 2; pointer-events: none; margin-bottom: 20px; } .hg-goal span { position: absolute; right: 0; top: -17px; font-size: 10px; font-weight: 700; color: var(--dz-red); background: var(--dz-panel); padding: 0 4px; }
+.kx-permit-label { font-size: 10.5px; font-weight: 700; color: var(--dz-sub); margin: 8px 0 3px; text-transform: uppercase; letter-spacing: .05em; }
+.kx-permit strong { font-size: 20px; }

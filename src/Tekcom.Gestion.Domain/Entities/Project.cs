@@ -90,6 +90,9 @@ public class Site : AuditableEntity
     /// <summary>Estado del permiso: solicitud pendiente, permiso en trámite o permiso aprobado.</summary>
     public PermitStatus PermitStatus { get; set; } = PermitStatus.RequestPending;
 
+    /// <summary>Estado del permiso municipal del nodo (mismos tres estados).</summary>
+    public PermitStatus MunicipalPermitStatus { get; set; } = PermitStatus.RequestPending;
+
     /// <summary>Si ya se entregó el material al contratista (SI / NO del Excel). Null = sin dato.</summary>
     public bool? MaterialsDelivered { get; set; }
 
