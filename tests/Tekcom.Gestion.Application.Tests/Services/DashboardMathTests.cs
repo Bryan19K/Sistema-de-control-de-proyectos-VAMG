@@ -43,4 +43,21 @@ public class DashboardMathTests
     [InlineData(null, false)]
     public void Liquidated_orders_are_recognized_by_their_status(string? status, bool expected) =>
         DashboardMath.IsLiquidated(status).Should().Be(expected);
+
+    [Fact]
+    public void Estimated_close_uses_the_pace_since_the_first_installation()
+    {
+        // 20 % en 20 días = 1 % por día: faltan 80 días.
+        DashboardMath.EstimatedClose(20m, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 21)).Should().Be(new DateOnly(2027, 1, 9));
+        DashboardMath.EstimatedClose(0m, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 21)).Should().BeNull();
+        DashboardMath.EstimatedClose(10m, new DateOnly(2026, 10, 18), new DateOnly(2026, 10, 21)).Should().BeNull("menos de una semana no alcanza para estimar");
+        DashboardMath.EstimatedClose(100m, null, new DateOnly(2026, 10, 21)).Should().Be(new DateOnly(2026, 10, 21));
+    }
+
+    [Fact]
+    public void Unit_cost_divides_the_total_and_needs_units()
+    {
+        DashboardMath.UnitCost(4841.14m, 4106m).Should().Be(1.18m);
+        DashboardMath.UnitCost(100m, 0m).Should().BeNull();
+    }
 }
