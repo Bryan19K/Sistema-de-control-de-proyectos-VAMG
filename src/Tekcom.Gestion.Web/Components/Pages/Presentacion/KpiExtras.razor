@@ -23,20 +23,24 @@
     </div>
 
     <div class="kx-card">
-        <h3>Permisos eléctricos</h3>
-        <div class="kx-permits">
-            @foreach (var status in Enum.GetValues<PermitStatus>())
-            {
-                var nodes = Rows.Where(r => r.Permit == status).OrderBy(r => r.Code).ToList();
-                <div class="kx-permit kx-permit--@((int)status)" data-tip="@($"{nodes.Count} nodos|{ConstructionMath.PermitName(status)}: {(nodes.Count == 0 ? "ninguno" : string.Join(", ", nodes.Select(n => n.Code)))}")" tabindex="0">
-                    <strong>@nodes.Count</strong><span>@ConstructionMath.PermitName(status)</span>
-                </div>
-            }
-        </div>
-        @{
-            var pending = Rows.Where(r => r.Permit != PermitStatus.Approved && r.Progress > 0).OrderBy(r => r.Code).ToList();
+        <h3>Permisos</h3>
+        @foreach (var (label, pick) in new (string, Func<NodeMatrixRow, PermitStatus>)[] { ("Eléctricos", r => r.Permit), ("Municipales", r => r.MunicipalPermit) })
+        {
+            <div class="kx-permit-label">@label</div>
+            <div class="kx-permits">
+                @foreach (var status in Enum.GetValues<PermitStatus>())
+                {
+                    var nodes = Rows.Where(r => pick(r) == status).OrderBy(r => r.Code).ToList();
+                    <div class="kx-permit kx-permit--@((int)status)" data-tip="@($"{nodes.Count} nodos|{label}, {ConstructionMath.PermitName(status)}: {(nodes.Count == 0 ? "ninguno" : string.Join(", ", nodes.Select(n => n.Code)))}")" tabindex="0">
+                        <strong>@nodes.Count</strong><span>@ConstructionMath.PermitName(status)</span>
+                    </div>
+                }
+            </div>
         }
-        <p>@(pending.Count == 0 ? "Ningún nodo con obra iniciada está esperando permiso." : $"Con obra iniciada y sin permiso aprobado: {string.Join(", ", pending.Select(n => n.Code))}.")</p>
+        @{
+            var pending = Rows.Where(r => (r.Permit != PermitStatus.Approved || r.MunicipalPermit != PermitStatus.Approved) && r.Progress > 0).OrderBy(r => r.Code).ToList();
+        }
+        <p>@(pending.Count == 0 ? "Ningún nodo con obra iniciada está esperando permiso." : $"Con obra iniciada y algún permiso sin aprobar: {string.Join(", ", pending.Select(n => n.Code))}.")</p>
     </div>
 
     <div class="kx-card kx-card--wide">

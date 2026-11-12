@@ -108,6 +108,7 @@ public sealed class SiteService(
         entity.Notes = string.IsNullOrWhiteSpace(site.Notes) ? null : site.Notes.Trim();
         entity.HomesPassed = site.HomesPassed is < 0 ? null : site.HomesPassed;
         entity.PermitStatus = site.PermitStatus;
+        entity.MunicipalPermitStatus = site.MunicipalPermitStatus;
         entity.ElectricalPermitStatus = ConstructionMath.PermitName(site.PermitStatus);
         entity.MaterialsDelivered = site.MaterialsDelivered;
         entity.KmzStatus = site.KmzStatus;
@@ -229,6 +230,9 @@ public sealed class SiteService(
             s.PermitStatus = status;
             s.ElectricalPermitStatus = ConstructionMath.PermitName(status);
         }, ct);
+
+    public Task SetMunicipalPermitStatusAsync(int siteId, PermitStatus status, CancellationToken ct = default) =>
+        UpdateAsync(siteId, s => s.MunicipalPermitStatus = status, ct);
 
     public Task SetCaesAsync(int siteId, bool supervised, CancellationToken ct = default) =>
         UpdateAsync(siteId, s => s.CaesSupervised = supervised, ct);

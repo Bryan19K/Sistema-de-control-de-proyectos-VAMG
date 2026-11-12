@@ -51,6 +51,14 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" sm="4">
+                <MudSelect T="PermitStatus" @bind-Value="_model.MunicipalPermitStatus" Label="Permisos municipales" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var option in Enum.GetValues<PermitStatus>())
+                    {
+                        <MudSelectItem T="PermitStatus" Value="option">@ConstructionMath.PermitName(option)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
                 <MudSelect T="bool?" @bind-Value="_model.MaterialsDelivered" Label="Materiales entregados" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
                     <MudSelectItem T="bool?" Value="true">Sí</MudSelectItem>
                     <MudSelectItem T="bool?" Value="false">No</MudSelectItem>
@@ -115,7 +123,7 @@
                 Latitude = Model.Latitude, Longitude = Model.Longitude, ContractorId = Model.ContractorId,
                 SupervisorId = Model.SupervisorId, PlannedStart = Model.PlannedStart, PlannedEnd = Model.PlannedEnd,
                 ActualStart = Model.ActualStart, ActualEnd = Model.ActualEnd, Notes = Model.Notes,
-                HomesPassed = Model.HomesPassed, ElectricalPermitStatus = Model.ElectricalPermitStatus, PermitStatus = Model.PermitStatus, MaterialsDelivered = Model.MaterialsDelivered,
+                HomesPassed = Model.HomesPassed, ElectricalPermitStatus = Model.ElectricalPermitStatus, PermitStatus = Model.PermitStatus, MunicipalPermitStatus = Model.MunicipalPermitStatus, MaterialsDelivered = Model.MaterialsDelivered,
                 KmzStatus = Model.KmzStatus, UmConsolidatedStatus = Model.UmConsolidatedStatus, PhotoReportStatus = Model.PhotoReportStatus, AtpDelivered = Model.AtpDelivered,
             };
     }

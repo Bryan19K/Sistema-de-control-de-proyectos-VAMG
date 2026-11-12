@@ -133,6 +133,25 @@ else
                                             }
                                         </td>
                                     </tr>
+                                    <tr class="tk-permit-row">
+                                        <td><strong>Permisos municipales</strong></td>
+                                        <td colspan="4">
+                                            @if (_canEdit)
+                                            {
+                                                <MudSelect T="PermitStatus" Value="_summary.Site.MunicipalPermitStatus" ValueChanged="SetMunicipalPermitAsync"
+                                                           Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="tk-inline-select">
+                                                    @foreach (var option in Enum.GetValues<PermitStatus>())
+                                                    {
+                                                        <MudSelectItem T="PermitStatus" Value="option">@ConstructionMath.PermitName(option)</MudSelectItem>
+                                                    }
+                                                </MudSelect>
+                                            }
+                                            else
+                                            {
+                                                <span class="permit-chip permit-chip--@((int)_summary.Site.MunicipalPermitStatus)">@ConstructionMath.PermitName(_summary.Site.MunicipalPermitStatus)</span>
+                                            }
+                                        </td>
+                                    </tr>
                                 }
                             }
                         </tbody>
@@ -184,6 +203,7 @@ else
         <SectionCard Title="Orden de construcción" Class="mt-6">
             <div class="tk-flag"><div><div class="tk-flag__label">HP (hogares que pasa)</div></div><strong>@(site.HomesPassed is { } hp ? UiText.Number(hp) : "—")</strong></div>
             <div class="tk-flag"><div><div class="tk-flag__label">Permisos eléctricos</div></div><strong>@ConstructionMath.PermitName(site.PermitStatus)</strong></div>
+            <div class="tk-flag"><div><div class="tk-flag__label">Permisos municipales</div></div><strong>@ConstructionMath.PermitName(site.MunicipalPermitStatus)</strong></div>
             <div class="tk-flag"><div><div class="tk-flag__label">Entrega de materiales</div></div><strong>@YesNoText(site.MaterialsDelivered)</strong></div>
             <div class="tk-flag"><div><div class="tk-flag__label">KMZ</div></div><strong>@DocText(site.KmzStatus)</strong></div>
             <div class="tk-flag"><div><div class="tk-flag__label">Consolidado de UM</div></div><strong>@DocText(site.UmConsolidatedStatus)</strong></div>
@@ -441,6 +461,7 @@ else
     private Task SaveNotesAsync(SiteStage stage, string? text) =>
         RunAsync(() => Sites.SetStageAsync(Id, stage.Code, stage.Status, null, text));
 
+    private Task SetMunicipalPermitAsync(PermitStatus status) => RunAsync(() => Sites.SetMunicipalPermitStatusAsync(Id, status));
     private Task SetPermitAsync(PermitStatus status) => RunAsync(() => Sites.SetPermitStatusAsync(Id, status));
     private Task SetCaesAsync(bool value) => RunAsync(() => Sites.SetCaesAsync(Id, value));
     private Task SetOdnAsync(bool value) => RunAsync(() => Sites.SetOdnFinalizedAsync(Id, value));
