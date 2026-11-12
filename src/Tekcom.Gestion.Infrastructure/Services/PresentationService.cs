@@ -127,7 +127,7 @@ public sealed class PresentationService(
             s.ReadyToMeasure, s.Site.IsReadyToDeliver, s.VinetasInstalled, s.VinetasProjected,
             metersBySite.GetValueOrDefault(s.Site.Id), piecesBySite.GetValueOrDefault(s.Site.Id),
             s.Site.PlannedEnd, s.Pace.ProjectedEnd, s.Site.Contractor?.Name ?? "Sin brigada", s.Site.HomesPassed,
-            s.Site.Supervisor?.Name ?? "Sin supervisor", s.Quantities, s.Site.OdnFinalized)).ToList();
+            s.Site.Supervisor?.Name ?? "Sin supervisor", s.Quantities, s.Site.OdnFinalized, s.Pace.ElapsedPercent, s.Site.PlannedStart)).ToList();
 
         var production = installedMoves.GroupBy(m => m.Date).OrderBy(g => g.Key)
             .Select(g => new DayProduction(g.Key, g.Sum(MetersOf), g.Where(IsFat).Sum(m => m.Quantity), g.Where(m => m.Material?.Unit == "UND").Sum(m => m.Quantity)))

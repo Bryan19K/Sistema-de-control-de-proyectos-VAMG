@@ -54,4 +54,11 @@ public static class DashboardMath
 
     /// <summary>Costo por unidad (home pass, kilómetro, FAT); vacío si todavía no hay unidades.</summary>
     public static decimal? UnitCost(decimal total, decimal units) => units <= 0 ? null : Math.Round(total / units, 2);
+
+    /// <summary>Instalado sobre proyectado sin pasarse de lo proyectado, de 0 a 100; vacío si no hay proyección.</summary>
+    public static decimal? CappedPercent(decimal installed, decimal projected) =>
+        projected <= 0 ? null : Math.Round(Math.Min(installed, projected) / projected * 100m, 1);
+
+    /// <summary>Brecha contra la programación: avance real − avance esperado por el tiempo transcurrido (en puntos).</summary>
+    public static decimal Gap(decimal real, decimal expected) => Math.Round(real - expected, 1);
 }
