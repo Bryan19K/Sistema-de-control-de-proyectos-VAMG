@@ -277,7 +277,8 @@ public sealed record NodeMatrixRow(
     DateOnly? PlannedEnd, DateOnly? ProjectedEnd, string Brigade, int? HomesPassed = null, string? Supervisor = null,
     IReadOnlyDictionary<QuantityGroup, QuantityPair>? Quantities = null, bool OdnClosed = false,
     decimal ElapsedPercent = 0, DateOnly? PlannedStart = null, PermitStatus Permit = PermitStatus.RequestPending,
-    PermitStatus MunicipalPermit = PermitStatus.RequestPending)
+    PermitStatus MunicipalPermit = PermitStatus.RequestPending,
+    DateOnly? ElectricalRequestedOn = null, DateOnly? ElectricalApprovedOn = null, DateOnly? MunicipalRequestedOn = null, DateOnly? MunicipalApprovedOn = null)
 {
     /// <summary>Finalizado de verdad: ODN cerrada, o todo instalado y con las mediciones de FATs terminadas.</summary>
     public bool Completed => Progress >= 100 && (OdnClosed || Measurement == StageStatus.Finished);

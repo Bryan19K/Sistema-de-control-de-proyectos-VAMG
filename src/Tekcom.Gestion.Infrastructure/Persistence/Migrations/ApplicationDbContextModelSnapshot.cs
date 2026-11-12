@@ -2557,9 +2557,15 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<DateOnly?>("ElectricalApprovedOn")
+                        .HasColumnType("date");
+
                     b.Property<string>("ElectricalPermitStatus")
                         .HasMaxLength(60)
                         .HasColumnType("character varying(60)");
+
+                    b.Property<DateOnly?>("ElectricalRequestedOn")
+                        .HasColumnType("date");
 
                     b.Property<int>("FeederStatus")
                         .HasColumnType("integer");
@@ -2588,8 +2594,14 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Property<bool?>("MaterialsDelivered")
                         .HasColumnType("boolean");
 
+                    b.Property<DateOnly?>("MunicipalApprovedOn")
+                        .HasColumnType("date");
+
                     b.Property<int>("MunicipalPermitStatus")
                         .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("MunicipalRequestedOn")
+                        .HasColumnType("date");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)

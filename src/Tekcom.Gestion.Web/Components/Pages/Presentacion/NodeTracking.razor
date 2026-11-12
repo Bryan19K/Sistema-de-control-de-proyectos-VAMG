@@ -96,12 +96,12 @@
                                         <tr class="nt-permit">
                                             <td></td>
                                             <td><strong>Permisos eléctricos</strong></td>
-                                            <td colspan="2"><span class="permit-chip permit-chip--@((int)node.Permit)">@ConstructionMath.PermitName(node.Permit)</span></td>
+                                            <td colspan="2"><span class="permit-chip permit-chip--@((int)node.Permit)">@ConstructionMath.PermitName(node.Permit)</span> <small class="permit-days">@PermitText(node.ElectricalRequestedOn, node.ElectricalApprovedOn)</small></td>
                                         </tr>
                                         <tr class="nt-permit">
                                             <td></td>
                                             <td><strong>Permisos municipales</strong></td>
-                                            <td colspan="2"><span class="permit-chip permit-chip--@((int)node.MunicipalPermit)">@ConstructionMath.PermitName(node.MunicipalPermit)</span></td>
+                                            <td colspan="2"><span class="permit-chip permit-chip--@((int)node.MunicipalPermit)">@ConstructionMath.PermitName(node.MunicipalPermit)</span> <small class="permit-days">@PermitText(node.MunicipalRequestedOn, node.MunicipalApprovedOn)</small></td>
                                         </tr>
                                     }
                                 }
@@ -118,6 +118,7 @@
 @code {
     [Parameter, EditorRequired] public List<NodeMatrixRow> Rows { get; set; } = [];
     [Parameter] public DashboardColors Colors { get; set; } = DashboardColors.Default;
+    [Parameter, EditorRequired] public PresentationData Data { get; set; } = default!;
 
     private int _selected;
     private string _filter = string.Empty;
@@ -169,6 +170,9 @@
     private RenderFragment Chip(string key, string label, int count, string cls) => @<button type="button" class="@ChipClass(cls, key)" aria-pressed="@(_filter == key)" @onclick="() => _filter = key">
         <small>@label</small><strong>@count</strong>
     </button>;
+
+    private string PermitText(DateOnly? requestedOn, DateOnly? approvedOn) =>
+        ConstructionMath.PermitDays(requestedOn, approvedOn, Data.Today) is { } days ? (approvedOn is null ? $"{days} días en trámite" : $"{days} días de trámite") : string.Empty;
 
     private string NodeClass(int id) => id == _selected ? "nt-node is-selected" : "nt-node";
 

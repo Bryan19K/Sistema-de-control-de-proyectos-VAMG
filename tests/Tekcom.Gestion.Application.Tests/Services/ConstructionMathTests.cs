@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using Tekcom.Gestion.Application.Common;
+using Tekcom.Gestion.Domain.Entities;
 using Tekcom.Gestion.Application.Tests.Support;
 using Tekcom.Gestion.Domain.Enums;
 using Tekcom.Gestion.Infrastructure.Services;
@@ -56,5 +58,53 @@ public class ConstructionMathTests
         (await goals.GetWeeklyHpGoalAsync()).Should().Be(1200);
         await Assert.ThrowsAsync<BusinessRuleException>(() => goals.SaveWeeklyHpGoalAsync(0));
         (await goals.GetWeeklyHpGoalAsync()).Should().Be(1200);
+    }
+}
+
+public class PermitDatesTests
+{
+    private static readonly DateOnly Today = new(2026, 11, 12);
+
+    [Fact]
+    public void Changing_the_status_marks_the_request_and_approval_dates()
+    {
+        ConstructionMath.PermitDates(PermitStatus.InProcess, null, null, Today).Should().Be((Today, (DateOnly?)null));
+        ConstructionMath.PermitDates(PermitStatus.Approved, new DateOnly(2026, 11, 2), null, Today).Should().Be((new DateOnly(2026, 11, 2), Today));
+        ConstructionMath.PermitDates(PermitStatus.Approved, null, null, Today).Should().Be((Today, Today));
+        ConstructionMath.PermitDates(PermitStatus.RequestPending, Today, Today, Today).Should().Be(((DateOnly?)null, (DateOnly?)null));
+    }
+
+    [Fact]
+    public void Permit_days_run_to_the_approval_or_to_today()
+    {
+        ConstructionMath.PermitDays(new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 9), Today).Should().Be(7);
+        ConstructionMath.PermitDays(new DateOnly(2026, 11, 2), null, Today).Should().Be(10);
+        ConstructionMath.PermitDays(null, null, Today).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task The_service_fills_the_dates_and_rejects_an_approval_before_the_request()
+    {
+        using var db = await TestDb.CreateAsync();
+        var quantities = new QuantityService(db);
+        var sites = new SiteService(db, quantities, db.Clock);
+        var projects = new ProjectService(db);
+        await using var ctx = db.CreateDbContext();
+        var ftth = await ctx.ProjectTypes.SingleAsync(t => t.Code == "FTTH");
+        var project = await projects.SaveAsync(new Project { Code = "P-1", Name = "Permisos", ProjectTypeId = ftth.Id });
+        var site = await sites.SaveAsync(new Site { ProjectId = project.Id, Code = "SON01" });
+
+        await sites.SetPermitStatusAsync(site.Id, PermitStatus.InProcess);
+        await sites.SetMunicipalPermitStatusAsync(site.Id, PermitStatus.Approved);
+
+        var saved = (await sites.GetAsync(site.Id))!;
+        saved.ElectricalRequestedOn.Should().Be(db.Clock.Today);
+        saved.ElectricalApprovedOn.Should().BeNull();
+        (saved.MunicipalRequestedOn, saved.MunicipalApprovedOn).Should().Be((db.Clock.Today, db.Clock.Today));
+
+        await sites.SetPermitDatesAsync(site.Id, PermitKind.Electrical, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 8));
+        (await sites.GetAsync(site.Id))!.ElectricalApprovedOn.Should().Be(new DateOnly(2026, 10, 8));
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            sites.SetPermitDatesAsync(site.Id, PermitKind.Electrical, new DateOnly(2026, 10, 9), new DateOnly(2026, 10, 1)));
     }
 }

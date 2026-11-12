@@ -2051,3 +2051,7 @@ html[data-theme="dark"] .gx-actions button { color: var(--gx-ink); }
 .hg-goal { position: absolute; left: 12px; right: 12px; border-top: 2px dashed var(--dz-red); z-index: 2; pointer-events: none; margin-bottom: 20px; } .hg-goal span { position: absolute; right: 0; top: -17px; font-size: 10px; font-weight: 700; color: var(--dz-red); background: var(--dz-panel); padding: 0 4px; }
 .kx-permit-label { font-size: 10.5px; font-weight: 700; color: var(--dz-sub); margin: 8px 0 3px; text-transform: uppercase; letter-spacing: .05em; }
 .kx-permit strong { font-size: 20px; }
+.permit-edit { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.permit-edit .tk-inline-select { min-width: 230px; max-width: 280px; }
+.permit-date { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--tk-text-2); } .permit-date input { font: inherit; padding: 6px 8px; border: 1px solid var(--tk-card-border); border-radius: 8px; background: var(--tk-surface); color: var(--tk-text); }
+.permit-days { font-size: .74rem; font-weight: 700; color: var(--tk-text-2); background: var(--tk-surface-2, rgba(128,128,128,.14)); padding: 2px 9px; border-radius: 999px; } .permit-date-text { font-size: .78rem; color: var(--tk-text-2); }

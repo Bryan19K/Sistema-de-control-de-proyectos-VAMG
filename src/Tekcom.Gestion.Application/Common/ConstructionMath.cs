@@ -33,6 +33,21 @@ public static class ConstructionMath
         return PermitStatus.RequestPending;
     }
 
+    /// <summary>
+    /// Fechas del permiso al cambiar de estado: pasar a trámite marca la solicitud y aprobar marca la aprobación
+    /// (con la solicitud si faltaba); volver a un estado anterior borra lo que ya no corresponde.
+    /// </summary>
+    public static (DateOnly? RequestedOn, DateOnly? ApprovedOn) PermitDates(PermitStatus status, DateOnly? requestedOn, DateOnly? approvedOn, DateOnly today) => status switch
+    {
+        PermitStatus.RequestPending => (null, null),
+        PermitStatus.InProcess => (requestedOn ?? today, null),
+        _ => (requestedOn ?? today, approvedOn ?? today),
+    };
+
+    /// <summary>Días del trámite: de la solicitud a la aprobación, o hasta hoy si sigue en trámite. Vacío si no se ha solicitado.</summary>
+    public static int? PermitDays(DateOnly? requestedOn, DateOnly? approvedOn, DateOnly today) =>
+        requestedOn is null ? null : Math.Max(0, (approvedOn ?? today).DayNumber - requestedOn.Value.DayNumber);
+
     public static DateOnly WeekStart(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
 
     /// <summary>
