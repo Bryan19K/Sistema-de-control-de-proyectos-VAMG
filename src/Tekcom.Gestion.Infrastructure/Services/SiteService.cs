@@ -109,6 +109,10 @@ public sealed class SiteService(
         entity.HomesPassed = site.HomesPassed is < 0 ? null : site.HomesPassed;
         entity.PermitStatus = site.PermitStatus;
         entity.MunicipalPermitStatus = site.MunicipalPermitStatus;
+        entity.ElectricalRequestedOn = site.ElectricalRequestedOn;
+        entity.ElectricalApprovedOn = site.ElectricalApprovedOn;
+        entity.MunicipalRequestedOn = site.MunicipalRequestedOn;
+        entity.MunicipalApprovedOn = site.MunicipalApprovedOn;
         entity.ElectricalPermitStatus = ConstructionMath.PermitName(site.PermitStatus);
         entity.MaterialsDelivered = site.MaterialsDelivered;
         entity.KmzStatus = site.KmzStatus;
@@ -229,10 +233,27 @@ public sealed class SiteService(
         {
             s.PermitStatus = status;
             s.ElectricalPermitStatus = ConstructionMath.PermitName(status);
+            (s.ElectricalRequestedOn, s.ElectricalApprovedOn) = ConstructionMath.PermitDates(status, s.ElectricalRequestedOn, s.ElectricalApprovedOn, clock.Today);
+        }, ct);
+
+    public Task SetPermitDatesAsync(int siteId, PermitKind kind, DateOnly? requestedOn, DateOnly? approvedOn, CancellationToken ct = default) =>
+        UpdateAsync(siteId, s =>
+        {
+            if (requestedOn is not null && approvedOn is not null && approvedOn < requestedOn)
+            {
+                throw new BusinessRuleException("La fecha de aprobación no puede ser antes de la de solicitud.");
+            }
+
+            if (kind == PermitKind.Electrical) { (s.ElectricalRequestedOn, s.ElectricalApprovedOn) = (requestedOn, approvedOn); }
+            else { (s.MunicipalRequestedOn, s.MunicipalApprovedOn) = (requestedOn, approvedOn); }
         }, ct);
 
     public Task SetMunicipalPermitStatusAsync(int siteId, PermitStatus status, CancellationToken ct = default) =>
-        UpdateAsync(siteId, s => s.MunicipalPermitStatus = status, ct);
+        UpdateAsync(siteId, s =>
+        {
+            s.MunicipalPermitStatus = status;
+            (s.MunicipalRequestedOn, s.MunicipalApprovedOn) = ConstructionMath.PermitDates(status, s.MunicipalRequestedOn, s.MunicipalApprovedOn, clock.Today);
+        }, ct);
 
     public Task SetCaesAsync(int siteId, bool supervised, CancellationToken ct = default) =>
         UpdateAsync(siteId, s => s.CaesSupervised = supervised, ct);

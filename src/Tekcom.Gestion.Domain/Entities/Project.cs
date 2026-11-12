@@ -93,6 +93,12 @@ public class Site : AuditableEntity
     /// <summary>Estado del permiso municipal del nodo (mismos tres estados).</summary>
     public PermitStatus MunicipalPermitStatus { get; set; } = PermitStatus.RequestPending;
 
+    /// <summary>Fechas de los permisos: cuándo se solicitó y cuándo se aprobó (para medir los días del trámite).</summary>
+    public DateOnly? ElectricalRequestedOn { get; set; }
+    public DateOnly? ElectricalApprovedOn { get; set; }
+    public DateOnly? MunicipalRequestedOn { get; set; }
+    public DateOnly? MunicipalApprovedOn { get; set; }
+
     /// <summary>Si ya se entregó el material al contratista (SI / NO del Excel). Null = sin dato.</summary>
     public bool? MaterialsDelivered { get; set; }
 

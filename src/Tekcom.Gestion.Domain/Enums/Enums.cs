@@ -135,6 +135,13 @@ public enum PermitStatus
     Approved = 2,
 }
 
+/// <summary>Cuál de los dos permisos del nodo.</summary>
+public enum PermitKind
+{
+    Electrical = 0,
+    Municipal = 1,
+}
+
 public enum PaceStatus
 {
     Unknown = 0,

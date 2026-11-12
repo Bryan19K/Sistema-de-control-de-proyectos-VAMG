@@ -8,6 +8,7 @@
 @using Tekcom.Gestion.Web.Services
 @using Tekcom.Gestion.Web.Components.Pages.Materiales
 @inject ISiteService Sites
+@inject Tekcom.Gestion.Application.Common.Interfaces.IDateTimeProvider Clock
 @inject IQuantityService Quantities
 @inject IProjectService Projects
 @inject IProjectionService Projections
@@ -114,44 +115,9 @@ else
                                 </tr>
                                 @if (local.Code == StageCode.Layout)
                                 {
-                                    <tr class="tk-permit-row">
-                                        <td><strong>Permisos eléctricos</strong></td>
-                                        <td colspan="4">
-                                            @if (_canEdit)
-                                            {
-                                                <MudSelect T="PermitStatus" Value="_summary.Site.PermitStatus" ValueChanged="SetPermitAsync"
-                                                           Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="tk-inline-select">
-                                                    @foreach (var option in Enum.GetValues<PermitStatus>())
-                                                    {
-                                                        <MudSelectItem T="PermitStatus" Value="option">@ConstructionMath.PermitName(option)</MudSelectItem>
-                                                    }
-                                                </MudSelect>
-                                            }
-                                            else
-                                            {
-                                                <span class="permit-chip permit-chip--@((int)_summary.Site.PermitStatus)">@ConstructionMath.PermitName(_summary.Site.PermitStatus)</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                    <tr class="tk-permit-row">
-                                        <td><strong>Permisos municipales</strong></td>
-                                        <td colspan="4">
-                                            @if (_canEdit)
-                                            {
-                                                <MudSelect T="PermitStatus" Value="_summary.Site.MunicipalPermitStatus" ValueChanged="SetMunicipalPermitAsync"
-                                                           Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="tk-inline-select">
-                                                    @foreach (var option in Enum.GetValues<PermitStatus>())
-                                                    {
-                                                        <MudSelectItem T="PermitStatus" Value="option">@ConstructionMath.PermitName(option)</MudSelectItem>
-                                                    }
-                                                </MudSelect>
-                                            }
-                                            else
-                                            {
-                                                <span class="permit-chip permit-chip--@((int)_summary.Site.MunicipalPermitStatus)">@ConstructionMath.PermitName(_summary.Site.MunicipalPermitStatus)</span>
-                                            }
-                                        </td>
-                                    </tr>
+                                    var siteInfo = _summary.Site;
+                                    @PermitRow("Permisos eléctricos", PermitKind.Electrical, siteInfo.PermitStatus, siteInfo.ElectricalRequestedOn, siteInfo.ElectricalApprovedOn)
+                                    @PermitRow("Permisos municipales", PermitKind.Municipal, siteInfo.MunicipalPermitStatus, siteInfo.MunicipalRequestedOn, siteInfo.MunicipalApprovedOn)
                                 }
                             }
                         </tbody>
@@ -460,6 +426,49 @@ else
 
     private Task SaveNotesAsync(SiteStage stage, string? text) =>
         RunAsync(() => Sites.SetStageAsync(Id, stage.Code, stage.Status, null, text));
+
+    private RenderFragment PermitRow(string title, PermitKind kind, PermitStatus status, DateOnly? requestedOn, DateOnly? approvedOn) => @<tr class="tk-permit-row">
+        <td><strong>@title</strong></td>
+        <td colspan="4">
+            <div class="permit-edit">
+                @if (_canEdit)
+                {
+                    <MudSelect T="PermitStatus" Value="status" ValueChanged="s => SetPermitStatusAsync(kind, s)"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="tk-inline-select">
+                        @foreach (var option in Enum.GetValues<PermitStatus>())
+                        {
+                            <MudSelectItem T="PermitStatus" Value="option">@ConstructionMath.PermitName(option)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <label class="permit-date">Solicitado <input type="date" value="@Iso(requestedOn)" @onchange="e => SetPermitDateAsync(kind, true, e.Value?.ToString(), requestedOn, approvedOn)" /></label>
+                    <label class="permit-date">Aprobado <input type="date" value="@Iso(approvedOn)" @onchange="e => SetPermitDateAsync(kind, false, e.Value?.ToString(), requestedOn, approvedOn)" /></label>
+                }
+                else
+                {
+                    <span class="permit-chip permit-chip--@((int)status)">@ConstructionMath.PermitName(status)</span>
+                    <span class="permit-date-text">@PermitSummary(requestedOn, approvedOn)</span>
+                }
+                @if (ConstructionMath.PermitDays(requestedOn, approvedOn, Clock.Today) is { } days)
+                {
+                    <span class="permit-days">@(approvedOn is null ? $"{days} días en trámite" : $"{days} días de trámite")</span>
+                }
+            </div>
+        </td>
+    </tr>;
+
+    private static string Iso(DateOnly? date) => date?.ToString("yyyy-MM-dd") ?? string.Empty;
+
+    private static string PermitSummary(DateOnly? requestedOn, DateOnly? approvedOn) =>
+        requestedOn is null ? string.Empty : $"Solicitado {UiText.ShortDate(requestedOn)}{(approvedOn is null ? string.Empty : $" · Aprobado {UiText.ShortDate(approvedOn)}")}";
+
+    private Task SetPermitStatusAsync(PermitKind kind, PermitStatus status) =>
+        kind == PermitKind.Electrical ? SetPermitAsync(status) : SetMunicipalPermitAsync(status);
+
+    private Task SetPermitDateAsync(PermitKind kind, bool requested, string? text, DateOnly? requestedOn, DateOnly? approvedOn)
+    {
+        DateOnly? value = DateOnly.TryParse(text, out var parsed) ? parsed : null;
+        return RunAsync(() => Sites.SetPermitDatesAsync(Id, kind, requested ? value : requestedOn, requested ? approvedOn : value));
+    }
 
     private Task SetMunicipalPermitAsync(PermitStatus status) => RunAsync(() => Sites.SetMunicipalPermitStatusAsync(Id, status));
     private Task SetPermitAsync(PermitStatus status) => RunAsync(() => Sites.SetPermitStatusAsync(Id, status));

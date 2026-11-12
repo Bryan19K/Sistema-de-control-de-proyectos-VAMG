@@ -38,6 +38,19 @@
             </div>
         }
         @{
+            var today = Data.Today;
+            int? Avg(IEnumerable<int?> days) { var l = days.Where(d => d is not null).Select(d => d!.Value).ToList(); return l.Count == 0 ? null : (int)Math.Round(l.Average()); }
+            var avgElectrical = Avg(Rows.Where(r => r.Permit == PermitStatus.Approved).Select(r => ConstructionMath.PermitDays(r.ElectricalRequestedOn, r.ElectricalApprovedOn, today)));
+            var avgMunicipal = Avg(Rows.Where(r => r.MunicipalPermit == PermitStatus.Approved).Select(r => ConstructionMath.PermitDays(r.MunicipalRequestedOn, r.MunicipalApprovedOn, today)));
+            var waiting = Rows.SelectMany(r => new[]
+                {
+                    (r.Code, Kind: "eléctrico", Days: r.Permit == PermitStatus.InProcess ? ConstructionMath.PermitDays(r.ElectricalRequestedOn, null, today) : null),
+                    (r.Code, Kind: "municipal", Days: r.MunicipalPermit == PermitStatus.InProcess ? ConstructionMath.PermitDays(r.MunicipalRequestedOn, null, today) : null),
+                })
+                .Where(x => x.Days is not null).OrderByDescending(x => x.Days).Take(3).ToList();
+        }
+        <p>Días promedio de trámite: eléctricos <b>@(avgElectrical?.ToString() ?? "—")</b> · municipales <b>@(avgMunicipal?.ToString() ?? "—")</b>@(waiting.Count == 0 ? string.Empty : $". Más tiempo en trámite: {string.Join(", ", waiting.Select(w => $"{w.Code} {w.Kind} ({w.Days} d)"))}.")</p>
+        @{
             var pending = Rows.Where(r => (r.Permit != PermitStatus.Approved || r.MunicipalPermit != PermitStatus.Approved) && r.Progress > 0).OrderBy(r => r.Code).ToList();
         }
         <p>@(pending.Count == 0 ? "Ningún nodo con obra iniciada está esperando permiso." : $"Con obra iniciada y algún permiso sin aprobar: {string.Join(", ", pending.Select(n => n.Code))}.")</p>

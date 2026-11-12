@@ -53,6 +53,9 @@ public interface ISiteService
 
     /// <summary>Cambia el estado del permiso municipal del nodo.</summary>
     Task SetMunicipalPermitStatusAsync(int siteId, PermitStatus status, CancellationToken ct = default);
+
+    /// <summary>Corrige las fechas de solicitud y aprobación de un permiso del nodo.</summary>
+    Task SetPermitDatesAsync(int siteId, PermitKind kind, DateOnly? requestedOn, DateOnly? approvedOn, CancellationToken ct = default);
     Task SetLogsUpToDateAsync(int siteId, bool upToDate, CancellationToken ct = default);
 
     /// <summary>Fechas planificadas y reales de una etapa del nodo.</summary>
