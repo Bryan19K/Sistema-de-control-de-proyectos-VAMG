@@ -2598,6 +2598,9 @@ namespace Tekcom.Gestion.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("OdnFinalizedOn")
                         .HasColumnType("date");
 
+                    b.Property<int>("PermitStatus")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("PhotoReportStatus")
                         .HasColumnType("integer");
 

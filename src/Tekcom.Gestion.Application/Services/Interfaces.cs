@@ -47,6 +47,9 @@ public interface ISiteService
     Task SetOdnFinalizedAsync(int siteId, bool finalized, CancellationToken ct = default);
     Task SetFeederStatusAsync(int siteId, FeederStatus status, CancellationToken ct = default);
     Task SetCaesAsync(int siteId, bool supervised, CancellationToken ct = default);
+
+    /// <summary>Cambia el estado del permiso del nodo (solicitud pendiente, en trámite o aprobado).</summary>
+    Task SetPermitStatusAsync(int siteId, PermitStatus status, CancellationToken ct = default);
     Task SetLogsUpToDateAsync(int siteId, bool upToDate, CancellationToken ct = default);
 
     /// <summary>Fechas planificadas y reales de una etapa del nodo.</summary>

@@ -1,0 +1,58 @@
+@using System.Globalization
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+
+@* Fusiones: avance, lo que falta, ritmo semanal y cumplimiento contra lo esperado por nodo y brigada. *@
+@{
+    var withPlan = Rows.Where(r => r.Quantities is not null && r.Quantities.GetValueOrDefault(QuantityGroup.Fusion).Projected > 0).ToList();
+    var projected = withPlan.Sum(r => r.Quantities!.GetValueOrDefault(QuantityGroup.Fusion).Projected);
+    var installed = withPlan.Sum(r => Math.Min(r.Quantities!.GetValueOrDefault(QuantityGroup.Fusion).Installed, r.Quantities!.GetValueOrDefault(QuantityGroup.Fusion).Projected));
+    var percent = DashboardMath.CappedPercent(installed, projected);
+    var complete = withPlan.Count(r => r.Quantities!.GetValueOrDefault(QuantityGroup.Fusion).Installed >= r.Quantities!.GetValueOrDefault(QuantityGroup.Fusion).Projected);
+    var xbox = Rows.Count(r => r.Fusion == StageStatus.Finished);
+    var expected = withPlan.Sum(r => r.Quantities!.GetValueOrDefault(QuantityGroup.Fusion).Projected * Math.Clamp(r.ElapsedPercent, 0, 100) / 100m);
+    var compliance = expected <= 0 ? (decimal?)null : Math.Round(installed / expected * 100m, 0);
+    var thisWeek = ConstructionMath.WeekStart(Data.Today);
+    decimal Week(int back) => Data.FusionByDay.Where(f => ConstructionMath.WeekStart(f.Date) == thisWeek.AddDays(-7 * back)).Sum(f => f.Quantity);
+    var pace = Enumerable.Range(1, 4).Select(Week).Average();
+    var left = Math.Max(0, projected - installed);
+    var weeksLeft = pace > 0 ? (int)Math.Ceiling((double)(left / pace)) : (int?)null;
+}
+<section class="ck dz" aria-label="Fusiones">
+    <div class="ck-head">
+        <h2>Fusiones</h2>
+        <p>Fusiones instaladas contra las proyectadas de cada nodo, y contra las que ya deberían llevar según el tiempo transcurrido del nodo.</p>
+    </div>
+    <div class="ck-kpis ck-kpis--6">
+        <div class="ck-kpi"><small>Fusiones instaladas</small><strong>@UiText.Number(installed)<i> / @UiText.Number(projected)</i></strong><span>@(percent is null ? "Sin proyección" : $"{percent:0.#}% del proyecto")</span></div>
+        <div class="ck-kpi"><small>Faltan por fusionar</small><strong>@UiText.Number(left)</strong><span>en @withPlan.Count(r => r.Quantities!.GetValueOrDefault(QuantityGroup.Fusion).Installed < r.Quantities!.GetValueOrDefault(QuantityGroup.Fusion).Projected) nodos</span></div>
+        <div class="ck-kpi"><small>Nodos con fusiones completas</small><strong>@complete<i> de @withPlan.Count</i></strong><span>@xbox X-box con la etapa de fusiones finalizada</span></div>
+        <div class="ck-kpi @(compliance is null ? string.Empty : compliance >= 90 ? "is-ok" : "is-low")"><small>Cumplimiento de lo esperado</small><strong>@(compliance is null ? "—" : $"{compliance:0}%")</strong><span>@UiText.Number(Math.Round(installed)) instaladas de @UiText.Number(Math.Round(expected)) esperadas a hoy</span></div>
+        <div class="ck-kpi"><small>Ritmo semanal</small><strong>@UiText.Number(Math.Round(pace, 1))<i> fusiones</i></strong><span>promedio de las últimas 4 semanas</span></div>
+        <div class="ck-kpi"><small>Semanas para terminar</small><strong>@(weeksLeft?.ToString() ?? "—")</strong><span>al ritmo actual (informativo)</span></div>
+    </div>
+    <div class="ck-card">
+        <h3>Fusiones por brigada <small>instaladas sobre proyectadas</small></h3>
+        <div class="dz-bars">
+            @foreach (var g in withPlan.GroupBy(r => r.Brigade).OrderByDescending(g => g.Sum(r => Math.Min(r.Quantities![QuantityGroup.Fusion].Installed, r.Quantities![QuantityGroup.Fusion].Projected)) * 100 / g.Sum(r => r.Quantities![QuantityGroup.Fusion].Projected)))
+            {
+                var inst = g.Sum(r => Math.Min(r.Quantities![QuantityGroup.Fusion].Installed, r.Quantities![QuantityGroup.Fusion].Projected));
+                var proj = g.Sum(r => r.Quantities![QuantityGroup.Fusion].Projected);
+                var pct = proj <= 0 ? 0 : Math.Round(inst * 100 / proj, 0);
+                <div class="dz-bar dz-bars--meta" style="grid-template-columns:130px minmax(0,1fr) 60px 40px" data-tip="@($"{inst:0} de {proj:0}|{g.Key}")" tabindex="0">
+                    <span class="dz-bar__name">@g.Key</span>
+                    <div class="dz-track"><div class="@(pct >= 100 ? "dz-fill is-done" : "dz-fill")" style="width:@pct.ToString("0", CultureInfo.InvariantCulture)%"></div></div>
+                    <span class="dz-bar__meta">@inst.ToString("0")/@proj.ToString("0")</span>
+                    <span class="dz-bar__pct">@pct%</span>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public PresentationData Data { get; set; } = default!;
+    [Parameter, EditorRequired] public List<NodeMatrixRow> Rows { get; set; } = [];
+}

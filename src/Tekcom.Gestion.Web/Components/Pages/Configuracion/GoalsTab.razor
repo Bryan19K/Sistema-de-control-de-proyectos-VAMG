@@ -1,0 +1,50 @@
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Services
+@inject IGoalsService Goals
+@inject ISnackbar Snackbar
+
+<p class="tk-note">La meta de construcción se compara con los home passes que realmente se construyen cada semana en el Dashboard y en el Cronograma de nodos.</p>
+
+<div class="tk-appearance">
+    <div>
+        <div class="tk-color-row" style="grid-template-columns: minmax(0, 1fr) 150px">
+            <div><strong>Home passes por semana</strong><small>Meta de construcción para el cronograma (de fábrica: @IGoalsService.DefaultWeeklyHp.ToString("N0"))</small></div>
+            <input type="number" min="1" step="50" @bind="_goal" @bind:event="oninput" aria-label="Home passes por semana" class="dm-search" />
+        </div>
+        <div class="tk-appearance__actions">
+            <button type="button" class="tk-btn tk-btn--primary" @onclick="SaveAsync" disabled="@_busy">Guardar meta</button>
+            <button type="button" class="tk-btn tk-btn--outline" @onclick="ResetAsync" disabled="@_busy">Volver a @IGoalsService.DefaultWeeklyHp.ToString("N0")</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int _goal = IGoalsService.DefaultWeeklyHp;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => _goal = await Goals.GetWeeklyHpGoalAsync();
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Goals.SaveWeeklyHpGoalAsync(_goal);
+            Snackbar.Add("Meta guardada. Se ve en el Dashboard y en el Cronograma de nodos al recargar.", Severity.Success);
+        }
+        catch (BusinessRuleException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ResetAsync()
+    {
+        _goal = IGoalsService.DefaultWeeklyHp;
+        await SaveAsync();
+    }
+}

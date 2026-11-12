@@ -127,6 +127,14 @@ public enum QuantityGroup
     Crossing = 8,
 }
 
+/// <summary>Estado del permiso eléctrico de un nodo (va después del replanteo).</summary>
+public enum PermitStatus
+{
+    RequestPending = 0,
+    InProcess = 1,
+    Approved = 2,
+}
+
 public enum PaceStatus
 {
     Unknown = 0,

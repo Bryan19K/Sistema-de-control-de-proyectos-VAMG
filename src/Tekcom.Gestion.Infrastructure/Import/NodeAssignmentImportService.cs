@@ -1,3 +1,4 @@
+using Tekcom.Gestion.Application.Common;
 using System.Globalization;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
@@ -463,7 +464,8 @@ public sealed class NodeAssignmentImportService(IDbContextFactory<ApplicationDbC
             return false;
         }
 
-        site.ElectricalPermitStatus = permit.Length > 60 ? permit[..60] : permit;
+        site.PermitStatus = ConstructionMath.PermitFromText(permit);
+        site.ElectricalPermitStatus = ConstructionMath.PermitName(site.PermitStatus);
         return true;
     }
 

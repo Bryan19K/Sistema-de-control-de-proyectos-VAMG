@@ -1,0 +1,92 @@
+@using System.Globalization
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Web.Services
+@inject IGoalsService Goals
+@inject IPresentationService PresentationApi
+
+@* Meta de construcción: home passes por semana contra lo que realmente se construye, y lo que falta para el cierre. *@
+<section class="hg dz" aria-label="Meta semanal de home passes">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_data is null)
+    {
+        <EmptyState Title="Sin proyecto" Icon="@Icons.Material.Outlined.Home" Description="Elija un proyecto para ver la meta semanal." />
+    }
+    else
+    {
+        var weeks = _data.HpByWeek;
+        var today = _data.Today;
+        var thisWeek = ConstructionMath.WeekStart(today);
+        var current = weeks.FirstOrDefault(w => w.WeekStart == thisWeek)?.Hp ?? 0;
+        var lastWeeks = Enumerable.Range(0, 10).Select(i => thisWeek.AddDays(-7 * (9 - i))).ToList();
+        var series = lastWeeks.Select(w => (Week: w, Hp: weeks.FirstOrDefault(x => x.WeekStart == w)?.Hp ?? 0)).ToList();
+        var done = weeks.Where(w => w.WeekStart < thisWeek).ToList();
+        var met = done.Count(w => w.Hp >= _goal);
+        var recent = Enumerable.Range(1, 4).Select(i => weeks.FirstOrDefault(x => x.WeekStart == thisWeek.AddDays(-7 * i))?.Hp ?? 0).ToList();
+        var avg4 = recent.Average();
+        var total = _data.Matrix.Sum(r => r.HomesPassed ?? 0);
+        var built = weeks.Sum(w => w.Hp);
+        var left = Math.Max(0, total - built);
+        var weeksNeeded = (int)Math.Ceiling((double)(total / (decimal)_goal));
+        var first = weeks.Count == 0 ? (DateOnly?)null : weeks[0].WeekStart;
+        var goalEnd = first?.AddDays(weeksNeeded * 7 - 1);
+        var weeksAtAvg = avg4 > 0 ? (int)Math.Ceiling((double)(left / avg4)) : (int?)null;
+        var max = Math.Max(_goal, series.Max(s => s.Hp)) * 1.1m;
+
+        <div class="hg-head">
+            <h2>Meta de construcción: @UiText.Number(_goal) home passes por semana</h2>
+            <p>Home passes equivalentes: cada pieza instalada aporta la parte que representa de su nodo por los HP de ese nodo.</p>
+        </div>
+        <div class="hg-body">
+            <div class="hg-kpis">
+                <div class="ck-kpi @Tone(current)"><small>Esta semana</small><strong>@UiText.Number(Math.Round(current))<i> / @UiText.Number(_goal) HP</i></strong><span>@((current * 100 / _goal).ToString("0"))% de la meta</span></div>
+                <div class="ck-kpi @Tone(avg4)"><small>Promedio de las últimas 4 semanas</small><strong>@UiText.Number(Math.Round(avg4))<i> HP</i></strong><span>@((avg4 * 100 / _goal).ToString("0"))% de la meta</span></div>
+                <div class="ck-kpi"><small>Semanas que cumplieron la meta</small><strong>@met<i> de @done.Count</i></strong><span>sin contar la semana en curso</span></div>
+                <div class="ck-kpi"><small>Faltan por construir</small><strong>@UiText.Number(Math.Round(left))<i> HP</i></strong><span>de @UiText.Number(total) HP del proyecto</span></div>
+                <div class="ck-kpi"><small>Semanas a la meta / al ritmo actual</small><strong>@weeksNeeded<i> / @(weeksAtAvg?.ToString() ?? "—")</i></strong><span>@(goalEnd is null ? "Sin instalación registrada" : $"Meta de cierre: {UiText.LongDate(goalEnd)}")</span></div>
+            </div>
+            <div class="hg-chart" role="img" aria-label="Home passes construidos por semana contra la meta">
+                <div class="hg-goal" style="bottom:@Pct(_goal, max)%"><span>meta @UiText.Number(_goal)</span></div>
+                @foreach (var s in series)
+                {
+                    <div class="@ColClass(s.Hp, s.Week == thisWeek)" data-tip="@($"{UiText.Number(Math.Round(s.Hp))} HP|Semana del {UiText.ShortDate(s.Week)}")" tabindex="0">
+                        <span class="hg-col__val">@(s.Hp > 0 ? UiText.Number(Math.Round(s.Hp)) : string.Empty)</span>
+                        <div class="hg-col__track"><div class="hg-col__bar" style="height:@Pct(s.Hp, max)%"></div></div>
+                        <span class="hg-col__lbl">@s.Week.ToString("dd/MM", Culture)</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public int ProjectId { get; set; }
+
+    /// <summary>Si la pantalla ya tiene los datos del dashboard, se pasan para no pedirlos otra vez.</summary>
+    [Parameter] public PresentationData? Data { get; set; }
+
+    private static readonly CultureInfo Culture = new("es-SV");
+
+    private bool _loading = true;
+    private PresentationData? _data;
+    private int _goal = IGoalsService.DefaultWeeklyHp;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _goal = await Goals.GetWeeklyHpGoalAsync();
+        _data = Data ?? (ProjectId == 0 ? null : await PresentationApi.GetAsync(ProjectId));
+        _loading = false;
+    }
+
+    private string ColClass(decimal hp, bool now) => "hg-col" + (hp >= _goal ? " is-met" : string.Empty) + (now ? " is-now" : string.Empty);
+
+    private string Tone(decimal hp) => hp >= _goal ? "is-ok" : hp > 0 ? string.Empty : string.Empty;
+
+    private static string Pct(decimal value, decimal max) => (max <= 0 ? 0 : (double)Math.Clamp(value / max * 100m, 0, 100)).ToString("0.##", CultureInfo.InvariantCulture);
+}

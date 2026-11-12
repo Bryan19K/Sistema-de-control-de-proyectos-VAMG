@@ -107,7 +107,8 @@ public sealed class SiteService(
         entity.ActualEnd = site.ActualEnd;
         entity.Notes = string.IsNullOrWhiteSpace(site.Notes) ? null : site.Notes.Trim();
         entity.HomesPassed = site.HomesPassed is < 0 ? null : site.HomesPassed;
-        entity.ElectricalPermitStatus = string.IsNullOrWhiteSpace(site.ElectricalPermitStatus) ? null : site.ElectricalPermitStatus.Trim();
+        entity.PermitStatus = site.PermitStatus;
+        entity.ElectricalPermitStatus = ConstructionMath.PermitName(site.PermitStatus);
         entity.MaterialsDelivered = site.MaterialsDelivered;
         entity.KmzStatus = site.KmzStatus;
         entity.UmConsolidatedStatus = site.UmConsolidatedStatus;
@@ -221,6 +222,13 @@ public sealed class SiteService(
 
     public Task SetFeederStatusAsync(int siteId, FeederStatus status, CancellationToken ct = default) =>
         UpdateAsync(siteId, s => s.FeederStatus = status, ct);
+
+    public Task SetPermitStatusAsync(int siteId, PermitStatus status, CancellationToken ct = default) =>
+        UpdateAsync(siteId, s =>
+        {
+            s.PermitStatus = status;
+            s.ElectricalPermitStatus = ConstructionMath.PermitName(status);
+        }, ct);
 
     public Task SetCaesAsync(int siteId, bool supervised, CancellationToken ct = default) =>
         UpdateAsync(siteId, s => s.CaesSupervised = supervised, ct);

@@ -2029,3 +2029,23 @@ html[data-theme="dark"] .gx-actions button { color: var(--gx-ink); }
 .ck-table td.is-low { color: var(--dz-red); font-weight: 700; } .ck-table td.is-ok { font-weight: 600; }
 .ck-chip { font-size: 10px; font-weight: 700; padding: 2px 9px; border-radius: 999px; color: #fff; } .ck-chip.is-ok { background: var(--dz-done); } .ck-chip.is-low { background: var(--dz-red); } .ck-chip.is-none { background: var(--dz-gray); color: #1F2026; }
 @media print { .ck-wrap--tall { max-height: none; } }
+
+/* Permisos, meta de home passes y fusiones */
+.permit-chip { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .02em; padding: 3px 12px; border-radius: 999px; color: #fff; white-space: nowrap; }
+.permit-chip--0 { background: #A8A8A8; color: #1F2026; } .permit-chip--1 { background: #E8A317; color: #1F2026; } .permit-chip--2 { background: #2E9E5B; }
+.tk-permit-row td { background: color-mix(in srgb, var(--tk-info, #2a77d4) 6%, transparent); } .nt-permit td { background: color-mix(in srgb, var(--dz-gray) 18%, transparent); font-size: 11.5px; }
+.kx { grid-template-columns: minmax(0, 1fr); } @media (min-width: 900px) { .kx { grid-template-columns: 1fr 1.2fr 1.6fr; } }
+.kx-permits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+.kx-permit { border-radius: 10px; padding: 8px 6px; text-align: center; color: #fff; display: flex; flex-direction: column; gap: 2px; } .kx-permit strong { font-size: 24px; font-weight: 800; line-height: 1; } .kx-permit span { font-size: 9px; font-weight: 700; line-height: 1.15; }
+.kx-permit--0 { background: #A8A8A8; color: #1F2026; } .kx-permit--1 { background: #E8A317; color: #1F2026; } .kx-permit--2 { background: #2E9E5B; }
+.ck-kpis--6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } @media (min-width: 900px) { .ck-kpis--6 { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.hg { display: flex; flex-direction: column; gap: 10px; margin: 0 0 20px; background: transparent; overflow: visible; }
+.hg-head h2 { margin: 0; font-size: 16px; color: var(--dz-ink); } .hg-head p { margin: 2px 0 0; font-size: 11.5px; color: var(--dz-sub); }
+.hg-body { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); } @media (min-width: 1100px) { .hg-body { grid-template-columns: 1.1fr 1fr; } }
+.hg-kpis { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+.hg-chart { position: relative; display: flex; gap: 6px; align-items: stretch; height: 210px; background: var(--dz-panel); border-radius: 12px; box-shadow: var(--dz-shadow); padding: 12px 12px 8px; }
+.hg-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; z-index: 1; } .hg-col__val { font-size: 9.5px; font-weight: 700; height: 13px; color: var(--dz-ink); }
+.hg-col__track { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end; min-height: 0; } .hg-col__bar { width: 100%; border-radius: 6px 6px 0 0; background: var(--dz-prog); min-height: 2px; }
+.hg-col.is-met .hg-col__bar { background: var(--dz-done); } .hg-col.is-now .hg-col__bar { outline: 2px dashed var(--dz-ink); outline-offset: 1px; }
+.hg-col__lbl { font-size: 9.5px; color: var(--dz-sub); height: 14px; margin-top: 3px; }
+.hg-goal { position: absolute; left: 12px; right: 12px; border-top: 2px dashed var(--dz-red); z-index: 2; pointer-events: none; margin-bottom: 20px; } .hg-goal span { position: absolute; right: 0; top: -17px; font-size: 10px; font-weight: 700; color: var(--dz-red); background: var(--dz-panel); padding: 0 4px; }

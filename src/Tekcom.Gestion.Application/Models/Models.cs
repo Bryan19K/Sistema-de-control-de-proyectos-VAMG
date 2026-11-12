@@ -276,7 +276,7 @@ public sealed record NodeMatrixRow(
     bool ReadyToMeasure, bool ReadyToDeliver, decimal FatsInstalled, decimal FatsProjected, decimal CableMeters, decimal Pieces,
     DateOnly? PlannedEnd, DateOnly? ProjectedEnd, string Brigade, int? HomesPassed = null, string? Supervisor = null,
     IReadOnlyDictionary<QuantityGroup, QuantityPair>? Quantities = null, bool OdnClosed = false,
-    decimal ElapsedPercent = 0, DateOnly? PlannedStart = null)
+    decimal ElapsedPercent = 0, DateOnly? PlannedStart = null, PermitStatus Permit = PermitStatus.RequestPending)
 {
     /// <summary>Finalizado de verdad: ODN cerrada, o todo instalado y con las mediciones de FATs terminadas.</summary>
     public bool Completed => Progress >= 100 && (OdnClosed || Measurement == StageStatus.Finished);
@@ -349,4 +349,14 @@ public sealed class PresentationData
 
     /// <summary>Avance planificado para hoy según el plan de trabajo (null si no hay plan).</summary>
     public decimal? PlannedToday { get; init; }
+
+    /// <summary>Home passes equivalentes construidos por semana (solo semanas con instalación).</summary>
+    public List<WeekHp> HpByWeek { get; init; } = [];
+
+    /// <summary>Fusiones instaladas por día (todos los nodos).</summary>
+    public List<DayCount> FusionByDay { get; init; } = [];
 }
+
+public sealed record WeekHp(DateOnly WeekStart, decimal Hp);
+
+public sealed record DayCount(DateOnly Date, decimal Quantity);

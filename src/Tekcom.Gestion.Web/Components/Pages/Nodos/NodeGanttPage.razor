@@ -48,6 +48,11 @@
     }
 </div>
 
+@if (_projectId != 0)
+{
+    <Tekcom.Gestion.Web.Components.Pages.Presentacion.HpGoalCard ProjectId="_projectId" @key="_projectId" />
+}
+
 @if (_loading)
 {
     <MudProgressLinear Indeterminate="true" />
