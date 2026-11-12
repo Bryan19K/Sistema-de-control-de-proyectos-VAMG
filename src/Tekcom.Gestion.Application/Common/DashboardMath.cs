@@ -25,4 +25,33 @@ public static class DashboardMath
     /// <summary>Una orden está liquidada cuando su estado de liquidación dice realizada o liquidada.</summary>
     public static bool IsLiquidated(string? status) =>
         status is not null && (status.Contains("REALIZ", StringComparison.OrdinalIgnoreCase) || status.Contains("LIQUID", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Fecha estimada de cierre por el ritmo que lleva el proyecto: avance ÷ días desde que empezó la instalación.
+    /// Es solo informativa. Sin al menos una semana de trabajo o sin avance no se estima.
+    /// </summary>
+    public static DateOnly? EstimatedClose(decimal progress, DateOnly? firstInstall, DateOnly today)
+    {
+        if (progress >= 100)
+        {
+            return today;
+        }
+
+        if (firstInstall is null || progress <= 0)
+        {
+            return null;
+        }
+
+        var days = today.DayNumber - firstInstall.Value.DayNumber;
+        if (days < 7)
+        {
+            return null;
+        }
+
+        var perDay = progress / days;
+        return today.AddDays((int)Math.Ceiling((double)((100 - progress) / perDay)));
+    }
+
+    /// <summary>Costo por unidad (home pass, kilómetro, FAT); vacío si todavía no hay unidades.</summary>
+    public static decimal? UnitCost(decimal total, decimal units) => units <= 0 ? null : Math.Round(total / units, 2);
 }

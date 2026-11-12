@@ -1,0 +1,84 @@
+@using System.Globalization
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Web.Services
+@inject IQuantityService Quantities
+
+@* Indicadores extra del Despliegue FTTH: cierre estimado (informativo) y material por devolver por nodo. *@
+<section class="kx dz" aria-label="Más indicadores">
+    <div class="kx-card">
+        <h3>Cierre estimado</h3>
+        @if (Close is { } close)
+        {
+            <div class="kx-big">@UiText.LongDate(close)</div>
+            <p>Al ritmo actual: @Data.Progress.ToString("0.#")% de avance desde el @UiText.LongDate(First). Es solo una referencia, no marca atrasos.</p>
+        }
+        else
+        {
+            <div class="kx-big kx-big--muted">Sin datos suficientes</div>
+            <p>Se calcula con una semana o más de instalación registrada y algo de avance.</p>
+        }
+    </div>
+
+    <div class="kx-card kx-card--wide">
+        <h3>Material por devolver</h3>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else if (_pending.Count == 0)
+        {
+            <div class="kx-big kx-big--ok">Nada pendiente</div>
+            <p>Todo lo entregado a los nodos está instalado o devuelto.</p>
+        }
+        else
+        {
+            <div class="kx-big">@_pending.Sum(p => p.Lines) <small>materiales sin devolver en @_pending.Count nodos</small></div>
+            <ul class="kx-list">
+                @foreach (var p in _pending.OrderByDescending(p => p.Lines).ThenBy(p => p.Code).Take(6))
+                {
+                    <li data-tip="@($"{p.Lines} materiales|Nodo {p.Code}: sobrante entregado que no se instaló ni se devolvió")" tabindex="0">
+                        <b>@p.Code</b>
+                        <span class="kx-bar"><i style="width:@Pct(p.Lines)%"></i></span>
+                        <em>@p.Lines</em>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public PresentationData Data { get; set; } = default!;
+    [Parameter, EditorRequired] public List<NodeMatrixRow> Rows { get; set; } = [];
+
+    private sealed record Pending(string Code, int Lines);
+
+    private bool _loading = true;
+    private List<Pending> _pending = [];
+    private int _max = 1;
+
+    private DateOnly? First => Data.Production.Where(p => p.Meters > 0 || p.Pieces > 0).Select(p => (DateOnly?)p.Date).Min();
+    private DateOnly? Close => DashboardMath.EstimatedClose(Data.Progress, First, Data.Today);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        var list = new List<Pending>();
+        foreach (var row in Rows)
+        {
+            var lines = (await Quantities.GetSiteMaterialsAsync(row.SiteId)).Count(q => q.Material.TracksStock && q.PendingReturn > 0);
+            if (lines > 0)
+            {
+                list.Add(new Pending(row.Code, lines));
+            }
+        }
+
+        _pending = list;
+        _max = Math.Max(1, list.Count == 0 ? 1 : list.Max(p => p.Lines));
+        _loading = false;
+    }
+
+    private string Pct(int lines) => (lines * 100.0 / _max).ToString("0.#", CultureInfo.InvariantCulture);
+}

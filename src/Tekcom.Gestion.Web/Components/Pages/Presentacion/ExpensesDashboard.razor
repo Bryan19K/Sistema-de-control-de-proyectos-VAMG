@@ -1,9 +1,11 @@
 @using System.Globalization
 @using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Models
 @using Tekcom.Gestion.Application.Services
 @using Tekcom.Gestion.Domain.Entities
 @using Tekcom.Gestion.Web.Services
 @inject IFinanceService Finance
+@inject IPresentationService PresentationApi
 @inject ProjectSelection Selection
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
@@ -29,8 +31,16 @@ else
     var liquidatedTotal = liquidated.Sum(o => o.Total);
     var buckets = Buckets(_entries.Where(e => KindOk(e) && FundOk(e) && (_year == 0 || e.Date.Year == _year) && (_month == 0 || e.Date.Month == _month)).ToList());
     var top = list.OrderByDescending(e => e.Total).Take(3).ToList();
-    var prices = _prices.OrderByDescending(p => p.TargetPrice).Take(8).ToList();
-    var orders = _orders.OrderByDescending(o => o.Total).Take(5).ToList();
+    var prices = _prices.OrderByDescending(p => p.TargetPrice).Take(7).ToList();
+    var orders = _orders.OrderByDescending(o => o.Total).Take(4).ToList();
+    var projectEntries = _entries.Any(e => e.ProjectId == _projectId) ? _entries.Where(e => e.ProjectId == _projectId).ToList() : _entries;
+    var projectSpent = projectEntries.Sum(e => e.Total);
+    var hpDone = _nodes.Where(r => r.Completed).Sum(r => r.HomesPassed ?? 0);
+    var km = _meters / 1000m;
+    var fats = _nodes.Sum(r => r.FatsInstalled);
+    var costHp = DashboardMath.UnitCost(projectSpent, hpDone);
+    var costKm = DashboardMath.UnitCost(projectSpent, km);
+    var costFat = DashboardMath.UnitCost(projectSpent, fats);
     var maxOrder = orders.Count == 0 ? 1 : orders.Max(o => o.Total);
 
     <div class="dz gx">
@@ -252,6 +262,23 @@ else
                     }
                 </div>
             </section>
+            <section class="gx-costs" @key="@($"{Sig}-4")">
+                <div class="gx-card" title="Gasto del proyecto dividido entre los home passes de los nodos finalizados">
+                    <div class="gx-card__top"><h3>Costo por home pass</h3></div>
+                    <div class="gx-big">@(costHp is null ? "—" : UiText.Money(costHp.Value))</div>
+                    <small>@UiText.Money(projectSpent) entre @UiText.Number(hpDone) HP en nodos finalizados</small>
+                </div>
+                <div class="gx-card" title="Gasto del proyecto dividido entre los kilómetros de fibra tendidos">
+                    <div class="gx-card__top"><h3>Costo por km de fibra</h3></div>
+                    <div class="gx-big">@(costKm is null ? "—" : UiText.Money(costKm.Value))</div>
+                    <small>@UiText.Money(projectSpent) entre @km.ToString("0.0") km tendidos</small>
+                </div>
+                <div class="gx-card" title="Gasto del proyecto dividido entre las FATs instaladas">
+                    <div class="gx-card__top"><h3>Costo por FAT instalada</h3></div>
+                    <div class="gx-big">@(costFat is null ? "—" : UiText.Money(costFat.Value))</div>
+                    <small>@UiText.Money(projectSpent) entre @UiText.Number(fats) FATs</small>
+                </div>
+            </section>
         </div>
     </div>
 }
@@ -267,6 +294,8 @@ else
     private List<ExpenseFund> _funds = [];
     private List<ContractOrder> _orders = [];
     private List<PriceItem> _prices = [];
+    private List<NodeMatrixRow> _nodes = [];
+    private decimal _meters;
     private int _year;
     private int _month;
     private int _kind = -1;
@@ -353,6 +382,17 @@ else
     {
         _orders = _projectId == 0 ? [] : await Finance.OrdersAsync(_projectId);
         _prices = _projectId == 0 ? [] : await Finance.PricesAsync(_projectId);
+        if (_projectId != 0)
+        {
+            var data = await PresentationApi.GetAsync(_projectId);
+            _nodes = data.Matrix;
+            _meters = data.CableMetersInstalled;
+        }
+        else
+        {
+            _nodes = [];
+            _meters = 0;
+        }
     }
 
     private void Clear() { (_year, _month, _kind, _fund) = (0, 0, -1, 0); _rangeStart = _rangeEnd = null; }
