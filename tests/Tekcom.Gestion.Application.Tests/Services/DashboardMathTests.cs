@@ -60,4 +60,14 @@ public class DashboardMathTests
         DashboardMath.UnitCost(4841.14m, 4106m).Should().Be(1.18m);
         DashboardMath.UnitCost(100m, 0m).Should().BeNull();
     }
+
+    [Fact]
+    public void Capped_percent_never_passes_the_projection_and_gap_is_in_points()
+    {
+        DashboardMath.CappedPercent(8, 8).Should().Be(100m);
+        DashboardMath.CappedPercent(12, 8).Should().Be(100m);
+        DashboardMath.CappedPercent(3, 8).Should().Be(37.5m);
+        DashboardMath.CappedPercent(3, 0).Should().BeNull();
+        DashboardMath.Gap(30m, 50m).Should().Be(-20m);
+    }
 }

@@ -1,0 +1,146 @@
+@using System.Globalization
+@using Tekcom.Gestion.Application.Common
+@using Tekcom.Gestion.Application.Models
+@using Tekcom.Gestion.Domain.Enums
+@using Tekcom.Gestion.Web.Services
+
+@* Construcción: fusiones y ODN contra la programación, por nodo y por brigada. Esperado = parte del plazo del nodo que ya pasó. *@
+@{
+    var scheduled = Rows.Where(r => r.Pace != PaceStatus.Unknown).ToList();
+    var active = scheduled.Where(r => r.Pace != PaceStatus.Completed).ToList();
+    var onTrack = scheduled.Count(r => r.Pace != PaceStatus.Behind);
+    var avgGap = active.Count == 0 ? (decimal?)null : Math.Round(active.Average(r => DashboardMath.Gap(r.Progress, r.ElapsedPercent)), 1);
+    var fusion = Totals(Rows, fusionOnly: true);
+    var odn = Totals(Rows, fusionOnly: false);
+    var expectedAvg = active.Count == 0 ? 0 : Math.Round(active.Average(r => r.ElapsedPercent), 1);
+    var late = Rows.Where(r => r.PlannedEnd is not null && r.ProjectedEnd is not null && r.Pace != PaceStatus.Completed).ToList();
+    var avgDays = late.Count == 0 ? (int?)null : (int)Math.Round(late.Average(r => r.ProjectedEnd!.Value.DayNumber - r.PlannedEnd!.Value.DayNumber));
+}
+<section class="ck dz" aria-label="Cumplimiento de la programación">
+    <div class="ck-head">
+        <h2>Construcción: cumplimiento de la programación</h2>
+        <p>Esperado es la parte del plazo de cada nodo que ya pasó; real es lo instalado sobre lo proyectado. Fusiones y ODN (cables, cajas y cruces) se miden contra esa misma programación.</p>
+    </div>
+
+    <div class="ck-kpis">
+        <div class="ck-kpi">
+            <small>Nodos en plazo</small>
+            <strong>@onTrack<i> de @scheduled.Count</i></strong>
+            <span>@(scheduled.Count == 0 ? "Sin programación cargada" : $"{onTrack * 100 / scheduled.Count}% de los programados")</span>
+        </div>
+        <div class="ck-kpi @GapClass(avgGap)">
+            <small>Brecha promedio</small>
+            <strong>@(avgGap is null ? "—" : $"{(avgGap >= 0 ? "+" : string.Empty)}{avgGap:0.#} pts")</strong>
+            <span>avance real − esperado, nodos en obra</span>
+        </div>
+        <div class="ck-kpi @GapClass(Diff(fusion.Percent, expectedAvg))">
+            <small>Fusiones</small>
+            <strong>@PctText(fusion.Percent)</strong>
+            <span>@UiText.Number(fusion.Installed) de @UiText.Number(fusion.Projected) · esperado @expectedAvg.ToString("0.#")%</span>
+        </div>
+        <div class="ck-kpi @GapClass(Diff(odn.Percent, expectedAvg))">
+            <small>ODN (cables, cajas y cruces)</small>
+            <strong>@PctText(odn.Percent)</strong>
+            <span>@UiText.Number(odn.Installed) de @UiText.Number(odn.Projected) piezas · @Rows.Count(r => r.OdnClosed) ODN cerradas</span>
+        </div>
+        <div class="ck-kpi @GapClass(avgDays is null ? null : -avgDays)">
+            <small>Fin proyectado contra el plan</small>
+            <strong>@(avgDays is null ? "—" : $"{(avgDays > 0 ? "+" : string.Empty)}{avgDays} días")</strong>
+            <span>promedio por nodo en obra (+ = después de lo planificado)</span>
+        </div>
+    </div>
+
+    <div class="ck-tables">
+        <div class="ck-card">
+            <h3>Por brigada</h3>
+            <div class="ck-wrap">
+                <table class="ck-table">
+                    <thead><tr><th>Brigada</th><th class="num">Nodos</th><th class="num">Esperado</th><th class="num">Real</th><th class="num">Brecha</th><th class="num">Fusiones</th><th class="num">ODN</th><th>Estado</th></tr></thead>
+                    <tbody>
+                        @foreach (var g in Rows.GroupBy(r => r.Brigade).OrderBy(g => g.Key))
+                        {
+                            var list = g.ToList();
+                            var act = list.Where(r => r.Pace is not (PaceStatus.Unknown or PaceStatus.Completed)).ToList();
+                            var exp = act.Count == 0 ? (decimal?)null : Math.Round(act.Average(r => r.ElapsedPercent), 1);
+                            var real = Math.Round(list.Average(r => r.Progress), 1);
+                            var gap = exp is null ? (decimal?)null : DashboardMath.Gap(act.Average(r => r.Progress), exp.Value);
+                            var f = Totals(list, true);
+                            var o = Totals(list, false);
+                            <tr>
+                                <td><b>@g.Key</b></td><td class="num">@list.Count</td>
+                                <td class="num">@(exp is null ? "—" : $"{exp:0.#}%")</td><td class="num">@real.ToString("0.#")%</td>
+                                <td class="num @GapClass(gap)">@(gap is null ? "—" : $"{(gap >= 0 ? "+" : string.Empty)}{gap:0.#}")</td>
+                                <td class="num">@PctText(f.Percent)</td><td class="num">@PctText(o.Percent)</td>
+                                <td>@StateChip(gap, act.Count > 0, list.All(r => r.Pace == PaceStatus.Completed))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="ck-card">
+            <h3>Por nodo <small>los más lejos de la programación primero</small></h3>
+            <div class="ck-wrap ck-wrap--tall">
+                <table class="ck-table">
+                    <thead><tr><th>Nodo</th><th>Brigada</th><th>Plan</th><th class="num">Esperado</th><th class="num">Real</th><th class="num">Brecha</th><th class="num">Fusiones</th><th class="num">ODN</th><th>Estado</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in Rows.OrderBy(r => r.Pace == PaceStatus.Unknown ? 1 : 0).ThenBy(r => r.Pace == PaceStatus.Completed ? 1 : 0).ThenBy(r => DashboardMath.Gap(r.Progress, r.ElapsedPercent)).ThenBy(r => r.Code))
+                        {
+                            var has = r.Pace != PaceStatus.Unknown;
+                            var gap = has ? DashboardMath.Gap(r.Progress, r.ElapsedPercent) : (decimal?)null;
+                            var f = Totals([r], true);
+                            var o = Totals([r], false);
+                            <tr>
+                                <td><b>@r.Code</b></td><td>@r.Brigade</td>
+                                <td>@(r.PlannedStart is null || r.PlannedEnd is null ? "—" : $"{UiText.ShortDate(r.PlannedStart)} – {UiText.ShortDate(r.PlannedEnd)}")</td>
+                                <td class="num">@(has ? $"{r.ElapsedPercent:0.#}%" : "—")</td><td class="num">@r.Progress.ToString("0.#")%</td>
+                                <td class="num @GapClass(gap)">@(gap is null ? "—" : $"{(gap >= 0 ? "+" : string.Empty)}{gap:0.#}")</td>
+                                <td class="num">@PctText(f.Percent)</td><td class="num">@PctText(o.Percent)</td>
+                                <td>@StateChip(gap, has, r.Pace == PaceStatus.Completed)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public List<NodeMatrixRow> Rows { get; set; } = [];
+
+    private sealed record Sum(decimal Installed, decimal Projected)
+    {
+        public decimal? Percent => DashboardMath.CappedPercent(Installed, Projected);
+    }
+
+    /// <summary>Fusiones, o todo lo demás (cables, cajas y cruces = ODN): instalado sin pasarse de lo proyectado, sobre lo proyectado.</summary>
+    private static Sum Totals(IEnumerable<NodeMatrixRow> rows, bool fusionOnly)
+    {
+        decimal installed = 0, projected = 0;
+        foreach (var r in rows.Where(r => r.Quantities is not null))
+        {
+            foreach (var (group, pair) in r.Quantities!)
+            {
+                if (group == QuantityGroup.None || (group == QuantityGroup.Fusion) != fusionOnly) { continue; }
+                installed += Math.Min(pair.Installed, pair.Projected);
+                projected += pair.Projected;
+            }
+        }
+
+        return new Sum(installed, projected);
+    }
+
+    private static decimal? Diff(decimal? percent, decimal expected) => percent is null ? null : percent - expected;
+
+    private static string PctText(decimal? v) => v is null ? "—" : $"{v:0.#}%";
+
+    private string GapClass(decimal? gap) => gap is null ? string.Empty : gap >= -10 ? "is-ok" : "is-low";
+
+    private MarkupString StateChip(decimal? gap, bool scheduledAndActive, bool completed)
+    {
+        var (cls, text) = completed ? ("is-ok", "Cumplido") : !scheduledAndActive || gap is null ? ("is-none", "Sin plan") : gap >= -10 ? ("is-ok", "En plazo") : ("is-low", "Bajo el plan");
+        return new MarkupString($"<span class=\"ck-chip {cls}\">{text}</span>");
+    }
+}
