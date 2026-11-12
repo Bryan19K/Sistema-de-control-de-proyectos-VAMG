@@ -42,3 +42,12 @@ public interface IAppearanceService
 
     Task ResetChartsAsync(CancellationToken ct = default);
 }
+
+public interface IGoalsService
+{
+    /// <summary>Meta de construcción de fábrica: 1,000 home passes por semana.</summary>
+    const int DefaultWeeklyHp = 1000;
+
+    Task<int> GetWeeklyHpGoalAsync(CancellationToken ct = default);
+    Task SaveWeeklyHpGoalAsync(int homePassesPerWeek, CancellationToken ct = default);
+}

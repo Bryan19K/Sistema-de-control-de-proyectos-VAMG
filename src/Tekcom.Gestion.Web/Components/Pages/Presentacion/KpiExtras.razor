@@ -2,6 +2,7 @@
 @using Tekcom.Gestion.Application.Common
 @using Tekcom.Gestion.Application.Models
 @using Tekcom.Gestion.Application.Services
+@using Tekcom.Gestion.Domain.Enums
 @using Tekcom.Gestion.Web.Services
 @inject IQuantityService Quantities
 
@@ -19,6 +20,23 @@
             <div class="kx-big kx-big--muted">Sin datos suficientes</div>
             <p>Se calcula con una semana o más de instalación registrada y algo de avance.</p>
         }
+    </div>
+
+    <div class="kx-card">
+        <h3>Permisos eléctricos</h3>
+        <div class="kx-permits">
+            @foreach (var status in Enum.GetValues<PermitStatus>())
+            {
+                var nodes = Rows.Where(r => r.Permit == status).OrderBy(r => r.Code).ToList();
+                <div class="kx-permit kx-permit--@((int)status)" data-tip="@($"{nodes.Count} nodos|{ConstructionMath.PermitName(status)}: {(nodes.Count == 0 ? "ninguno" : string.Join(", ", nodes.Select(n => n.Code)))}")" tabindex="0">
+                    <strong>@nodes.Count</strong><span>@ConstructionMath.PermitName(status)</span>
+                </div>
+            }
+        </div>
+        @{
+            var pending = Rows.Where(r => r.Permit != PermitStatus.Approved && r.Progress > 0).OrderBy(r => r.Code).ToList();
+        }
+        <p>@(pending.Count == 0 ? "Ningún nodo con obra iniciada está esperando permiso." : $"Con obra iniciada y sin permiso aprobado: {string.Join(", ", pending.Select(n => n.Code))}.")</p>
     </div>
 
     <div class="kx-card kx-card--wide">

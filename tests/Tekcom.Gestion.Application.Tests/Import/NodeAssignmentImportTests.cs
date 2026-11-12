@@ -112,7 +112,8 @@ public class NodeAssignmentImportTests
         son20.LogsUpToDate.Should().BeFalse("está en los pendientes de actualizar");
 
         var son19 = sites.Single(s => s.Code == "SON19");
-        (son19.KmzStatus, son19.AtpDelivered, son19.LogsUpToDate, son19.ElectricalPermitStatus).Should().Be((ClosureDocStatus.Validated, true, true, "Aprobado"));
+        (son19.KmzStatus, son19.AtpDelivered, son19.LogsUpToDate, son19.PermitStatus).Should().Be((ClosureDocStatus.Validated, true, true, PermitStatus.Approved));
+        son19.ElectricalPermitStatus.Should().Be("PERMISO APROBADO");
 
         var son23 = sites.Single(s => s.Code == "SON23");
         son23.Contractor.Should().BeNull("Optical ya no trabaja con TEK-COM");

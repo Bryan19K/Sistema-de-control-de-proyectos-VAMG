@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IDeletionService, DeletionService>();
         services.AddScoped<IAppearanceService, AppearanceService>();
+        services.AddScoped<IGoalsService, GoalsService>();
         services.AddScoped<IQuantityService, QuantityService>();
         services.AddScoped<ISiteService, SiteService>();
         services.AddScoped<IMaterialService, MaterialService>();

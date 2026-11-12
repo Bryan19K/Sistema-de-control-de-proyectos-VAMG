@@ -87,6 +87,9 @@ public class Site : AuditableEntity
     /// <summary>Estatus de los permisos eléctricos (ej. "Aprobado").</summary>
     public string? ElectricalPermitStatus { get; set; }
 
+    /// <summary>Estado del permiso: solicitud pendiente, permiso en trámite o permiso aprobado.</summary>
+    public PermitStatus PermitStatus { get; set; } = PermitStatus.RequestPending;
+
     /// <summary>Si ya se entregó el material al contratista (SI / NO del Excel). Null = sin dato.</summary>
     public bool? MaterialsDelivered { get; set; }
 

@@ -127,7 +127,7 @@ public sealed class PresentationService(
             s.ReadyToMeasure, s.Site.IsReadyToDeliver, s.VinetasInstalled, s.VinetasProjected,
             metersBySite.GetValueOrDefault(s.Site.Id), piecesBySite.GetValueOrDefault(s.Site.Id),
             s.Site.PlannedEnd, s.Pace.ProjectedEnd, s.Site.Contractor?.Name ?? "Sin brigada", s.Site.HomesPassed,
-            s.Site.Supervisor?.Name ?? "Sin supervisor", s.Quantities, s.Site.OdnFinalized, s.Pace.ElapsedPercent, s.Site.PlannedStart)).ToList();
+            s.Site.Supervisor?.Name ?? "Sin supervisor", s.Quantities, s.Site.OdnFinalized, s.Pace.ElapsedPercent, s.Site.PlannedStart, s.Site.PermitStatus)).ToList();
 
         var production = installedMoves.GroupBy(m => m.Date).OrderBy(g => g.Key)
             .Select(g => new DayProduction(g.Key, g.Sum(MetersOf), g.Where(IsFat).Sum(m => m.Quantity), g.Where(m => m.Material?.Unit == "UND").Sum(m => m.Quantity)))
@@ -137,6 +137,14 @@ public sealed class PresentationService(
             .Select(g => new SiteDayProduction(g.Key.SiteId, g.Key.Date, g.Sum(MetersOf), g.Where(IsFat).Sum(m => m.Quantity),
                 g.Where(m => m.Material?.Unit == "UND").Sum(m => m.Quantity)))
             .ToList();
+
+        var pieceMoves = installedMoves.Where(m => m.Material is not null && ConstructionMath.PieceGroups.Contains(m.Material.Group))
+            .Select(m => new PieceMove(m.SiteId!.Value, m.Material!.Group, m.Date, m.Quantity)).ToList();
+        var hpBasis = siteList.Where(s => s.Site.HomesPassed is > 0).ToDictionary(s => s.Site.Id,
+            s => new NodeHpBasis(s.Site.HomesPassed!.Value, s.Quantities.ToDictionary(q => q.Key, q => q.Value.Projected)));
+        var hpByWeek = ConstructionMath.WeeklyHp(pieceMoves, hpBasis).OrderBy(w => w.Key).Select(w => new WeekHp(w.Key, w.Value)).ToList();
+        var fusionByDay = pieceMoves.Where(m => m.Group == QuantityGroup.Fusion).GroupBy(m => m.Date).OrderBy(g => g.Key)
+            .Select(g => new DayCount(g.Key, g.Sum(m => m.Quantity))).ToList();
 
         var feederCables = charts.Feeder.Where(f => f.Line.Kind is FeederItemKind.Cable12 or FeederItemKind.Cable24 or FeederItemKind.Cable48 or FeederItemKind.Cable96).ToList();
         var catalog = (await materials.ListAsync(includeInactive: true, ct: ct)).ToDictionary(m => m.Id);
@@ -174,6 +182,8 @@ public sealed class PresentationService(
             CableMetersProjected = odnMetersProjected + feederCables.Sum(f => f.Planned),
             PiecesInstalled = piecesBySite.Values.Sum(),
             PlannedToday = curve.FirstOrDefault(p => p.Date == today)?.Planned,
+            HpByWeek = hpByWeek,
+            FusionByDay = fusionByDay,
             Nodes = siteList.OrderByDescending(s => s.Site.OdnFinalized ? 100 : s.ProgressPercent).ThenBy(s => s.Site.Code)
                 .Select(s => new NodeBar(s.Site.Code, s.Site.OdnFinalized ? 100 : s.ProgressPercent, s.Pace.Status, s.Site.IsReadyToDeliver)).ToList(),
             StageColumns = stageColumns,
